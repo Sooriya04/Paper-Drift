@@ -1,0 +1,121 @@
+<!--
+  @file index.html
+  @description Interactive client-side web playground for paper-drift.
+  Enables browser-based drag-and-drop PDF conversion powered entirely by WebAssembly.
+  Zero server uploads, 100% private, instant high-fidelity HTML generation.
+  Part of paper-drift - https://github.com/Sooriya04/Paper-Drift
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>paper-drift | High-Fidelity WebAssembly PDF Parser &amp; Converter</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <!-- PDF.js WebAssembly / Worker engine -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    <header class="app-header">
+      <div class="header-badge">⚡ Powered by WebAssembly (WASM) &bull; Zero Server Dependencies</div>
+      <h1>paper-drift</h1>
+      <p class="subtitle">Convert any PDF into high-fidelity standalone HTML without losing layout, fonts, or formatting. Runs 100% locally in your browser or via the zero-Chromium CLI.</p>
+      <div class="header-links" style="margin-top: 12px;">
+        <a href="https://github.com/Sooriya04/Paper-Drift" target="_blank" rel="noopener noreferrer" style="color: #3b82f6; text-decoration: none; font-size: 0.9rem; font-weight: 500;">★ GitHub: Sooriya04/Paper-Drift</a>
+      </div>
+    </header>
+
+    <main class="converter-panel">
+      <!-- Upload Zone -->
+      <section class="upload-section">
+        <div class="drop-zone" id="dropZone">
+          <input type="file" id="fileInput" accept="application/pdf" hidden>
+          <div class="drop-icon">📄</div>
+          <h3>Drag &amp; Drop your PDF here</h3>
+          <p>or <button type="button" class="btn-link" id="browseBtn">browse files</button></p>
+          <span class="file-info" id="fileInfo">Supports any standard PDF document (100% private, client-side only)</span>
+        </div>
+      </section>
+
+      <!-- Options -->
+      <section class="options-grid">
+        <div class="option-card">
+          <label for="conversionMode" class="option-title">Fidelity Mode</label>
+          <select id="conversionMode" class="input-select">
+            <option value="dual" selected>Pixel-Perfect (With Background &amp; Selectable Text)</option>
+            <option value="pure-css">Pure Text Only (No Background)</option>
+          </select>
+          <span class="option-hint">Pixel-perfect mode ensures 100% visual match while keeping text selectable.</span>
+        </div>
+
+        <div class="option-card">
+          <label for="renderScale" class="option-title">Resolution / Scale</label>
+          <select id="renderScale" class="input-select">
+            <option value="1.5">Standard (1.5x - Fast &amp; Crisp)</option>
+            <option value="2.0" selected>High-DPI / Retina (2.0x - Ultra Sharp)</option>
+            <option value="3.0">Print Quality (3.0x - Maximum Quality)</option>
+          </select>
+          <span class="option-hint">Scales the background rendering for ultra-sharp text and graphics.</span>
+        </div>
+
+        <div class="option-card">
+          <label for="pageRange" class="option-title">Pages to Convert</label>
+          <input type="text" id="pageRange" class="input-text" placeholder="e.g. all or 1-5, 8">
+          <span class="option-hint">Leave blank or type "all" to convert the entire document.</span>
+        </div>
+      </section>
+
+      <!-- Action Button & Progress -->
+      <div class="action-bar">
+        <button id="convertBtn" class="btn-primary" disabled>
+          <span>Convert PDF to HTML</span>
+        </button>
+        <button id="downloadBtn" class="btn-secondary" disabled>
+          <span>Download HTML File</span>
+        </button>
+      </div>
+
+      <div class="progress-bar-container" id="progressContainer" style="display: none;">
+        <div class="progress-info">
+          <span id="progressStatus">Initializing WebAssembly engine...</span>
+          <span id="progressPercent">0%</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+      </div>
+
+      <!-- Preview Section -->
+      <section class="preview-section" id="previewSection" style="display: none;">
+        <div class="preview-header">
+          <div class="tabs">
+            <button class="tab-btn active" data-tab="rendered">Rendered HTML</button>
+            <button class="tab-btn" data-tab="code">HTML Source</button>
+          </div>
+          <div class="preview-stats" id="previewStats"></div>
+        </div>
+
+        <div class="tab-content" id="tabRendered">
+          <div class="preview-viewport" id="previewContainer"></div>
+        </div>
+
+        <div class="tab-content" id="tabCode" style="display: none;">
+          <pre class="code-viewer"><code id="codeViewer"></code></pre>
+        </div>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <div class="tech-note">
+        <strong>How it works:</strong> The PDF binary is parsed locally in the browser runtime via WebAssembly. Vector artwork and raster backgrounds are rendered at native scale while text objects and font coordinates are mapped directly to selectable HTML elements. Zero files are uploaded to any server.
+      </div>
+    </footer>
+  </div>
+
+  <script src="playground.js"></script>
+</body>
+</html>

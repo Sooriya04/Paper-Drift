@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    name: Build & Smoke Test (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x, 22.x]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Verify CLI Help & Version Flags
+        run: |
+          node bin/cli.js --help
+          node bin/cli.js --version
+
+      - name: Execute CLI PDF-to-HTML Conversion Test
+        run: |
+          node bin/cli.js sample.pdf test-output.html --scale 1.5
+          test -s test-output.html
+          echo "✔ Conversion smoke test passed successfully."
+
+      - name: Test Programmatic ESM API
+        run: |
+          node -e "
+            import('./src/index.js').then(async ({ convertPdfToHtml }) => {
+              const res = await convertPdfToHtml('sample.pdf', { withBg: false });
+              if (!res.html || res.pagesProcessed !== 1) {
+                console.error('API test failed');
+                process.exit(1);
+              }
+              console.log('✔ Programmatic API test passed in ' + res.durationMs + 'ms');
+            });
+          "

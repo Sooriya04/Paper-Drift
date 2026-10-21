@@ -1,0 +1,34 @@
+{
+  "name": "paper-drift",
+  "version": "0.1.0",
+  "description": "Zero-Python, zero-Chromium high-fidelity PDF parser and HTML converter powered by WebAssembly",
+  "type": "module",
+  "main": "src/index.js",
+  "bin": {
+    "paper-drift": "./bin/cli.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Sooriya04/Paper-Drift.git"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "convert": "node bin/cli.js sample.pdf output.html",
+    "test:cli": "node bin/cli.js sample.pdf /tmp/paper-drift-test.html"
+  },
+  "keywords": [
+    "pdf",
+    "webassembly",
+    "wasm",
+    "pdf-to-html",
+    "rag",
+    "mupdf",
+    "document-parser"
+  ],
+  "author": "Sooriya",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "mupdf": "^1.28.1",
+    "pdfjs-dist": "^3.11.174"
+  }
+}

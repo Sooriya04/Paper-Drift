@@ -1,0 +1,86 @@
+%PDF-1.4
+1 0 obj
+<<
+  /Type /Catalog
+  /Pages 2 0 R
+>>
+endobj
+2 0 obj
+<<
+  /Type /Pages
+  /Kids [3 0 R]
+  /Count 1
+>>
+endobj
+3 0 obj
+<<
+  /Type /Page
+  /Parent 2 0 R
+  /MediaBox [0 0 612 792]
+  /Contents 4 0 R
+  /Resources <<
+    /Font <<
+      /F1 5 0 R
+      /F2 6 0 R
+    >>
+  >>
+>>
+endobj
+4 0 obj
+<<
+  /Length 320
+>>
+stream
+BT
+/F1 28 Tf
+50 720 Td
+(paper-drift Document Parser) Tj
+0 -40 Td
+/F2 14 Tf
+(High-Fidelity PDF Conversion via WebAssembly) Tj
+0 -30 Td
+(This document was parsed and rendered completely without headless Chromium.) Tj
+0 -25 Td
+(Notice how all text layers, coordinates, fonts, and positions stay intact!) Tj
+0 -35 Td
+(Key Capabilities:) Tj
+0 -20 Td
+(  - Zero-Chromium and zero-Python architecture) Tj
+0 -20 Td
+(  - Fully selectable and searchable HTML text overlay) Tj
+0 -20 Td
+(  - High-DPI WebAssembly rendering engine with 100% privacy) Tj
+ET
+endstream
+endobj
+5 0 obj
+<<
+  /Type /Font
+  /Subtype /Type1
+  /BaseFont /Helvetica-Bold
+>>
+endobj
+6 0 obj
+<<
+  /Type /Font
+  /Subtype /Type1
+  /BaseFont /Helvetica
+>>
+endobj
+xref
+0 7
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000266 00000 n 
+0000000638 00000 n 
+0000000719 00000 n 
+trailer
+<<
+  /Size 7
+  /Root 1 0 R
+>>
+startxref
+795
+%%EOF
