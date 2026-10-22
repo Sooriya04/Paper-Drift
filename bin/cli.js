@@ -2,14 +2,14 @@
 /**
  * @file bin/cli.js
  * @description Command-line interface executable for paper-drift.
- * Enables zero-Chromium PDF to high-fidelity HTML and natural spatial text conversion straight from terminal.
+ * Enables zero-Chromium PDF to high-fidelity HTML, Markdown, and natural spatial text conversion straight from terminal.
  * Part of paper-drift - https://github.com/Sooriya04/Paper-Drift
  */
 
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { convertPdfToHtml } from '../src/index.js';
+import { convertPdfToHtml, convertPdfToMarkdown } from '../src/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -32,7 +32,7 @@ High-fidelity, zero-Chromium PDF parser powered by WebAssembly & spatial layout 
   output           (Optional) Destination file path (default: <input>.<ext>)
 
 \x1b[1mOPTIONS:\x1b[0m
-  --format <fmt>   Output format: html | text | json (default: html)
+  --format <fmt>   Output format: markdown (md) | html | text | json (default: html)
   --scale <num>    DPI scale for background raster rendering (default: 2.0)
   --no-bg          Text-only mode; disables background raster rendering
   --pages <range>  Target pages to convert (e.g. "1-5", "2,4,6", default: "all")
@@ -41,6 +41,7 @@ High-fidelity, zero-Chromium PDF parser powered by WebAssembly & spatial layout 
 
 \x1b[1mEXAMPLES:\x1b[0m
   $ paper-drift document.pdf
+  $ paper-drift paper.pdf output.md --format md
   $ paper-drift paper.pdf output.txt --format text
   $ paper-drift paper.pdf output.html --scale 2.5
   $ paper-drift manual.pdf manual.html --pages 1-10 --no-bg
@@ -99,7 +100,8 @@ async function run() {
     process.exit(1);
   }
 
-  const ext = format === 'text' ? 'txt' : (format === 'json' ? 'json' : 'html');
+  const isMarkdown = format === 'md' || format === 'markdown';
+  const ext = isMarkdown ? 'md' : (format === 'text' ? 'txt' : (format === 'json' ? 'json' : 'html'));
   if (!outputFile) {
     const parsedPath = path.parse(resolvedInput);
     outputFile = path.join(process.cwd(), `${parsedPath.name}.${ext}`);
@@ -114,33 +116,54 @@ async function run() {
   console.log('🔄 Running WebAssembly parser with spatial reading order decomposition...');
 
   try {
-    const result = await convertPdfToHtml(resolvedInput, {
-      scale,
-      withBg,
-      pageRange,
-      format,
-      onProgress: ({ current, total, pageNumber }) => {
-        process.stdout.write(`   ⏳ Processing page ${pageNumber} (${current}/${total})...\r`);
-      }
-    });
-
     let outputContent = '';
-    if (format === 'text') {
-      outputContent = result.text;
-    } else if (format === 'json') {
-      outputContent = JSON.stringify(result.pages, null, 2);
+    let durationMs = 0;
+    let pagesProcessed = 0;
+    let totalPages = 0;
+    let columnsOrTablesInfo = '';
+
+    if (isMarkdown) {
+      const result = await convertPdfToMarkdown(resolvedInput, {
+        pageRange,
+        onProgress: ({ current, total, pageNumber }) => {
+          process.stdout.write(`   ⏳ Processing page ${pageNumber} (${current}/${total})...\r`);
+        }
+      });
+      outputContent = result.markdown;
+      durationMs = result.durationMs;
+      pagesProcessed = result.pagesProcessed;
+      totalPages = result.totalPages;
+      columnsOrTablesInfo = result.pages.map(p => `p${p.pageNumber}:${p.tablesCount}tables`).join(', ');
     } else {
-      outputContent = result.html;
+      const result = await convertPdfToHtml(resolvedInput, {
+        scale,
+        withBg,
+        pageRange,
+        format,
+        onProgress: ({ current, total, pageNumber }) => {
+          process.stdout.write(`   ⏳ Processing page ${pageNumber} (${current}/${total})...\r`);
+        }
+      });
+      durationMs = result.durationMs;
+      pagesProcessed = result.pagesProcessed;
+      totalPages = result.totalPages;
+      columnsOrTablesInfo = result.pages.map(p => `p${p.pageNumber}:${p.columnsDetected}col`).join(', ');
+
+      if (format === 'text') {
+        outputContent = result.text;
+      } else if (format === 'json') {
+        outputContent = JSON.stringify(result.pages, null, 2);
+      } else {
+        outputContent = result.html;
+      }
     }
 
     fs.writeFileSync(outputFile, outputContent, 'utf-8');
     const stats = fs.statSync(outputFile);
     const sizeKb = (stats.size / 1024).toFixed(1);
 
-    const columnsInfo = result.pages.map(p => `p${p.pageNumber}:${p.columnsDetected}col`).join(', ');
-
-    console.log(`\n\x1b[32m✔ Conversion complete in ${result.durationMs}ms!\x1b[0m`);
-    console.log(`📊 Converted ${result.pagesProcessed} of ${result.totalPages} pages (${sizeKb} KB) [${columnsInfo}]`);
+    console.log(`\n\x1b[32m✔ Conversion complete in ${durationMs}ms!\x1b[0m`);
+    console.log(`📊 Converted ${pagesProcessed} of ${totalPages} pages (${sizeKb} KB) [${columnsOrTablesInfo}]`);
     console.log(`✨ Open your file: \x1b[4mfile://${outputFile}\x1b[0m\n`);
   } catch (err) {
     console.error(`\n\x1b[31m❌ Conversion failed:\x1b[0m ${err.message}`);

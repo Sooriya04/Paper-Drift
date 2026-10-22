@@ -42,3 +42,10 @@
 - Added automatic display equation framing (`$$...$$`), equation numbering tags (`\tag{N}`), and inline math wrapping (`$...$`).
 - Created automated test suite in `test/math.test.js` validating math font signatures, operator translation, and expression formatting.
 - Integrated math restoration engine into programmatic library exports in `src/index.js` and `npm test`.
+
+### feat: implement direct pdf to markdown conversion and gfm table reconstruction
+- Implemented pure geometric table reconstruction in `src/tables/` with column gutter projection, cell slicing, and header folding.
+- Built direct WebAssembly PDF-to-Markdown engine in `src/markdown/` detecting typography headings, lists, and LaTeX math blocks.
+- Added scientific notation and exponent restoration in table cells (`$2.3 \cdot 10^{19}$`, `$O(n^2 \cdot d)$`).
+- Updated CLI (`bin/cli.js`) to support `--format md` / `--format markdown` with page range filtering.
+- Created test suites in `test/tables.test.js` and `test/markdown.test.js` validating tables and markdown generation in `npm test`.
