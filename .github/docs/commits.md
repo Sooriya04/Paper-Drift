@@ -24,3 +24,11 @@
 - Updated `package.json` scripts (`start`, `test`, `convert`) and header docstrings across all files.
 - Streamlined CI workflow to run `npm test` and enabled CI triggers on `dev` branch.
 - Cleaned root workspace to standard minimal layout.
+
+### feat: add top 20 landmark research paper benchmark suite with zero git bloat
+**Technical Summary:**
+- Curated top 20 landmark AI research papers (Transformers, ResNet, LoRA, DeepSeek-V3, SAM) in `test/scripts/benchmark-papers.js`.
+- Implemented automated curl-based fetcher that downloads benchmark PDFs into a gitignored directory.
+- Added throughput and fidelity benchmark runner measuring pages/sec and generated HTML size across papers.
+- Integrated landmark paper stress testing step into GitHub Actions CI pipeline.
+- Added npm script shortcuts (`benchmark`, `benchmark:20`, `benchmark:download`, `benchmark:list`).

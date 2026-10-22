@@ -6,6 +6,14 @@ node_modules/
 !playground/index.html
 .tmp-test/
 
+# Local test PDFs (never commit external PDFs)
+*.pdf
+!test/fixtures/sample.pdf
+test/fixtures/*.pdf
+!test/fixtures/sample.pdf
+test/fixtures/benchmarks/
+.tmp-benchmarks/
+
 # Logs
 *.log
 npm-debug.log*

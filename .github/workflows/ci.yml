@@ -29,3 +29,6 @@ jobs:
 
       - name: Run Test Suite
         run: npm test
+
+      - name: Benchmark Landmark ArXiv Papers
+        run: npm run benchmark

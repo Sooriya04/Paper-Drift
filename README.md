@@ -125,13 +125,30 @@ const { html } = await convertPdfToHtml(buffer, {
 
 ---
 
-## 🧪 Testing
+## 🧪 Testing & Benchmarking
 
+### Unit & Smoke Tests
 Run the automated test suite locally:
 ```bash
 npm test
 ```
-The test suite validates CLI arguments, WebAssembly parsing fidelity, dual-layer HTML generation, and the programmatic ESM API.
+
+### Landmark Research Paper Stress Tests (Top 20 ArXiv Papers)
+`paper-drift` includes a curated benchmark suite featuring the **Top 20 landmark AI research papers** (Transformers, ResNet, LoRA, BERT, GAN, DeepSeek-V3, SAM, etc.). Papers are downloaded on-the-fly and gitignored:
+
+```bash
+# List all 20 curated landmark papers with ArXiv IDs and layout notes
+npm run benchmark:list
+
+# Download all 20 papers locally to test/fixtures/benchmarks/ (gitignored)
+npm run benchmark:download
+
+# Run quick benchmark against top 3 papers (Attention, ResNet, LoRA)
+npm run benchmark
+
+# Run benchmark against all 20 papers
+npm run benchmark:20
+```
 
 ---
 

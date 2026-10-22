@@ -15,7 +15,11 @@
     "start": "node playground/server.js",
     "test": "node test/cli.test.js",
     "convert": "node bin/cli.js test/fixtures/sample.pdf output.html",
-    "generate:sample": "node test/scripts/generate-sample.js"
+    "generate:sample": "node test/scripts/generate-sample.js",
+    "benchmark": "node test/scripts/benchmark-papers.js run --limit 3 --pages 1-2",
+    "benchmark:20": "node test/scripts/benchmark-papers.js run --limit 20 --pages 1-2",
+    "benchmark:download": "node test/scripts/benchmark-papers.js download 20",
+    "benchmark:list": "node test/scripts/benchmark-papers.js list"
   },
   "keywords": [
     "pdf",
