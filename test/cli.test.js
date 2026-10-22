@@ -15,7 +15,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const samplePdfPath = path.resolve(__dirname, 'fixtures/sample.pdf');
-const tempOutputDir = path.resolve(__dirname, '../.tmp-test');
+const resultsOutputDir = path.resolve(__dirname, 'results/cli-test');
 
 function runTest(name, fn) {
   try {
@@ -46,8 +46,11 @@ if (!fs.existsSync(samplePdfPath)) {
   execSync(`node "${path.resolve(__dirname, 'scripts/generate-sample.js')}"`, { stdio: 'inherit' });
 }
 
-// Ensure temp directory exists
-fs.mkdirSync(tempOutputDir, { recursive: true });
+// Clean stale previous outputs before starting this run to avoid overlapping
+if (fs.existsSync(resultsOutputDir)) {
+  fs.rmSync(resultsOutputDir, { recursive: true, force: true });
+}
+fs.mkdirSync(resultsOutputDir, { recursive: true });
 
 try {
   // 1. Page range parser unit test
@@ -79,7 +82,7 @@ try {
   });
 
   // 4. CLI file conversion test
-  const cliOutputFile = path.join(tempOutputDir, 'cli-test.html');
+  const cliOutputFile = path.join(resultsOutputDir, 'sample.html');
   runTest('CLI converts PDF to standalone HTML with background', () => {
     if (fs.existsSync(cliOutputFile)) fs.unlinkSync(cliOutputFile);
     execSync(`node bin/cli.js "${samplePdfPath}" "${cliOutputFile}" --scale 1.5`, { stdio: 'pipe' });
@@ -104,10 +107,7 @@ try {
     if (!result.html.includes('pdf-text-layer')) throw new Error('Text layer missing from generated document');
   });
 
-  console.log('\n\x1b[32m✔ All tests completed successfully!\x1b[0m\n');
+  console.log('\n\x1b[32m✔ All tests completed successfully! Outputs preserved in test/results/cli-test/\x1b[0m\n');
 } finally {
-  // Cleanup temp files
-  if (fs.existsSync(tempOutputDir)) {
-    fs.rmSync(tempOutputDir, { recursive: true, force: true });
-  }
+  // Retain output results on disk per user request
 }

@@ -178,7 +178,7 @@ export const TOP_20_PAPERS = [
 ];
 
 const BENCHMARKS_DIR = path.resolve(__dirname, '../fixtures/benchmarks');
-const TEMP_OUTPUT_DIR = path.resolve(__dirname, '../../.tmp-benchmarks');
+const RESULTS_DIR = path.resolve(__dirname, '../results');
 
 /**
  * Downloads a paper via curl with proper headers and redirect handling.
@@ -251,7 +251,16 @@ export async function runBenchmark({ limit = 5, pageRange = '1-2', scale = 1.5 }
   console.log(`\n\x1b[1m\x1b[36m⚡ paper-drift Benchmark Test\x1b[0m`);
   console.log(`Benchmarking ${selected.length} papers (Pages: ${pageRange}, Scale: ${scale}x)\n`);
 
-  fs.mkdirSync(TEMP_OUTPUT_DIR, { recursive: true });
+  fs.mkdirSync(RESULTS_DIR, { recursive: true });
+
+  // Clean stale benchmark outputs from previous runs to prevent overlapping files
+  const existingFiles = fs.readdirSync(RESULTS_DIR);
+  for (const file of existingFiles) {
+    if (file.endsWith('.html') || file.endsWith('.txt') || file.endsWith('.json')) {
+      fs.unlinkSync(path.join(RESULTS_DIR, file));
+    }
+  }
+
   const summary = [];
 
   for (let i = 0; i < selected.length; i++) {
@@ -260,7 +269,9 @@ export async function runBenchmark({ limit = 5, pageRange = '1-2', scale = 1.5 }
 
     try {
       const pdfPath = downloadPaper(paper);
-      const outputPath = path.join(TEMP_OUTPUT_DIR, `${paper.slug}.html`);
+      const htmlPath = path.join(RESULTS_DIR, `${paper.slug}.html`);
+      const txtPath = path.join(RESULTS_DIR, `${paper.slug}.txt`);
+      const jsonPath = path.join(RESULTS_DIR, `${paper.slug}.json`);
 
       const result = await convertPdfToHtml(pdfPath, {
         scale,
@@ -268,8 +279,10 @@ export async function runBenchmark({ limit = 5, pageRange = '1-2', scale = 1.5 }
         pageRange
       });
 
-      fs.writeFileSync(outputPath, result.html, 'utf-8');
-      const outSizeKb = (fs.statSync(outputPath).size / 1024).toFixed(1);
+      fs.writeFileSync(htmlPath, result.html, 'utf-8');
+      fs.writeFileSync(txtPath, result.text, 'utf-8');
+      fs.writeFileSync(jsonPath, JSON.stringify(result.pages, null, 2), 'utf-8');
+      const outSizeKb = (fs.statSync(htmlPath).size / 1024).toFixed(1);
 
       console.log(`\x1b[32m✔ ${result.pagesProcessed}p in ${result.durationMs}ms (${outSizeKb} KB)\x1b[0m`);
 
@@ -286,12 +299,8 @@ export async function runBenchmark({ limit = 5, pageRange = '1-2', scale = 1.5 }
     }
   }
 
-  console.log(`\n\x1b[1m\x1b[32m✔ Benchmark Summary Table:\x1b[0m`);
+  console.log(`\n\x1b[1m\x1b[32m✔ Benchmark Complete! Outputs saved in test/results/ (not deleted)\x1b[0m`);
   console.table(summary);
-
-  if (fs.existsSync(TEMP_OUTPUT_DIR)) {
-    fs.rmSync(TEMP_OUTPUT_DIR, { recursive: true, force: true });
-  }
 }
 
 // CLI argument parsing

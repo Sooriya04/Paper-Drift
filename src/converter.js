@@ -1,7 +1,7 @@
 /**
  * @file src/converter.js
- * @description Core WebAssembly PDF conversion engine using MuPDF WASM.
- * Extracts structured text and renders crisp background layers without headless Chromium.
+ * @description Core WebAssembly PDF conversion engine using MuPDF WASM and recursive XY-Cut spatial ordering.
+ * Resolves multi-column reading orders dynamically while preserving pixel-perfect visual fidelity.
  * Part of paper-drift - https://github.com/Sooriya04/Paper-Drift
  */
 
@@ -9,6 +9,7 @@ import mupdf from 'mupdf';
 import fs from 'fs';
 import path from 'path';
 import { buildHtmlDocument } from './utils/html-template.js';
+import { resolveReadingOrder } from './spatial/reading-order.js';
 
 /**
  * Parses page range string (e.g. "all", "1-3", "1,3,5") into sorted 0-indexed page indices.
@@ -48,8 +49,17 @@ export function parsePageRange(range, totalPages) {
   return Array.from(indices).sort((a, b) => a - b);
 }
 
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 /**
- * Converts a PDF buffer or file path into a standalone high-fidelity HTML document.
+ * Converts a PDF buffer or file path into a standalone high-fidelity HTML document with spatial reading order.
  *
  * @param {string|Buffer|Uint8Array} input - File path or binary buffer of the PDF.
  * @param {Object} [options={}] - Conversion options.
@@ -57,8 +67,9 @@ export function parsePageRange(range, totalPages) {
  * @param {boolean} [options.withBg=true] - Whether to render lossless background image layer.
  * @param {string|number[]} [options.pageRange='all'] - Page range to process.
  * @param {string} [options.title] - Document title in HTML head.
+ * @param {string} [options.format='html'] - Target output format ('html', 'text', 'json').
  * @param {function} [options.onProgress] - Optional progress callback `({ current, total, pageIndex }) => void`.
- * @returns {Promise<{ html: string, totalPages: number, pagesProcessed: number, durationMs: number }>}
+ * @returns {Promise<{ html: string, text: string, pages: Array<Object>, totalPages: number, pagesProcessed: number, durationMs: number }>}
  */
 export async function convertPdfToHtml(input, options = {}) {
   const startTime = Date.now();
@@ -91,6 +102,8 @@ export async function convertPdfToHtml(input, options = {}) {
   }
 
   const pagesHtml = [];
+  const processedPages = [];
+  const documentTextBlocks = [];
 
   for (let step = 0; step < targetIndices.length; step++) {
     const pageIndex = targetIndices[step];
@@ -118,18 +131,48 @@ export async function convertPdfToHtml(input, options = {}) {
       bgImgTag = `    <img src="data:image/png;base64,${pngBase64}" class="pdf-bg-layer" alt="Page ${pageNumber} Background" />\n`;
     }
 
-    // Extract structured HTML text layer
+    // Extract structured JSON and resolve spatial reading order
     const structuredText = page.toStructuredText();
-    const rawHtmlText = structuredText.asHTML();
+    const pageJson = JSON.parse(structuredText.asJSON());
+    const spatialResult = resolveReadingOrder(pageJson, widthPt, heightPt);
+
+    // Build spatially ordered DOM text layer
+    let textLayerHtml = '';
+    for (const block of spatialResult.blocks) {
+      for (const line of (block.lines || [])) {
+        const fontSize = line.font?.size || line.bbox?.h || 12;
+        const fontFamily = line.font?.family ? `${line.font.family}, sans-serif` : 'sans-serif';
+        const fontWeight = line.font?.weight || 'normal';
+        const fontStyle = line.font?.style || 'normal';
+        const left = line.bbox?.x ?? line.x ?? 0;
+        const top = line.bbox?.y ?? (line.y - fontSize) ?? 0;
+        const height = line.bbox?.h ?? fontSize;
+
+        const escaped = escapeHtml(line.text || '');
+        textLayerHtml += `      <p class="pdf-line" style="position: absolute; left: ${left.toFixed(1)}pt; top: ${top.toFixed(1)}pt; font-size: ${fontSize.toFixed(1)}pt; font-family: ${fontFamily}; font-weight: ${fontWeight}; font-style: ${fontStyle}; height: ${height.toFixed(1)}pt; line-height: 1;">${escaped}</p>\n`;
+      }
+    }
 
     const pageMarkup = `  <!-- Page ${pageNumber} -->
   <article class="pdf-page" id="page-${pageNumber}" style="width: ${widthPt.toFixed(1)}pt; height: ${heightPt.toFixed(1)}pt;" data-page="${pageNumber}">
 ${bgImgTag}    <div class="pdf-text-layer">
-      ${rawHtmlText}
-    </div>
+${textLayerHtml}    </div>
   </article>`;
 
     pagesHtml.push(pageMarkup);
+
+    processedPages.push({
+      pageNumber,
+      width: widthPt,
+      height: heightPt,
+      columnsDetected: spatialResult.columnsDetected,
+      blocksCount: spatialResult.blocks.length,
+      text: spatialResult.text
+    });
+
+    if (spatialResult.text) {
+      documentTextBlocks.push(spatialResult.text);
+    }
   }
 
   const finalHtml = buildHtmlDocument({
@@ -138,8 +181,12 @@ ${bgImgTag}    <div class="pdf-text-layer">
     options: { withBg }
   });
 
+  const fullText = documentTextBlocks.join('\n\n--- Page Break ---\n\n');
+
   return {
     html: finalHtml,
+    text: fullText,
+    pages: processedPages,
     totalPages,
     pagesProcessed: targetIndices.length,
     durationMs: Date.now() - startTime

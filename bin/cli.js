@@ -2,7 +2,7 @@
 /**
  * @file bin/cli.js
  * @description Command-line interface executable for paper-drift.
- * Enables zero-Chromium PDF to high-fidelity HTML conversion straight from terminal.
+ * Enables zero-Chromium PDF to high-fidelity HTML and natural spatial text conversion straight from terminal.
  * Part of paper-drift - https://github.com/Sooriya04/Paper-Drift
  */
 
@@ -22,24 +22,26 @@ const packageJson = JSON.parse(
 function printHelp() {
   console.log(`
 \x1b[1m\x1b[36mpaper-drift\x1b[0m v${packageJson.version}
-High-fidelity, zero-Chromium PDF to HTML parser powered by WebAssembly.
+High-fidelity, zero-Chromium PDF parser powered by WebAssembly & spatial layout decomposition.
 
 \x1b[1mUSAGE:\x1b[0m
-  $ paper-drift <input.pdf> [output.html] [options]
+  $ paper-drift <input.pdf> [output] [options]
 
 \x1b[1mARGUMENTS:\x1b[0m
   input.pdf        Path to the PDF file to convert
-  output.html      (Optional) Destination HTML file path (default: <input>.html)
+  output           (Optional) Destination file path (default: <input>.<ext>)
 
 \x1b[1mOPTIONS:\x1b[0m
+  --format <fmt>   Output format: html | text | json (default: html)
   --scale <num>    DPI scale for background raster rendering (default: 2.0)
-  --no-bg          Text-only mode; disables background image rendering
+  --no-bg          Text-only mode; disables background raster rendering
   --pages <range>  Target pages to convert (e.g. "1-5", "2,4,6", default: "all")
   -v, --version    Show version number
   -h, --help       Display this help message
 
 \x1b[1mEXAMPLES:\x1b[0m
   $ paper-drift document.pdf
+  $ paper-drift paper.pdf output.txt --format text
   $ paper-drift paper.pdf output.html --scale 2.5
   $ paper-drift manual.pdf manual.html --pages 1-10 --no-bg
 `);
@@ -61,13 +63,16 @@ async function run() {
   // Parse positional and flag arguments
   let inputFile = null;
   let outputFile = null;
+  let format = 'html';
   let scale = 2.0;
   let withBg = true;
   let pageRange = 'all';
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
-    if (arg === '--scale') {
+    if (arg === '--format') {
+      format = (args[++i] || 'html').toLowerCase();
+    } else if (arg === '--scale') {
       scale = parseFloat(args[++i]) || 2.0;
     } else if (arg === '--no-bg') {
       withBg = false;
@@ -94,35 +99,48 @@ async function run() {
     process.exit(1);
   }
 
+  const ext = format === 'text' ? 'txt' : (format === 'json' ? 'json' : 'html');
   if (!outputFile) {
     const parsedPath = path.parse(resolvedInput);
-    outputFile = path.join(process.cwd(), `${parsedPath.name}.html`);
+    outputFile = path.join(process.cwd(), `${parsedPath.name}.${ext}`);
   } else {
     outputFile = path.resolve(process.cwd(), outputFile);
   }
 
   console.log(`\x1b[36m⚡ paper-drift\x1b[0m v${packageJson.version}`);
   console.log(`📄 Input:   ${resolvedInput}`);
-  console.log(`🎯 Output:  ${outputFile}`);
+  console.log(`🎯 Output:  ${outputFile} (Format: ${format.toUpperCase()})`);
   console.log(`⚙️  Config:  Scale=${scale}x, Background=${withBg ? 'lossless' : 'disabled'}, Pages=${pageRange}`);
-  console.log('🔄 Initializing WebAssembly runtime...');
+  console.log('🔄 Running WebAssembly parser with spatial reading order decomposition...');
 
   try {
     const result = await convertPdfToHtml(resolvedInput, {
       scale,
       withBg,
       pageRange,
+      format,
       onProgress: ({ current, total, pageNumber }) => {
         process.stdout.write(`   ⏳ Processing page ${pageNumber} (${current}/${total})...\r`);
       }
     });
 
-    fs.writeFileSync(outputFile, result.html, 'utf-8');
+    let outputContent = '';
+    if (format === 'text') {
+      outputContent = result.text;
+    } else if (format === 'json') {
+      outputContent = JSON.stringify(result.pages, null, 2);
+    } else {
+      outputContent = result.html;
+    }
+
+    fs.writeFileSync(outputFile, outputContent, 'utf-8');
     const stats = fs.statSync(outputFile);
     const sizeKb = (stats.size / 1024).toFixed(1);
 
+    const columnsInfo = result.pages.map(p => `p${p.pageNumber}:${p.columnsDetected}col`).join(', ');
+
     console.log(`\n\x1b[32m✔ Conversion complete in ${result.durationMs}ms!\x1b[0m`);
-    console.log(`📊 Converted ${result.pagesProcessed} of ${result.totalPages} pages (${sizeKb} KB)`);
+    console.log(`📊 Converted ${result.pagesProcessed} of ${result.totalPages} pages (${sizeKb} KB) [${columnsInfo}]`);
     console.log(`✨ Open your file: \x1b[4mfile://${outputFile}\x1b[0m\n`);
   } catch (err) {
     console.error(`\n\x1b[31m❌ Conversion failed:\x1b[0m ${err.message}`);

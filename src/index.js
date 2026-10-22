@@ -6,9 +6,14 @@
  */
 
 export { convertPdfToHtml, parsePageRange } from './converter.js';
+export { resolveReadingOrder, recursiveXyCut } from './spatial/reading-order.js';
 
-import { convertPdfToHtml } from './converter.js';
+import { convertPdfToHtml, parsePageRange } from './converter.js';
+import { resolveReadingOrder, recursiveXyCut } from './spatial/reading-order.js';
 
 export default {
-  convertPdfToHtml
+  convertPdfToHtml,
+  parsePageRange,
+  resolveReadingOrder,
+  recursiveXyCut
 };
