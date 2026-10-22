@@ -1,10 +1,10 @@
 # Dependencies
 node_modules/
 
-# Build and output artifacts
+# Build and test artifacts
 *.html
-!demo/index.html
-!index.html
+!playground/index.html
+.tmp-test/
 
 # Logs
 *.log

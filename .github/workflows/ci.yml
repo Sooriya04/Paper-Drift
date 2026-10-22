@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, dev ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ main, master, dev ]
 
 jobs:
   test:
@@ -27,26 +27,5 @@ jobs:
       - name: Install dependencies
         run: npm ci --ignore-scripts || npm install --ignore-scripts
 
-      - name: Verify CLI Help & Version Flags
-        run: |
-          node bin/cli.js --help
-          node bin/cli.js --version
-
-      - name: Execute CLI PDF-to-HTML Conversion Test
-        run: |
-          node bin/cli.js sample.pdf test-output.html --scale 1.5
-          test -s test-output.html
-          echo "✔ Conversion smoke test passed successfully."
-
-      - name: Test Programmatic ESM API
-        run: |
-          node -e "
-            import('./src/index.js').then(async ({ convertPdfToHtml }) => {
-              const res = await convertPdfToHtml('sample.pdf', { withBg: false });
-              if (!res.html || res.pagesProcessed !== 1) {
-                console.error('API test failed');
-                process.exit(1);
-              }
-              console.log('✔ Programmatic API test passed in ' + res.durationMs + 'ms');
-            });
-          "
+      - name: Run Test Suite
+        run: npm test

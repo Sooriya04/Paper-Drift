@@ -15,24 +15,33 @@
 
 ```
 paper-drift/
-├── .gitignore               # Ignored files (node_modules, generated HTML outputs, logs)
-├── AGENT.md                 # This specification, guidelines, and roadmap file
+├── .github/
+│   ├── docs/
+│   │   └── commits.md            # Commit log with concise technical explanations
+│   └── workflows/
+│       └── ci.yml                # CI/CD pipeline (Node 18.x, 20.x, 22.x)
+├── .gitignore                    # Ignored files (node_modules, test artifacts)
+├── AGENT.md                      # This specification, guidelines, and roadmap file
 ├── bin/
-│   └── cli.js               # CLI executable (paper-drift command-line runner)
+│   └── cli.js                    # CLI executable (paper-drift command-line runner)
 ├── src/
-│   ├── index.js             # Main programmatic library export
-│   ├── converter.js         # Core conversion engine using WebAssembly (MuPDF)
+│   ├── index.js                  # Main programmatic library export
+│   ├── converter.js              # Core conversion engine using WebAssembly (MuPDF)
 │   └── utils/
-│       └── html-template.js # Standalone HTML template generator & CSS styling
-├── public/                  # Web playground / browser demo assets
-│   ├── index.html           # Browser playground interface
-│   ├── app.js               # Browser client-side interaction script
-│   └── style.css            # Stylesheet for playground interface
-├── sample.pdf               # Reference sample PDF for testing
-├── generate-sample.js       # Standalone script to create sample.pdf
-├── server.js                # Lightweight dev server to test playground locally
-├── package.json             # NPM package configuration (bin, main, scripts)
-└── README.md                # Public project documentation & quickstart
+│       └── html-template.js      # Standalone HTML template generator & CSS styling
+├── playground/                   # Dedicated browser playground / demo
+│   ├── index.html                # Browser playground interface
+│   ├── playground.js             # Browser client-side interaction script (PDF.js)
+│   ├── style.css                 # Dark-themed styling for playground
+│   └── server.js                 # Dev server for playground (COOP/COEP WASM headers)
+├── test/                         # Dedicated test suite & test assets
+│   ├── fixtures/
+│   │   └── sample.pdf            # Sample test PDF
+│   ├── scripts/
+│   │   └── generate-sample.js    # Script to regenerate sample.pdf
+│   └── cli.test.js               # Automated test runner (CLI & API smoke tests)
+├── package.json                  # NPM package configuration (bin, main, scripts)
+└── README.md                     # Public project documentation & quickstart
 ```
 
 ---

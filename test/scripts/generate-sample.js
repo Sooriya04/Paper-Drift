@@ -1,11 +1,17 @@
 /**
- * @file generate-sample.js
- * @description Generates a valid test PDF document (sample.pdf) with custom text, fonts, and layout
- * without requiring external PDF generation libraries. Used for quick CLI and playground verification.
+ * @file test/scripts/generate-sample.js
+ * @description Generates a valid test PDF document (test/fixtures/sample.pdf) with custom text, fonts, and layout
+ * without requiring external PDF generation libraries. Used for automated tests and CLI verification.
  * Part of paper-drift - https://github.com/Sooriya04/Paper-Drift
  */
 
 import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const targetPath = path.resolve(__dirname, '../fixtures/sample.pdf');
 
 // Create a valid minimalist PDF file without external dependencies
 function generateSamplePdf() {
@@ -98,8 +104,9 @@ startxref
 %%EOF
 `;
 
-  fs.writeFileSync('sample.pdf', content);
-  console.log('✔ Created sample.pdf successfully!');
+  fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+  fs.writeFileSync(targetPath, content);
+  console.log(`✔ Created ${targetPath} successfully!`);
 }
 
 generateSamplePdf();

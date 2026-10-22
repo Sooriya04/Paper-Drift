@@ -1,5 +1,5 @@
 /**
- * @file playground.js
+ * @file playground/playground.js
  * @description Client-side controller script for the paper-drift web playground.
  * Manages PDF drag-and-drop, UI settings, client-side WebAssembly execution via PDF.js worker,
  * live visual preview rendering, code inspection, and file downloads.

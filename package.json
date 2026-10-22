@@ -12,9 +12,10 @@
     "url": "https://github.com/Sooriya04/Paper-Drift.git"
   },
   "scripts": {
-    "start": "node server.js",
-    "convert": "node bin/cli.js sample.pdf output.html",
-    "test:cli": "node bin/cli.js sample.pdf /tmp/paper-drift-test.html"
+    "start": "node playground/server.js",
+    "test": "node test/cli.test.js",
+    "convert": "node bin/cli.js test/fixtures/sample.pdf output.html",
+    "generate:sample": "node test/scripts/generate-sample.js"
   },
   "keywords": [
     "pdf",

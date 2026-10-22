@@ -1,5 +1,5 @@
 /**
- * @file server.js
+ * @file playground/server.js
  * @description Lightweight local HTTP development server for the paper-drift web playground.
  * Configures appropriate MIME types and Cross-Origin-Opener/Embedder headers for WebAssembly runtimes.
  * Part of paper-drift - https://github.com/Sooriya04/Paper-Drift

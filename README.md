@@ -125,6 +125,16 @@ const { html } = await convertPdfToHtml(buffer, {
 
 ---
 
+## 🧪 Testing
+
+Run the automated test suite locally:
+```bash
+npm test
+```
+The test suite validates CLI arguments, WebAssembly parsing fidelity, dual-layer HTML generation, and the programmatic ESM API.
+
+---
+
 ## 🗺️ Roadmap: The RAG & Math Evolution
 
 We are actively expanding `paper-drift` into the **Zero-Python, RAG-First Document Engine**:

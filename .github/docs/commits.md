@@ -16,3 +16,11 @@
 - Regenerated `package-lock.json` matching `paper-drift` package identity.
 - Enabled GitHub Actions npm cache resolution in `actions/setup-node@v4`.
 - Updated CI install step to use `npm ci --ignore-scripts` for fast, deterministic dependency installs.
+
+### refactor: reorganize project into clean playground and test directories
+**Technical Summary:**
+- Migrated web playground assets (`index.html`, `playground.js`, `style.css`, `server.js`) into dedicated `playground/` folder.
+- Created `test/` directory with fixtures (`test/fixtures/sample.pdf`), generator script (`test/scripts/`), and automated test runner (`test/cli.test.js`).
+- Updated `package.json` scripts (`start`, `test`, `convert`) and header docstrings across all files.
+- Streamlined CI workflow to run `npm test` and enabled CI triggers on `dev` branch.
+- Cleaned root workspace to standard minimal layout.
