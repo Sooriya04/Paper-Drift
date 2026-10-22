@@ -6,6 +6,7 @@ node_modules/
 !playground/index.html
 .tmp-test/
 test/results/
+docs/
 
 # Local test PDFs (never commit external PDFs)
 *.pdf

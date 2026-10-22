@@ -152,17 +152,6 @@ npm run benchmark:20
 
 ---
 
-## 🗺️ Roadmap: The RAG & Math Evolution
-
-We are actively expanding `paper-drift` into the **Zero-Python, RAG-First Document Engine**:
-- [x] **Phase 1**: WebAssembly core engine, standalone HTML generation, zero-Chromium CLI.
-- [ ] **Phase 2**: Multi-column spatial reading order detection (reading multi-column text correctly without column interweaving).
-- [ ] **Phase 3**: LaTeX math heuristic restoration (detecting sub/superscripts, math fonts, and wrapping formulas in `$$...$$` with live KaTeX preview).
-- [ ] **Phase 4**: Merged table cell (`colspan`) reconstruction for GFM Markdown tables.
-- [ ] **Phase 5**: Hierarchical RAG chunk tree output (`{ hierarchy, content, estimatedTokens, pageRange }`).
-
----
-
 ## 📄 License
 
 Apache-2.0 License &copy; 2026 [Sooriya](https://github.com/Sooriya04)

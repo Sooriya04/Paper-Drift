@@ -35,3 +35,10 @@
 - Added automated pre-run output cleanup in test and benchmark runners to prevent file overlap across executions.
 - Updated GitHub Actions CI with automated PDF caching and downloadable test artifact packaging (`actions/upload-artifact@v4`).
 - Strictly enforced `.gitignore` exclusion for benchmark PDFs and results to guarantee zero repository bloat.
+
+### feat: implement heuristic latex math restoration engine and test suite
+- Built Unicode-to-LaTeX dictionary in `src/math/symbols.js` mapping Greek alphabets, math operators, relations, and set glyphs.
+- Implemented heuristic sub/superscript detector in `src/math/restorer.js` analyzing font sizes and baseline coordinate shifts.
+- Added automatic display equation framing (`$$...$$`), equation numbering tags (`\tag{N}`), and inline math wrapping (`$...$`).
+- Created automated test suite in `test/math.test.js` validating math font signatures, operator translation, and expression formatting.
+- Integrated math restoration engine into programmatic library exports in `src/index.js` and `npm test`.
