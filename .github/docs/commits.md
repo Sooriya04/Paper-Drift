@@ -43,6 +43,13 @@
 - Created automated test suite in `test/math.test.js` validating math font signatures, operator translation, and expression formatting.
 - Integrated math restoration engine into programmatic library exports in `src/index.js` and `npm test`.
 
+### docs: build tactile developer website in docs and configure github pages ci
+- Transformed documentation website into `docs/` using the tactile editorial frontend design system (`anti-vibe-ui` / `tasteful-frontend`).
+- Structured dark-mode surface elevation tiers (`#090a0b`, `#131518`), hairline borders, and monospace micro-typography.
+- Added live CLI & API interactive tabbed switcher, economic token-cost breakdown tables, and quickstarts.
+- Added automated GitHub Pages deployment workflow in `.github/workflows/pages.yml`.
+- Maintained strict `.gitignore` privacy for `docs/goal.md` and benchmark PDFs.
+
 ### feat: implement direct pdf to markdown conversion and gfm table reconstruction
 - Implemented pure geometric table reconstruction in `src/tables/` with column gutter projection, cell slicing, and header folding.
 - Built direct WebAssembly PDF-to-Markdown engine in `src/markdown/` detecting typography headings, lists, and LaTeX math blocks.

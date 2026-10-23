@@ -4,10 +4,10 @@ node_modules/
 # Build and test artifacts
 *.html
 !playground/index.html
-!website/*.html
+!docs/*.html
 .tmp-test/
 test/results/
-docs/
+docs/goal.md
 
 # Local test PDFs (never commit external PDFs)
 *.pdf
