@@ -1,6 +1,6 @@
 {
   "name": "paper-drift",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Zero-Python, zero-Chromium WebAssembly document parser, HTML renderer, and Markdown engine with GFM tables and math",
   "type": "module",
   "main": "src/index.js",

@@ -130,25 +130,49 @@ When feeding 10-page academic papers into LLMs (Claude, GPT-4, Cursor, Antigravi
 
 ---
 
-## 🤖 Using as an AI Agent Skill (Claude, Cursor, Antigravity)
+## 🤖 Turnkey AI Agent Skill (Claude, Cursor, Antigravity)
 
-Install the turnkey `paper-drift` Agent Skill into your workspace with a single `npx` command:
+`paper-drift` is built from the ground up as a native **AI Agent Skill** to eliminate the **"Multimodal PDF Token Tax"**. 
+
+When an AI coding or research agent ingests raw PDFs as images, it burns ~1,500 to 2,000 vision tokens per page (crowding context windows and costing $0.50–$2.00 per query). By equipping your agent with the `paper-drift` skill, the agent pre-processes PDFs locally via WebAssembly into clean Markdown, GFM tables, and LaTeX equations in **< 400ms**—cutting token consumption by **90%+**.
+
+### 1-Click Skill Installation
+
+Install the canonical [`SKILL.md`](skills/paper-drift/SKILL.md) into any workspace with a single command:
 
 ```bash
-# 1. Auto-install into current project (.agent/skills/paper-drift/SKILL.md)
+# 1. Default: Auto-install to current workspace (.agent/skills/paper-drift/SKILL.md)
 npx paper-drift skill
 
-# 2. Or target Claude Code workspace (.claude/skills/)
+# 2. Target Claude Code workspace (.claude/skills/paper-drift/SKILL.md)
 npx paper-drift skill --claude
 
-# 3. Or target Cursor rules (.cursor/rules/)
+# 3. Target Cursor workspace rules (.cursor/rules/paper-drift.md)
 npx paper-drift skill --cursor
 
-# 4. Or install globally for all projects
+# 4. Install globally for all projects (~/.gemini/... & ~/.claude/...)
 npx paper-drift skill --global
+
+# 5. Output raw SKILL.md to stdout (for piping or custom paths)
+npx paper-drift skill cat
 ```
 
-Whenever you ask your agent to *"read this paper"* or *"extract data from this PDF"*, the agent automatically invokes `npx paper-drift paper.pdf --format md` locally, avoiding the multimodal vision token tax and preserving 100% of tables and LaTeX formulas.
+### How the Agent Uses It
+
+Once installed, your agent automatically activates the skill whenever you provide a PDF:
+
+```text
+User: "Summarize the experimental results from attention-is-all-you-need.pdf"
+
+Agent (Internal):
+  1. Detects paper-drift skill
+  2. Executes: npx -y paper-drift attention-is-all-you-need.pdf --format md --pages 6-8
+  3. Receives clean GFM Table 1 and BLEU score comparisons in < 250ms
+  4. Answers your query using 1,200 text tokens instead of 20,000 vision tokens!
+```
+
+- 📖 **Skill Specification:** [`skills/paper-drift/SKILL.md`](skills/paper-drift/SKILL.md)
+- 🌐 **Interactive Documentation:** [https://sooriya04.github.io/Paper-Drift/#skill](https://sooriya04.github.io/Paper-Drift/#skill)
 
 ---
 

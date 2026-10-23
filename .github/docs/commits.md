@@ -83,3 +83,16 @@
 - Fixed `options.pages` handling across Markdown and HTML converters to support numbers, arrays, and ranges.
 - Fixed table cell formatting to normalize internal newlines and preserve Markdown table row integrity.
 - Added strict CLI `--format` validation and expanded automated unit tests in `test/cli.test.js`, `test/tables.test.js`, and `test/markdown.test.js`.
+
+### docs: expand README with turnkey AI agent skill workflows and installation guide
+- Documented the "Multimodal PDF Token Tax" problem and 90%+ token reduction solution for AI coding agents.
+- Added comprehensive 1-click CLI installer guide (`npx paper-drift skill`) for Antigravity, Claude Code, and Cursor.
+- Added end-to-end user-agent interaction flow example and direct links to live documentation.
+
+### release: v0.1.1 bugfixes, types, license, and ai agent skill documentation
+- Bumped package version to `v0.1.1` for npm release and GitHub release.
+- Added official Apache-2.0 `LICENSE` file and complete TypeScript definitions (`src/index.d.ts`).
+- Removed bloated unused `pdfjs-dist` dependency, cutting 65 transitive packages from `node_modules`.
+- Fixed `options.pages` handling across Markdown and HTML converters to support numbers, arrays, and ranges.
+- Fixed table cell formatting to normalize internal newlines and preserve Markdown table row integrity.
+- Expanded `README.md` and `docs/index.html` with turnkey AI Agent Skill workflows and 1-click `npx` installer.
