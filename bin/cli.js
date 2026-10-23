@@ -10,6 +10,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { convertPdfToHtml, convertPdfToMarkdown } from '../src/index.js';
+import { installSkill, getSkillContent } from '../src/skill/installer.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -45,11 +46,57 @@ High-fidelity, zero-Chromium PDF parser powered by WebAssembly & spatial layout 
   $ paper-drift paper.pdf output.txt --format text
   $ paper-drift paper.pdf output.html --scale 2.5
   $ paper-drift manual.pdf manual.html --pages 1-10 --no-bg
+
+\x1b[1mAGENT SKILL:\x1b[0m
+  $ paper-drift skill                 Install skill into agent workspace (.agent/skills)
+  $ paper-drift skill --claude        Install skill into Claude workspace (.claude/skills)
+  $ paper-drift skill --cursor        Install skill into Cursor rules (.cursor/rules)
+  $ paper-drift skill --global        Install skill globally to user home directory
+  $ paper-drift skill cat             Output raw SKILL.md to stdout
 `);
 }
 
 async function run() {
   const args = process.argv.slice(2);
+
+  // Handle agent skill subcommands
+  if (args[0] === 'skill' || args.includes('--install-skill')) {
+    if (args.includes('cat') || args.includes('print')) {
+      process.stdout.write(getSkillContent());
+      process.exit(0);
+    }
+
+    const isGlobal = args.includes('--global');
+    const isClaude = args.includes('--claude');
+    const isCursor = args.includes('--cursor');
+    const isAgent = args.includes('--agent') || args.includes('--antigravity');
+    let dest = null;
+    const destIdx = args.indexOf('--dest');
+    if (destIdx !== -1 && args[destIdx + 1]) {
+      dest = args[destIdx + 1];
+    }
+
+    try {
+      const installed = installSkill({
+        global: isGlobal,
+        claude: isClaude,
+        cursor: isCursor,
+        agent: isAgent,
+        dest
+      });
+
+      console.log('\n\x1b[1m\x1b[36mpaper-drift\x1b[0m \x1b[32mAgent Skill Installed Successfully!\x1b[0m\n');
+      for (const p of installed) {
+        console.log(`  \x1b[32m✔\x1b[0m ${path.relative(process.cwd(), p) || p}`);
+      }
+      console.log('\n\x1b[90mYour AI coding agent can now parse PDFs with zero multimodal token tax.\x1b[0m');
+      console.log('\x1b[90mAsk your agent: "Read this PDF" or "Extract Table 1 from paper.pdf"\x1b[0m\n');
+      process.exit(0);
+    } catch (err) {
+      console.error(`\x1b[31mError installing skill:\x1b[0m ${err.message}`);
+      process.exit(1);
+    }
+  }
 
   if (args.length === 0 || args.includes('-h') || args.includes('--help')) {
     printHelp();

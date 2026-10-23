@@ -43,13 +43,6 @@
 - Created automated test suite in `test/math.test.js` validating math font signatures, operator translation, and expression formatting.
 - Integrated math restoration engine into programmatic library exports in `src/index.js` and `npm test`.
 
-### docs: build tactile developer website in docs and configure github pages ci
-- Transformed documentation website into `docs/` using the tactile editorial frontend design system (`anti-vibe-ui` / `tasteful-frontend`).
-- Structured dark-mode surface elevation tiers (`#090a0b`, `#131518`), hairline borders, and monospace micro-typography.
-- Added live CLI & API interactive tabbed switcher, economic token-cost breakdown tables, and quickstarts.
-- Added automated GitHub Pages deployment workflow in `.github/workflows/pages.yml`.
-- Maintained strict `.gitignore` privacy for `docs/goal.md` and benchmark PDFs.
-
 ### feat: implement direct pdf to markdown conversion and gfm table reconstruction
 - Implemented pure geometric table reconstruction in `src/tables/` with column gutter projection, cell slicing, and header folding.
 - Built direct WebAssembly PDF-to-Markdown engine in `src/markdown/` detecting typography headings, lists, and LaTeX math blocks.
@@ -76,3 +69,14 @@
 - Added 1-click copyable terminal command box and interactive integration code switcher.
 - Restored `playground/index.html` as the dedicated standalone WebAssembly interactive demo.
 - Added `.agent/` directory to `.gitignore` to prevent agent configuration leaks.
+
+### docs: add developer website, github pages ci, and turnkey AI agent skill
+- Transformed developer website from `website/` into standard `/docs` directory for GitHub Pages hosting.
+- Configured `.github/workflows/pages.yml` with `actions/deploy-pages@v4` for automated GitHub Pages deployment on `main`.
+- Created standardized turnkey Agent Skill in `skills/paper-drift/SKILL.md` and `.agent/skills/paper-drift/SKILL.md`.
+- Implemented `npx paper-drift skill` CLI subcommand supporting automatic workspace detection, `--claude`, `--cursor`, `--global`, and `skill cat` stdout output.
+- Embedded turnkey Agent Skill specification, 5 install command options/targets, and 1-click clipboard export into `docs/index.html`.
+- Added interactive terminal tabs (`CLI`, `Node.js SDK`, `Agent Quickstart`, `SKILL.md`) with dynamic language indicators and copy actions in `docs/app.js`.
+- Integrated official npm vector branding badge into website navigation bar and footer.
+- Maintained strict `.gitignore` privacy for `docs/goal.md` while tracking `docs/index.html`, `docs/style.css`, and `docs/app.js`.
+- Added comprehensive unit tests in `test/cli.test.js` covering skill file installation and raw markdown dumping.

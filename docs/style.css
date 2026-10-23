@@ -134,6 +134,34 @@ body {
   color: var(--text-dim);
 }
 
+.btn-npm {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--surface-1);
+  border: 1px solid var(--border-hairline);
+  box-shadow: var(--inset-bevel);
+  color: var(--text-secondary);
+  height: 28px;
+  padding: 0 9px;
+  border-radius: var(--radius-control);
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background 100ms ease-out, border-color 100ms ease-out, color 100ms ease-out;
+}
+
+.btn-npm:hover {
+  background: var(--surface-2);
+  border-color: rgba(203, 56, 55, 0.5);
+  color: var(--text-primary);
+}
+
+.btn-npm svg {
+  color: #cb3837;
+  flex-shrink: 0;
+}
+
 .btn-git {
   display: inline-flex;
   align-items: center;
@@ -541,11 +569,68 @@ body {
   border-bottom-color: var(--text-primary);
 }
 
+.terminal-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.terminal-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: var(--surface-1);
+  border: 1px solid var(--border-hairline);
+  color: var(--text-secondary);
+  height: 24px;
+  padding: 0 8px;
+  border-radius: var(--radius-chip);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 100ms ease-out;
+}
+
+.terminal-copy-btn:hover {
+  background: var(--surface-2);
+  color: var(--text-primary);
+  border-color: var(--border-focus);
+}
+
 .terminal-lang {
   font-family: 'JetBrains Mono', monospace;
   font-size: 11px;
   color: var(--text-faint);
-  padding-right: 0.5rem;
+  padding-right: 0.25rem;
+}
+
+.code-scrollable {
+  max-height: 480px;
+  overflow-y: auto;
+}
+
+.skill-meta-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.skill-path-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--surface-1);
+  border: 1px solid var(--border-hairline);
+  padding: 0.35rem 0.65rem;
+  border-radius: var(--radius-control);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.skill-path-badge code {
+  color: var(--text-primary);
 }
 
 .tab-pane {
@@ -679,6 +764,16 @@ body {
   color: var(--text-primary);
 }
 
+.footer-npm-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.footer-npm-link svg {
+  color: #cb3837;
+}
+
 /* =========================================================
    Mobile Responsiveness (< 768px)
    ========================================================= */
@@ -689,6 +784,19 @@ body {
 
   .nav-links .nav-item {
     display: none;
+  }
+
+  .nav-links {
+    gap: 0.5rem;
+  }
+
+  @media (max-width: 480px) {
+    .btn-git span {
+      display: none;
+    }
+    .btn-git {
+      padding: 0 8px;
+    }
   }
 
   .page-body {

@@ -81,7 +81,24 @@ try {
     }
   });
 
-  // 4. CLI file conversion test
+  // 4. CLI agent skill installer test
+  runTest('CLI installs agent skill via skill subcommand', () => {
+    const customSkillPath = path.join(resultsOutputDir, 'test-skill.md');
+    execSync(`node bin/cli.js skill --dest "${customSkillPath}"`, { stdio: 'pipe' });
+    if (!fs.existsSync(customSkillPath)) throw new Error('Skill file was not written to target');
+    const skillContent = fs.readFileSync(customSkillPath, 'utf-8');
+    if (!skillContent.includes('name: paper-drift')) throw new Error('Invalid skill header in generated file');
+  });
+
+  // 5. CLI agent skill cat test
+  runTest('CLI outputs raw skill via skill cat', () => {
+    const catOutput = execSync('node bin/cli.js skill cat', { encoding: 'utf-8' });
+    if (!catOutput.startsWith('---') || !catOutput.includes('Agent Skill')) {
+      throw new Error('skill cat did not output expected markdown frontmatter');
+    }
+  });
+
+  // 6. CLI file conversion test
   const cliOutputFile = path.join(resultsOutputDir, 'sample.html');
   runTest('CLI converts PDF to standalone HTML with background', () => {
     if (fs.existsSync(cliOutputFile)) fs.unlinkSync(cliOutputFile);

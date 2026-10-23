@@ -130,6 +130,28 @@ When feeding 10-page academic papers into LLMs (Claude, GPT-4, Cursor, Antigravi
 
 ---
 
+## 🤖 Using as an AI Agent Skill (Claude, Cursor, Antigravity)
+
+Install the turnkey `paper-drift` Agent Skill into your workspace with a single `npx` command:
+
+```bash
+# 1. Auto-install into current project (.agent/skills/paper-drift/SKILL.md)
+npx paper-drift skill
+
+# 2. Or target Claude Code workspace (.claude/skills/)
+npx paper-drift skill --claude
+
+# 3. Or target Cursor rules (.cursor/rules/)
+npx paper-drift skill --cursor
+
+# 4. Or install globally for all projects
+npx paper-drift skill --global
+```
+
+Whenever you ask your agent to *"read this paper"* or *"extract data from this PDF"*, the agent automatically invokes `npx paper-drift paper.pdf --format md` locally, avoiding the multimodal vision token tax and preserving 100% of tables and LaTeX formulas.
+
+---
+
 ## 🌐 Interactive Web Playground
 
 `paper-drift` includes a local WebAssembly playground with live GFM table and KaTeX formula preview:

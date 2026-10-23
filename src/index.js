@@ -10,6 +10,7 @@ export { convertPdfToHtml, parsePageRange } from './converter.js';
 export { convertPdfToMarkdown, pageToMarkdown } from './markdown/index.js';
 export { reconstructTableFromLines, formatTableCell, foldHeaders } from './tables/index.js';
 export { resolveReadingOrder, recursiveXyCut } from './spatial/reading-order.js';
+export { installSkill, getSkillContent } from './skill/installer.js';
 export {
   restoreLineMath,
   restoreBlockMath,
