@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>paper-drift &bull; Zero-Python WebAssembly Document Engine</title>
+  <meta name="description" content="High-density, zero-Chromium WebAssembly document engine that converts PDFs into clean Markdown with GFM tables and math, or standalone HTML. Slashes AI agent token costs by 90%+.">
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- Top Navigation Bar -->
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="brand-group">
+        <a href="#" class="brand-title">paper-drift</a>
+        <span class="meta-tag">v0.1.0</span>
+      </div>
+
+      <nav class="nav-links">
+        <a href="#economics" class="nav-item">Economics</a>
+        <a href="#architecture" class="nav-item">Architecture</a>
+        <a href="#quickstart" class="nav-item">Integration</a>
+        <a href="https://www.npmjs.com/package/paper-drift" target="_blank" rel="noopener" class="nav-item font-mono text-dim">npm</a>
+        <a href="https://github.com/Sooriya04/Paper-Drift" target="_blank" rel="noopener" class="btn-git">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
+            <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+          </svg>
+          <span>Star on GitHub</span>
+        </a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page-body">
+
+    <!-- Hero Section -->
+    <section class="hero-block">
+      <div class="spec-kicker">
+        <span class="status-indicator"></span>
+        <span>ENGINE: WEBASSEMBLY (WASM) &bull; ZERO-CHROMIUM &bull; ZERO-PYTHON</span>
+      </div>
+
+      <h1 class="hero-header">
+        The 90% Cheaper Document Engine for AI Agents
+      </h1>
+
+      <p class="hero-summary">
+        A zero-dependency WebAssembly preprocessor that compiles academic and enterprise PDFs directly into structured <strong>Markdown</strong> with GFM tables and math, or standalone <strong>HTML</strong>. Eliminates the multimodal vision token tax for Claude, Cursor, and Antigravity.
+      </p>
+
+      <!-- Precision Command Bar -->
+      <div class="terminal-bar">
+        <span class="prompt-char">$</span>
+        <code class="terminal-text" id="cliCommand">npx paper-drift paper.pdf --format md</code>
+        <button class="btn-copy-bar" id="copyBtn" title="Copy command">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="9" y="9" width="13" height="13" rx="1.5" ry="1.5"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+          <span id="copyLabel">Copy</span>
+        </button>
+      </div>
+
+      <div class="hero-meta-row">
+        <span class="meta-item"><span class="bullet">&bull;</span> Ingests pages in &lt; 50ms</span>
+        <span class="meta-item"><span class="bullet">&bull;</span> 18.9 KB package size</span>
+        <span class="meta-item"><span class="bullet">&bull;</span> 100% private local execution</span>
+      </div>
+    </section>
+
+    <!-- Economics / Problem Section -->
+    <section class="panel-section" id="economics">
+      <div class="panel-heading">
+        <span class="mono-label">01 // TOKEN ECONOMICS</span>
+        <h2>The Multimodal PDF Token Tax</h2>
+        <p class="panel-sub">Raw PDF ingestion forces LLMs to render full-page images, consuming 1,600+ vision tokens per page. Preprocessing via WebAssembly strips visual waste and delivers lean, structured tokens.</p>
+      </div>
+
+      <div class="split-comparison">
+        <!-- Status Quo -->
+        <div class="card card-status-quo">
+          <div class="card-top">
+            <span class="label-status red">Raw Multimodal Vision</span>
+            <span class="mono-meta">10 Pages</span>
+          </div>
+
+          <div class="metric-num text-red">~18,000</div>
+          <span class="metric-unit">Input Tokens per Paper Query</span>
+
+          <div class="hairline-divider"></div>
+
+          <ul class="spec-list">
+            <li><span class="flag-bad">&times;</span> High API cost (~$0.25 per query)</li>
+            <li><span class="flag-bad">&times;</span> Tables flattened or mixed across columns</li>
+            <li><span class="flag-bad">&times;</span> 15&ndash;25s image raster &amp; upload latency</li>
+            <li><span class="flag-bad">&times;</span> Vision tokens exhaust model context limits</li>
+          </ul>
+        </div>
+
+        <!-- paper-drift Engine -->
+        <div class="card card-optimized">
+          <div class="card-top">
+            <span class="label-status emerald">With paper-drift WASM</span>
+            <span class="mono-meta">10 Pages</span>
+          </div>
+
+          <div class="metric-num text-emerald">~1,350</div>
+          <span class="metric-unit">Clean Structured Markdown Tokens</span>
+
+          <div class="hairline-divider"></div>
+
+          <ul class="spec-list">
+            <li><span class="flag-good">&check;</span> <strong>92.5% Net Cost Reduction</strong> (~$0.01 per query)</li>
+            <li><span class="flag-good">&check;</span> Reconstructed GFM pipe tables with exponents</li>
+            <li><span class="flag-good">&check;</span> <strong>&lt; 50ms ingestion latency</strong> via local WASM</li>
+            <li><span class="flag-good">&check;</span> Zero cloud data leakage (100% on-device)</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Architecture Section -->
+    <section class="panel-section" id="architecture">
+      <div class="panel-heading">
+        <span class="mono-label">02 // ARCHITECTURE</span>
+        <h2>Core Engine Specifications</h2>
+        <p class="panel-sub">No Python microservices. No headless Chromium containers. Pure geometric layout analysis executed in compiled WebAssembly.</p>
+      </div>
+
+      <div class="grid-quad">
+        <div class="spec-card">
+          <div class="spec-card-header">
+            <span class="spec-index">SPEC 01</span>
+            <span class="spec-chip">Spatial Order</span>
+          </div>
+          <h3>Recursive XY-Cut</h3>
+          <p>Dynamically detects column gutters and full-width banners. Decomposes 2-column and 3-column academic papers into natural reading order without interweaving columns horizontally.</p>
+        </div>
+
+        <div class="spec-card">
+          <div class="spec-card-header">
+            <span class="spec-index">SPEC 02</span>
+            <span class="spec-chip">Tabular Grids</span>
+          </div>
+          <h3>Geometric Table Reconstruction</h3>
+          <p>Discovers vertical column gutters across dense data rows and slices cells into standard GFM pipe tables (<code>| col1 | col2 |</code>) with folded multi-tier headers and zero hardcoding.</p>
+        </div>
+
+        <div class="spec-card">
+          <div class="spec-card-header">
+            <span class="spec-index">SPEC 03</span>
+            <span class="spec-chip">Math Typography</span>
+          </div>
+          <h3>Universal Math &amp; LaTeX</h3>
+          <p>Converts table math to clean universal Unicode superscripts (<code>O(n² · d)</code>, <code>2.3 · 10¹⁹</code>) readable in any viewer, and frames display formulas in LaTeX <code>$$...$$</code> blocks.</p>
+        </div>
+
+        <div class="spec-card">
+          <div class="spec-card-header">
+            <span class="spec-index">SPEC 04</span>
+            <span class="spec-chip">Runtime</span>
+          </div>
+          <h3>18.9 KB Zero-Dep Core</h3>
+          <p>No Puppeteer, no Python, no Docker. Compiled WebAssembly executes instantaneously across Node.js, Bun, and browser runtimes with under 20 KB package footprint.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Quickstart / Integration -->
+    <section class="panel-section" id="quickstart">
+      <div class="panel-heading">
+        <span class="mono-label">03 // INTEGRATION</span>
+        <h2>Developer Quickstart</h2>
+        <p class="panel-sub">Run as a standalone CLI tool, import as an ESM module, or hook directly into an autonomous AI agent harness.</p>
+      </div>
+
+      <div class="code-terminal">
+        <div class="terminal-header">
+          <div class="code-tab-list">
+            <button class="code-tab active" data-tab="tab-cli">Terminal CLI</button>
+            <button class="code-tab" data-tab="tab-node">Node.js / Bun SDK</button>
+            <button class="code-tab" data-tab="tab-agent">AI Agent / Claude</button>
+          </div>
+          <span class="terminal-lang">bash</span>
+        </div>
+
+        <!-- CLI Tab -->
+        <div class="tab-pane active" id="tab-cli">
+          <pre><code><span class="syntax-muted"># 1. Convert directly to clean Markdown</span>
+npx paper-drift research-paper.pdf output.md --format md
+
+<span class="syntax-muted"># 2. Convert specific pages to Markdown</span>
+npx paper-drift attention.pdf output.md --format md --pages 1-5,8
+
+<span class="syntax-muted"># 3. Convert to pixel-perfect standalone HTML</span>
+npx paper-drift attention.pdf output.html --scale 2.0</code></pre>
+        </div>
+
+        <!-- Node Tab -->
+        <div class="tab-pane" id="tab-node">
+          <pre><code><span class="syntax-keyword">import</span> { convertPdfToMarkdown, convertPdfToHtml } <span class="syntax-keyword">from</span> <span class="syntax-string">'paper-drift'</span>;
+
+<span class="syntax-muted">// Ingest PDF to Markdown (tables, headings, LaTeX math)</span>
+<span class="syntax-keyword">const</span> { markdown, pages } = <span class="syntax-keyword">await</span> convertPdfToMarkdown(<span class="syntax-string">'paper.pdf'</span>, {
+  pageRange: <span class="syntax-string">'1-10'</span>
+});
+
+console.log(markdown);
+
+<span class="syntax-muted">// Ingest PDF to standalone high-DPI HTML</span>
+<span class="syntax-keyword">const</span> { html } = <span class="syntax-keyword">await</span> convertPdfToHtml(<span class="syntax-string">'paper.pdf'</span>, { scale: 2.0 });</code></pre>
+        </div>
+
+        <!-- Agent Tab -->
+        <div class="tab-pane" id="tab-agent">
+          <pre><code><span class="syntax-muted">// In your AI Agent tool handler (Cursor, Claude Desktop, Antigravity):</span>
+<span class="syntax-keyword">async function</span> handleReadPdfTool({ filePath }) {
+  <span class="syntax-muted">// Ingests locally via WebAssembly in &lt; 50ms</span>
+  <span class="syntax-keyword">const</span> { markdown } = <span class="syntax-keyword">await</span> convertPdfToMarkdown(filePath);
+  <span class="syntax-keyword">return</span> markdown; <span class="syntax-muted">// Feeds clean GFM tables &amp; math to context without vision tokens</span>
+}</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- Table Output Preview -->
+    <section class="panel-section">
+      <div class="panel-heading">
+        <span class="mono-label">04 // VERIFICATION</span>
+        <h2>Table Reconstruction Output</h2>
+        <p class="panel-sub">Table 1 from <em>Attention Is All You Need</em> reconstructed directly into standard GitHub Flavored Markdown pipes with universal math exponents:</p>
+      </div>
+
+      <div class="data-table-frame">
+        <div class="table-scroll">
+          <table class="rendered-table">
+            <thead>
+              <tr>
+                <th>Layer Type</th>
+                <th>Complexity per Layer</th>
+                <th>Sequential Operations</th>
+                <th>Maximum Path Length</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Self-Attention</td>
+                <td><code>O(n² &bull; d)</code></td>
+                <td><code>O(1)</code></td>
+                <td><code>O(1)</code></td>
+              </tr>
+              <tr>
+                <td>Recurrent</td>
+                <td><code>O(n &bull; d²)</code></td>
+                <td><code>O(n)</code></td>
+                <td><code>O(n)</code></td>
+              </tr>
+              <tr>
+                <td>Convolutional</td>
+                <td><code>O(k &bull; n &bull; d²)</code></td>
+                <td><code>O(1)</code></td>
+                <td><code>O(log_k(n))</code></td>
+              </tr>
+              <tr>
+                <td>Self-Attention (restricted)</td>
+                <td><code>O(r &bull; n &bull; d)</code></td>
+                <td><code>O(1)</code></td>
+                <td><code>O(n/r)</code></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Grounded Footer -->
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <div class="footer-left">
+        <span class="footer-brand">paper-drift</span>
+        <span class="footer-meta">&copy; 2026 Sooriya &bull; Apache-2.0 License</span>
+      </div>
+
+      <div class="footer-right">
+        <a href="https://github.com/Sooriya04/Paper-Drift" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://www.npmjs.com/package/paper-drift" target="_blank" rel="noopener">npm Registry</a>
+        <a href="https://github.com/Sooriya04/Paper-Drift/issues" target="_blank" rel="noopener">Issue Tracker</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

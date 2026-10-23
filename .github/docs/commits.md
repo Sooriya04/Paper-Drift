@@ -63,3 +63,9 @@
 - Automatically extracts semantic version from commit message and synchronizes package version before publish.
 - Configured `"files"` whitelist and `"exports"` map in `package.json` reducing tarball footprint to 18.9 KB.
 - Updated `README.md` showcasing direct Markdown conversion, programmatic APIs, and 90%+ AI token savings.
+
+### feat: add developer landing website and gitignore agent directory
+- Built mobile-responsive developer website in `website/` with token comparison, feature pillars, and quickstart tabs.
+- Added 1-click copyable terminal command box and interactive integration code switcher.
+- Restored `playground/index.html` as the dedicated standalone WebAssembly interactive demo.
+- Added `.agent/` directory to `.gitignore` to prevent agent configuration leaks.

@@ -4,6 +4,7 @@ node_modules/
 # Build and test artifacts
 *.html
 !playground/index.html
+!website/*.html
 .tmp-test/
 test/results/
 docs/
@@ -25,3 +26,4 @@ npm-debug.log*
 Thumbs.db
 .vscode/
 .idea/
+.agent/
