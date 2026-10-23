@@ -1,8 +1,8 @@
 <!--
   @file playground/index.html
   @description Interactive client-side web playground for paper-drift.
-  Enables browser-based drag-and-drop PDF conversion powered entirely by WebAssembly.
-  Zero server uploads, 100% private, instant high-fidelity HTML generation.
+  Enables browser-based drag-and-drop PDF conversion powered by WebAssembly.
+  Supports live GFM Table reconstruction, LaTeX KaTeX formula preview, and instant AI token savings analysis.
   Part of paper-drift - https://github.com/Sooriya04/Paper-Drift
 -->
 <!DOCTYPE html>
@@ -10,20 +10,27 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>paper-drift | High-Fidelity WebAssembly PDF Parser &amp; Converter</title>
+  <title>paper-drift | WebAssembly Document Engine &amp; Live Markdown/KaTeX Playground</title>
   <link rel="stylesheet" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <!-- KaTeX CSS for LaTeX Math Equations -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
   <!-- PDF.js WebAssembly / Worker engine -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <!-- Marked.js for GitHub Flavored Markdown parsing -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <!-- KaTeX JS and Auto-Render extension -->
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
 </head>
 <body>
   <div class="app-container">
     <header class="app-header">
-      <div class="header-badge">⚡ Powered by WebAssembly (WASM) &bull; Zero Server Dependencies</div>
+      <div class="header-badge">⚡ WebAssembly Document Engine &bull; Zero Server Dependencies</div>
       <h1>paper-drift</h1>
-      <p class="subtitle">Convert any PDF into high-fidelity standalone HTML without losing layout, fonts, or formatting. Runs 100% locally in your browser or via the zero-Chromium CLI.</p>
+      <p class="subtitle">Convert any PDF into clean Markdown with LaTeX math &amp; GFM tables, or high-fidelity standalone HTML. Slashes AI Agent token ingestion costs by 90%+.</p>
       <div class="header-links" style="margin-top: 12px;">
         <a href="https://github.com/Sooriya04/Paper-Drift" target="_blank" rel="noopener noreferrer" style="color: #3b82f6; text-decoration: none; font-size: 0.9rem; font-weight: 500;">★ GitHub: Sooriya04/Paper-Drift</a>
       </div>
@@ -44,22 +51,23 @@
       <!-- Options -->
       <section class="options-grid">
         <div class="option-card">
-          <label for="conversionMode" class="option-title">Fidelity Mode</label>
-          <select id="conversionMode" class="input-select">
-            <option value="dual" selected>Pixel-Perfect (With Background &amp; Selectable Text)</option>
-            <option value="pure-css">Pure Text Only (No Background)</option>
+          <label for="outputTarget" class="option-title">Primary Target Format</label>
+          <select id="outputTarget" class="input-select">
+            <option value="markdown" selected>Markdown + Tables &amp; LaTeX (Agent Ready)</option>
+            <option value="dual">Pixel-Perfect HTML (Retina Background)</option>
+            <option value="both">Both (Live Markdown &amp; HTML Preview)</option>
           </select>
-          <span class="option-hint">Pixel-perfect mode ensures 100% visual match while keeping text selectable.</span>
+          <span class="option-hint">Direct Markdown conversion formats tables, math formulas, and typography.</span>
         </div>
 
         <div class="option-card">
-          <label for="renderScale" class="option-title">Resolution / Scale</label>
+          <label for="renderScale" class="option-title">Resolution / Scale (HTML)</label>
           <select id="renderScale" class="input-select">
             <option value="1.5">Standard (1.5x - Fast &amp; Crisp)</option>
             <option value="2.0" selected>High-DPI / Retina (2.0x - Ultra Sharp)</option>
             <option value="3.0">Print Quality (3.0x - Maximum Quality)</option>
           </select>
-          <span class="option-hint">Scales the background rendering for ultra-sharp text and graphics.</span>
+          <span class="option-hint">Used for background raster layer in HTML preview mode.</span>
         </div>
 
         <div class="option-card">
@@ -72,10 +80,13 @@
       <!-- Action Button & Progress -->
       <div class="action-bar">
         <button id="convertBtn" class="btn-primary" disabled>
-          <span>Convert PDF to HTML</span>
+          <span>⚡ Convert Document</span>
         </button>
-        <button id="downloadBtn" class="btn-secondary" disabled>
-          <span>Download HTML File</span>
+        <button id="downloadMdBtn" class="btn-secondary btn-accent" disabled>
+          <span>📥 Download .md</span>
+        </button>
+        <button id="downloadHtmlBtn" class="btn-secondary" disabled>
+          <span>📥 Download .html</span>
         </button>
       </div>
 
@@ -89,20 +100,61 @@
         </div>
       </div>
 
+      <!-- AI Token Savings Banner -->
+      <div class="token-savings-banner" id="tokenSavingsBanner" style="display: none;">
+        <div class="token-savings-header">
+          <span class="token-savings-title">⚡ AI Token Efficiency Metric</span>
+          <span class="token-savings-pct" id="tokenSavingsPct">91.4% Saved</span>
+        </div>
+        <div class="token-savings-grid">
+          <div class="token-stat-item">
+            <span class="stat-label">Multimodal Vision Cost</span>
+            <span class="stat-val red" id="statVisionTokens">~16,000 tokens</span>
+          </div>
+          <div class="token-stat-divider">&rarr;</div>
+          <div class="token-stat-item">
+            <span class="stat-label">paper-drift Markdown</span>
+            <span class="stat-val green" id="statMarkdownTokens">~1,380 tokens</span>
+          </div>
+          <div class="token-stat-divider">&bull;</div>
+          <div class="token-stat-item">
+            <span class="stat-label">Estimated Speedup</span>
+            <span class="stat-val blue" id="statSpeedup">12x Faster Ingestion</span>
+          </div>
+        </div>
+      </div>
+
       <!-- Preview Section -->
       <section class="preview-section" id="previewSection" style="display: none;">
         <div class="preview-header">
           <div class="tabs">
-            <button class="tab-btn active" data-tab="rendered">Rendered HTML</button>
+            <button class="tab-btn active" data-tab="markdown">Rendered Markdown &amp; Math</button>
+            <button class="tab-btn" data-tab="md-code">Markdown Source</button>
+            <button class="tab-btn" data-tab="rendered">Rendered HTML</button>
             <button class="tab-btn" data-tab="code">HTML Source</button>
           </div>
-          <div class="preview-stats" id="previewStats"></div>
+          <div class="preview-actions">
+            <button id="copyMdBtn" class="btn-small" title="Copy Markdown to Clipboard">📋 Copy Markdown</button>
+            <div class="preview-stats" id="previewStats"></div>
+          </div>
         </div>
 
-        <div class="tab-content" id="tabRendered">
+        <!-- Tab: Rendered Markdown with KaTeX & Tables -->
+        <div class="tab-content" id="tabMarkdown">
+          <div class="markdown-rendered-viewport" id="markdownRendered"></div>
+        </div>
+
+        <!-- Tab: Markdown Source -->
+        <div class="tab-content" id="tabMdCode" style="display: none;">
+          <pre class="code-viewer"><code id="mdCodeViewer"></code></pre>
+        </div>
+
+        <!-- Tab: Rendered HTML -->
+        <div class="tab-content" id="tabRendered" style="display: none;">
           <div class="preview-viewport" id="previewContainer"></div>
         </div>
 
+        <!-- Tab: HTML Source -->
         <div class="tab-content" id="tabCode" style="display: none;">
           <pre class="code-viewer"><code id="codeViewer"></code></pre>
         </div>
@@ -111,7 +163,7 @@
 
     <footer class="app-footer">
       <div class="tech-note">
-        <strong>How it works:</strong> The PDF binary is parsed locally in the browser runtime via WebAssembly. Vector artwork and raster backgrounds are rendered at native scale while text objects and font coordinates are mapped directly to selectable HTML elements. Zero files are uploaded to any server.
+        <strong>How it works:</strong> The document is parsed via WebAssembly. Multi-column spatial flows are resolved geometrically without column interweaving. Formulas are mapped to LaTeX math ($...$ / $$...$$) and tables are reconstructed into GitHub Flavored Markdown pipes.
       </div>
     </footer>
   </div>

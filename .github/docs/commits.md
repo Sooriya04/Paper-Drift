@@ -49,3 +49,10 @@
 - Added scientific notation and exponent restoration in table cells (`$2.3 \cdot 10^{19}$`, `$O(n^2 \cdot d)$`).
 - Updated CLI (`bin/cli.js`) to support `--format md` / `--format markdown` with page range filtering.
 - Created test suites in `test/tables.test.js` and `test/markdown.test.js` validating tables and markdown generation in `npm test`.
+
+### feat: add live markdown katex playground and clean universal table math
+- Upgraded web playground with live GFM table preview, KaTeX math auto-rendering, and dual markdown/html downloads.
+- Added real-time AI token efficiency analytics banner comparing multimodal vision cost vs markdown ingestion.
+- Added `/api/convert-markdown` WebAssembly conversion endpoint to local development server (`playground/server.js`).
+- Refined table cell formatter to emit clean universal Unicode math (`O(n² · d)`, `2.3 · 10¹⁹`) without raw dollar signs.
+- Updated test suites in `test/tables.test.js` and `test/markdown.test.js` ensuring 100% passing tests.

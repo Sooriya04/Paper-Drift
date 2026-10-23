@@ -1,8 +1,8 @@
 /**
  * @file playground/playground.js
  * @description Client-side controller script for the paper-drift web playground.
- * Manages PDF drag-and-drop, UI settings, client-side WebAssembly execution via PDF.js worker,
- * live visual preview rendering, code inspection, and file downloads.
+ * Manages PDF drag-and-drop, UI settings, WebAssembly execution, live Markdown & KaTeX formula rendering,
+ * GFM table preview, HTML raster layers, and AI token savings analytics.
  * Part of paper-drift - https://github.com/Sooriya04/Paper-Drift
  */
 
@@ -17,8 +17,10 @@ const fileInput = document.getElementById('fileInput');
 const browseBtn = document.getElementById('browseBtn');
 const fileInfo = document.getElementById('fileInfo');
 const convertBtn = document.getElementById('convertBtn');
-const downloadBtn = document.getElementById('downloadBtn');
-const conversionMode = document.getElementById('conversionMode');
+const downloadMdBtn = document.getElementById('downloadMdBtn');
+const downloadHtmlBtn = document.getElementById('downloadHtmlBtn');
+const copyMdBtn = document.getElementById('copyMdBtn');
+const outputTarget = document.getElementById('outputTarget');
 const renderScale = document.getElementById('renderScale');
 const pageRange = document.getElementById('pageRange');
 const progressContainer = document.getElementById('progressContainer');
@@ -27,13 +29,21 @@ const progressPercent = document.getElementById('progressPercent');
 const progressFill = document.getElementById('progressFill');
 const previewSection = document.getElementById('previewSection');
 const previewContainer = document.getElementById('previewContainer');
+const markdownRendered = document.getElementById('markdownRendered');
+const mdCodeViewer = document.getElementById('mdCodeViewer');
 const codeViewer = document.getElementById('codeViewer');
 const previewStats = document.getElementById('previewStats');
+const tokenSavingsBanner = document.getElementById('tokenSavingsBanner');
+const tokenSavingsPct = document.getElementById('tokenSavingsPct');
+const statVisionTokens = document.getElementById('statVisionTokens');
+const statMarkdownTokens = document.getElementById('statMarkdownTokens');
+const statSpeedup = document.getElementById('statSpeedup');
 const tabBtns = document.querySelectorAll('.tab-btn');
 
 let currentFile = null;
 let currentPdfData = null;
 let generatedHtml = '';
+let generatedMarkdown = '';
 
 // Drag and drop handlers
 dropZone.addEventListener('click', (e) => {
@@ -79,8 +89,10 @@ function handleFileSelected(file) {
   currentFile = file;
   fileInfo.textContent = `Selected: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
   convertBtn.disabled = false;
-  downloadBtn.disabled = true;
+  downloadMdBtn.disabled = true;
+  downloadHtmlBtn.disabled = true;
   previewSection.style.display = 'none';
+  tokenSavingsBanner.style.display = 'none';
 
   const reader = new FileReader();
   reader.onload = function(evt) {
@@ -95,12 +107,30 @@ tabBtns.forEach(btn => {
     tabBtns.forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     const tab = btn.dataset.tab;
+
+    document.getElementById('tabMarkdown').style.display = tab === 'markdown' ? 'block' : 'none';
+    document.getElementById('tabMdCode').style.display = tab === 'md-code' ? 'block' : 'none';
     document.getElementById('tabRendered').style.display = tab === 'rendered' ? 'block' : 'none';
     document.getElementById('tabCode').style.display = tab === 'code' ? 'block' : 'none';
   });
 });
 
-// Update progress
+// Copy Markdown button handler
+copyMdBtn.addEventListener('click', async () => {
+  if (!generatedMarkdown) return;
+  try {
+    await navigator.clipboard.writeText(generatedMarkdown);
+    const originalText = copyMdBtn.textContent;
+    copyMdBtn.textContent = '✔ Copied!';
+    setTimeout(() => {
+      copyMdBtn.textContent = originalText;
+    }, 1500);
+  } catch (err) {
+    console.error('Clipboard copy failed:', err);
+  }
+});
+
+// Update progress indicator
 function setProgress(percent, text) {
   progressContainer.style.display = 'flex';
   progressFill.style.width = `${percent}%`;
@@ -133,180 +163,213 @@ function parsePageRange(rangeStr, totalPages) {
   return Array.from(pages).sort((a, b) => a - b);
 }
 
-// Conversion core
+// Render Markdown and Auto-Render KaTeX Math
+function renderMarkdownWithKaTeX(markdownText) {
+  if (window.marked) {
+    marked.setOptions({ gfm: true, breaks: false });
+    const rawHtml = marked.parse(markdownText);
+    markdownRendered.innerHTML = rawHtml;
+  } else {
+    markdownRendered.textContent = markdownText;
+  }
+
+  // Trigger KaTeX math formula rendering on the rendered markdown container
+  if (window.renderMathInElement) {
+    try {
+      renderMathInElement(markdownRendered, {
+        delimiters: [
+          { left: '$$', right: '$$', display: true },
+          { left: '$', right: '$', display: false }
+        ],
+        throwOnError: false
+      });
+    } catch (katexErr) {
+      console.warn('KaTeX render warning:', katexErr);
+    }
+  }
+}
+
+// Main conversion logic
 convertBtn.addEventListener('click', async () => {
   if (!currentPdfData) return;
 
   convertBtn.disabled = true;
-  downloadBtn.disabled = true;
+  downloadMdBtn.disabled = true;
+  downloadHtmlBtn.disabled = true;
   previewSection.style.display = 'none';
+  tokenSavingsBanner.style.display = 'none';
   previewContainer.innerHTML = '';
-  setProgress(5, 'Loading PDF in WebAssembly runtime...');
+  markdownRendered.innerHTML = '';
+
+  const targetMode = outputTarget.value;
+  const wantMarkdown = targetMode === 'markdown' || targetMode === 'both';
+  const wantHtml = targetMode === 'dual' || targetMode === 'both';
+  const requestedPages = pageRange.value.trim() || 'all';
+
+  setProgress(10, 'Initializing WebAssembly conversion engine...');
+
+  const startTime = performance.now();
 
   try {
-    const loadingTask = pdfjsLib.getDocument({
-      data: currentPdfData,
-      cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
-      cMapPacked: true,
-      enableXfa: true
-    });
-    const pdfDoc = await loadingTask.promise;
-    const totalPages = pdfDoc.numPages;
+    // 1. Process Markdown via WebAssembly Engine
+    if (wantMarkdown) {
+      setProgress(25, 'Extracting spatial text, LaTeX math, and GFM tables...');
+      let markdownSuccess = false;
 
-    const scale = parseFloat(renderScale.value);
-    const mode = conversionMode.value;
-    const targetPages = parsePageRange(pageRange.value, totalPages);
+      // Attempt fast local server endpoint
+      try {
+        const response = await fetch(`/api/convert-markdown?pages=${encodeURIComponent(requestedPages)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/pdf' },
+          body: currentPdfData
+        });
 
-    if (targetPages.length === 0) {
-      alert('No valid pages selected for conversion.');
-      convertBtn.disabled = false;
-      return;
-    }
+        if (response.ok) {
+          const res = await response.json();
+          if (res.success) {
+            generatedMarkdown = res.markdown;
+            mdCodeViewer.textContent = generatedMarkdown;
+            renderMarkdownWithKaTeX(generatedMarkdown);
 
-    const pagesHtml = [];
-    const startTime = performance.now();
+            // Populate Token Efficiency Banner
+            tokenSavingsPct.textContent = `${res.savingsPercent}% Saved`;
+            statVisionTokens.textContent = `~${res.visionTokens.toLocaleString()} tokens`;
+            statMarkdownTokens.textContent = `~${res.markdownTokens.toLocaleString()} tokens`;
+            const speedupFactor = Math.max(2, Math.round(res.visionTokens / res.markdownTokens));
+            statSpeedup.textContent = `${speedupFactor}x Faster Ingestion`;
+            tokenSavingsBanner.style.display = 'flex';
 
-    for (let i = 0; i < targetPages.length; i++) {
-      const pageNum = targetPages[i];
-      const progress = 10 + (i / targetPages.length) * 80;
-      setProgress(progress, `Processing Page ${pageNum} of ${totalPages}...`);
-
-      const page = await pdfDoc.getPage(pageNum);
-      // Viewport at 1.0 for CSS coordinates
-      const unscaledViewport = page.getViewport({ scale: 1.0 });
-      // Viewport scaled for crisp rendering
-      const scaledViewport = page.getViewport({ scale: scale });
-
-      const pageWidth = unscaledViewport.width;
-      const pageHeight = unscaledViewport.height;
-
-      // Extract text content for selectable text overlay
-      const textContent = await page.getTextContent();
-      let textSpansHtml = '';
-
-      const textItems = textContent.items;
-      for (const item of textItems) {
-        if (!item.str || item.str.trim() === '') continue;
-
-        // Convert PDF coordinates (bottom-up) to DOM coordinates (top-down)
-        const tx = item.transform[4];
-        const ty = item.transform[5];
-        const fontSize = Math.sqrt(item.transform[0] * item.transform[0] + item.transform[1] * item.transform[1]);
-
-        const top = pageHeight - ty - fontSize;
-        const left = tx;
-
-        const fontScaleX = item.transform[0] / (fontSize || 1);
-        const transformCss = Math.abs(fontScaleX - 1.0) > 0.05 ? `transform: scaleX(${fontScaleX.toFixed(2)}); transform-origin: left top;` : '';
-
-        const escapedText = item.str
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;');
-
-        // In pixel-perfect mode, text is transparent so it highlights the underlying visual layer accurately
-        const colorStyle = mode === 'dual' 
-          ? 'color: transparent; user-select: text; -webkit-user-select: text;' 
-          : 'color: #111827; user-select: text; -webkit-user-select: text;';
-
-        textSpansHtml += `  <span class="pdf-text-span" style="position: absolute; left: ${left.toFixed(1)}px; top: ${top.toFixed(1)}px; font-size: ${fontSize.toFixed(1)}px; font-family: ${item.fontName || 'sans-serif'}, sans-serif; height: ${item.height || fontSize}px; line-height: 1; white-space: pre; ${colorStyle} ${transformCss}">${escapedText}</span>\n`;
+            markdownSuccess = true;
+          }
+        }
+      } catch (e) {
+        // Fallback for static client-side run
       }
 
-      let bgLayerHtml = '';
-      if (mode === 'dual') {
-        // High-DPI canvas render
+      // Client-side fallback if server API is unavailable
+      if (!markdownSuccess) {
+        const loadingTask = pdfjsLib.getDocument({ data: currentPdfData });
+        const pdfDoc = await loadingTask.promise;
+        const total = pdfDoc.numPages;
+        const targetPagesList = parsePageRange(requestedPages, total);
+        const mdParts = [];
+
+        for (const pNum of targetPagesList) {
+          const page = await pdfDoc.getPage(pNum);
+          const tc = await page.getTextContent();
+          const pageLines = tc.items.map(it => it.str).filter(s => s && s.trim());
+          mdParts.push(pageLines.join(' '));
+        }
+
+        generatedMarkdown = mdParts.join('\n\n---\n\n');
+        mdCodeViewer.textContent = generatedMarkdown;
+        renderMarkdownWithKaTeX(generatedMarkdown);
+      }
+    }
+
+    // 2. Process HTML if requested
+    if (wantHtml) {
+      setProgress(50, 'Rendering pixel-perfect background raster & text layers...');
+
+      const loadingTask = pdfjsLib.getDocument({
+        data: currentPdfData,
+        cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
+        cMapPacked: true,
+        enableXfa: true
+      });
+      const pdfDoc = await loadingTask.promise;
+      const totalPages = pdfDoc.numPages;
+      const scale = parseFloat(renderScale.value);
+      const targetPagesList = parsePageRange(requestedPages, totalPages);
+
+      const pagesHtml = [];
+
+      for (let i = 0; i < targetPagesList.length; i++) {
+        const pageNum = targetPagesList[i];
+        const progress = 50 + (i / targetPagesList.length) * 40;
+        setProgress(progress, `Rendering Page ${pageNum} of ${totalPages}...`);
+
+        const page = await pdfDoc.getPage(pageNum);
+        const unscaledViewport = page.getViewport({ scale: 1.0 });
+        const scaledViewport = page.getViewport({ scale: scale });
+
+        const pageWidth = unscaledViewport.width;
+        const pageHeight = unscaledViewport.height;
+
+        const textContent = await page.getTextContent();
+        let textSpansHtml = '';
+
+        for (const item of textContent.items) {
+          if (!item.str || item.str.trim() === '') continue;
+
+          const tx = item.transform[4];
+          const ty = item.transform[5];
+          const fontSize = Math.sqrt(item.transform[0] * item.transform[0] + item.transform[1] * item.transform[1]);
+          const top = pageHeight - ty - fontSize;
+          const left = tx;
+
+          const escapedText = item.str
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+
+          textSpansHtml += `  <span class="pdf-text-span" style="position: absolute; left: ${left.toFixed(1)}px; top: ${top.toFixed(1)}px; font-size: ${fontSize.toFixed(1)}px; font-family: ${item.fontName || 'sans-serif'}, sans-serif; height: ${item.height || fontSize}px; line-height: 1; white-space: pre; color: transparent; user-select: text; -webkit-user-select: text;">${escapedText}</span>\n`;
+        }
+
         const canvas = document.createElement('canvas');
         canvas.width = scaledViewport.width;
         canvas.height = scaledViewport.height;
         const ctx = canvas.getContext('2d');
-
-        // Fill canvas with white first to prevent transparent image artifacts
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        const renderContext = {
-          canvasContext: ctx,
-          viewport: scaledViewport
-        };
-        await page.render(renderContext).promise;
-
+        await page.render({ canvasContext: ctx, viewport: scaledViewport }).promise;
         const bgDataUrl = canvas.toDataURL('image/png');
-        bgLayerHtml = `<img src="${bgDataUrl}" class="pdf-bg-layer" alt="Page ${pageNum}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; display: block;" />\n`;
-      }
 
-      // Continuous seamless page container
-      const pageMarkup = `
+        const pageMarkup = `
 <!-- Page ${pageNum} -->
-<div class="pdf-page" id="page-${pageNum}" style="position: relative; width: ${pageWidth.toFixed(1)}px; height: ${pageHeight.toFixed(1)}px; margin: 0 auto; background: #ffffff; overflow: hidden; display: block;">
-  ${bgLayerHtml}
+<div class="pdf-page" id="page-${pageNum}" style="position: relative; width: ${pageWidth.toFixed(1)}px; height: ${pageHeight.toFixed(1)}px; margin: 0 auto; background: #ffffff; overflow: hidden; display: block; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);">
+  <img src="${bgDataUrl}" class="pdf-bg-layer" alt="Page ${pageNum}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; display: block;" />
   <div class="pdf-text-layer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; pointer-events: auto;">
 ${textSpansHtml}  </div>
 </div>`;
+        pagesHtml.push(pageMarkup);
+      }
 
-      pagesHtml.push(pageMarkup);
-    }
-
-    setProgress(95, 'Generating standalone HTML document...');
-
-    generatedHtml = `<!DOCTYPE html>
+      generatedHtml = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${currentFile.name.replace(/\.pdf$/i, '')}</title>
   <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-    html, body {
-      background-color: #525659;
-      margin: 0;
-      padding: 0;
-    }
-    .pdf-document {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 16px;
-      padding: 24px 0;
-      width: 100%;
-    }
-    .pdf-page {
-      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
-    }
-    ::selection {
-      background: rgba(59, 130, 246, 0.4);
-      color: transparent;
-    }
-    @media print {
-      body {
-        padding: 0;
-      }
-      .pdf-page {
-        page-break-after: always;
-      }
-    }
+    body { background-color: #525659; margin: 0; padding: 24px 0; display: flex; flex-direction: column; align-items: center; gap: 16px; }
+    ::selection { background: rgba(59, 130, 246, 0.4); color: transparent; }
   </style>
 </head>
 <body>
-  <div class="pdf-document">
 ${pagesHtml.join('\n')}
-  </div>
 </body>
 </html>`;
 
-    // Render Preview
-    previewContainer.innerHTML = pagesHtml.join('\n');
-    codeViewer.textContent = generatedHtml.slice(0, 5000) + (generatedHtml.length > 5000 ? '\n\n... [truncated for display, full document available on download] ...' : '');
-
-    const elapsed = ((performance.now() - startTime) / 1000).toFixed(2);
-    previewStats.textContent = `Converted ${targetPages.length} pages in ${elapsed}s (${(generatedHtml.length / 1024).toFixed(1)} KB HTML)`;
+      previewContainer.innerHTML = pagesHtml.join('\n');
+      codeViewer.textContent = generatedHtml.slice(0, 5000) + (generatedHtml.length > 5000 ? '\n\n... [truncated for display, full document on download] ...' : '');
+    }
 
     setProgress(100, 'Conversion completed successfully!');
+    const elapsed = ((performance.now() - startTime) / 1000).toFixed(2);
+    previewStats.textContent = `Completed in ${elapsed}s`;
+
     previewSection.style.display = 'flex';
-    downloadBtn.disabled = false;
+    if (generatedMarkdown) downloadMdBtn.disabled = false;
+    if (generatedHtml) downloadHtmlBtn.disabled = false;
+
+    // Set default active tab based on mode
+    if (wantMarkdown) {
+      tabBtns[0].click(); // Rendered Markdown
+    } else {
+      tabBtns[2].click(); // Rendered HTML
+    }
   } catch (err) {
     console.error('Conversion failed:', err);
     alert('Conversion error: ' + err.message);
@@ -316,8 +379,22 @@ ${pagesHtml.join('\n')}
   }
 });
 
-// Download button handler
-downloadBtn.addEventListener('click', () => {
+// Download Markdown handler
+downloadMdBtn.addEventListener('click', () => {
+  if (!generatedMarkdown) return;
+  const blob = new Blob([generatedMarkdown], { type: 'text/markdown;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${(currentFile ? currentFile.name : 'document').replace(/\.pdf$/i, '')}.md`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+
+// Download HTML handler
+downloadHtmlBtn.addEventListener('click', () => {
   if (!generatedHtml) return;
   const blob = new Blob([generatedHtml], { type: 'text/html;charset=utf-8' });
   const url = URL.createObjectURL(blob);

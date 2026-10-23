@@ -50,7 +50,7 @@ console.log('\nRunning Direct PDF to Markdown Test Suite');
     assert(result.markdown.includes('Table 1'), 'Markdown should preserve Table 1 caption');
     assert(result.markdown.includes('| Layer Type | Complexity per Layer |'), 'Markdown should contain Table 1 GFM headers');
     assert(result.markdown.includes('Self-Attention'), 'Markdown should contain Table 1 row content');
-    assert(result.markdown.includes('$O(n^{2} \\cdot d)$'), 'Markdown should restore LaTeX math in table cells');
+    assert(result.markdown.includes('O(n² · d)'), 'Markdown should restore math exponents as clean Unicode in tables');
     assert(result.markdown.includes('## 4 Why Self-Attention'), 'Markdown should detect section headings');
 
     fs.writeFileSync(path.join(resultsDir, 'attention-page6.md'), result.markdown);

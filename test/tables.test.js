@@ -30,13 +30,13 @@ console.log('\nRunning Table Reconstruction Test Suite');
 // Test 1: formatTableCell handles exponents and math
 {
   const sc1 = formatTableCell('2.3 · 1019');
-  assert.strictEqual(sc1, '$2.3 \\cdot 10^{19}$', 'Scientific notation should be formatted to LaTeX');
+  assert.strictEqual(sc1, '2.3 · 10¹⁹', 'Scientific notation should be formatted with clean Unicode superscripts');
 
   const sc2 = formatTableCell('1.4 · 1020');
-  assert.strictEqual(sc2, '$1.4 \\cdot 10^{20}$');
+  assert.strictEqual(sc2, '1.4 · 10²⁰');
 
   const bo1 = formatTableCell('O(n2 · d)');
-  assert.strictEqual(bo1, '$O(n^{2} \\cdot d)$', 'Big-O notation should format variable exponents');
+  assert.strictEqual(bo1, 'O(n² · d)', 'Big-O notation should format variable exponents with clean superscripts');
 
   const pipeEsc = formatTableCell('A | B');
   assert.strictEqual(pipeEsc, 'A \\| B', 'Pipes should be escaped');
@@ -111,7 +111,7 @@ console.log('\nRunning Table Reconstruction Test Suite');
     assert(tableMd.includes('Complexity per Layer'), 'Table 1 should contain "Complexity per Layer"');
     assert(tableMd.includes('Sequential Operations'), 'Table 1 should contain folded "Sequential Operations"');
     assert(tableMd.includes('Maximum Path Length'), 'Table 1 should contain "Maximum Path Length"');
-    assert(tableMd.includes('$O(n^{2} \\cdot d)$'), 'Table 1 should restore math exponents');
+    assert(tableMd.includes('O(n² · d)'), 'Table 1 should restore math exponents as clean Unicode');
 
     fs.writeFileSync(path.join(resultsDir, 'attention-table1.md'), tableMd);
     console.log('  ✔ reconstructTableFromLines successfully reconstructs Table 1 from Attention paper');

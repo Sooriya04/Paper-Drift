@@ -8,11 +8,22 @@
 
 import { mapUnicodeToLatex } from '../math/symbols.js';
 
+const SUPERSCRIPT_MAP = {
+  '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴',
+  '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹',
+  '+': '⁺', '-': '⁻'
+};
+
+function toSuperscript(str) {
+  return String(str).split('').map(c => SUPERSCRIPT_MAP[c] || c).join('');
+}
+
 /**
- * Normalizes mathematical formulas, scientific notation, and variables in table cells.
+ * Normalizes mathematical formulas, scientific notation, and variables in table cells
+ * into clean, universally readable Unicode math (e.g. O(n² · d), 2.3 · 10¹⁹) without raw $ delimiters.
  *
  * @param {string} text
- * @returns {string} Formatted LaTeX or plain string
+ * @returns {string} Formatted clean cell string
  */
 export function formatTableCell(text) {
   if (!text) return '';
@@ -21,30 +32,19 @@ export function formatTableCell(text) {
   let cleaned = String(text).replace(/\|/g, '\\|').trim();
   if (!cleaned) return '';
 
-  // Scientific notation with powers of 10 (e.g. 2.3 · 1019 -> $2.3 \cdot 10^{19}$)
-  if (/(\d+(?:\.\d+)?)\s*[·•]\s*10(\d{1,3})/g.test(cleaned)) {
-    cleaned = cleaned.replace(/(\d+(?:\.\d+)?)\s*[·•]\s*10(\d{1,3})/g, '$$$1 \\cdot 10^{$2}$$');
-    return cleaned;
-  }
+  // Scientific notation with powers of 10 (e.g. 2.3 · 1019 -> 2.3 · 10¹⁹)
+  cleaned = cleaned.replace(/(\d+(?:\.\d+)?\s*[·•]\s*10)(\d{1,3})/g, (m, p1, p2) => p1 + toSuperscript(p2));
 
-  // Standalone powers of 10 (e.g. 1020 -> $10^{20}$)
-  if (/^10(\d{2,3})$/.test(cleaned)) {
-    return cleaned.replace(/^10(\d{2,3})$/, '$$10^{$1}$$');
-  }
+  // Standalone powers of 10 (e.g. 1020 -> 10²⁰)
+  cleaned = cleaned.replace(/^10(\d{2,3})$/, (m, p1) => '10' + toSuperscript(p1));
 
-  // Big-O complexity notation (e.g. O(n2 · d) -> $O(n^2 \cdot d)$, O(logk(n)) -> $O(\log_k(n))$)
+  // Big-O complexity notation (e.g. O(n2 · d) -> O(n² · d), O(logk(n)) -> O(log_k(n)))
   if (/^O\([a-z0-9\s·/()_+-]+\)$/i.test(cleaned)) {
-    let math = mapUnicodeToLatex(cleaned);
-    // Exponent powers on variables: n2 -> n^2, d2 -> d^2
-    math = math.replace(/\b([a-zA-Z])([0-9])\b/g, '$1^{$2}');
-    // Log with subscript base: logk(n) -> \log_k(n)
-    math = math.replace(/\blog([a-zA-Z0-9]+)\(([^)]+)\)/g, '\\log_{$1}($2)');
-    return `$${math}$`;
-  }
-
-  // Check if string contains Greek or math symbols
-  if (/[α-ωΑ-Ω∈∑∫√±≤≥≠≈×÷]/.test(cleaned)) {
-    return `$${mapUnicodeToLatex(cleaned)}$`;
+    // Exponent powers on variables: n2 -> n², d2 -> d²
+    cleaned = cleaned.replace(/\b([a-zA-Z])([0-9])\b/g, (m, v, p) => v + toSuperscript(p));
+    // Log with subscript base: logk(n) -> log_k(n)
+    cleaned = cleaned.replace(/\blog([a-zA-Z0-9]+)\(([^)]+)\)/g, (m, g1, g2) => `log_${g1}(${g2})`);
+    return cleaned;
   }
 
   return cleaned;
