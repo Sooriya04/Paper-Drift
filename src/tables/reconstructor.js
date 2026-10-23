@@ -28,8 +28,12 @@ function toSuperscript(str) {
 export function formatTableCell(text) {
   if (!text) return '';
 
-  // Escape literal pipe characters to prevent breaking markdown tables
-  let cleaned = String(text).replace(/\|/g, '\\|').trim();
+  // Normalize internal newlines and whitespace to single space, and escape pipe characters
+  let cleaned = String(text)
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/\|/g, '\\|')
+    .trim();
   if (!cleaned) return '';
 
   // Scientific notation with powers of 10 (e.g. 2.3 · 1019 -> 2.3 · 10¹⁹)

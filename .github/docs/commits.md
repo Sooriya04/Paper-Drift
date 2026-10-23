@@ -71,12 +71,15 @@
 - Added `.agent/` directory to `.gitignore` to prevent agent configuration leaks.
 
 ### docs: add developer website, github pages ci, and turnkey AI agent skill
-- Transformed developer website from `website/` into standard `/docs` directory for GitHub Pages hosting.
-- Configured `.github/workflows/pages.yml` with `actions/deploy-pages@v4` for automated GitHub Pages deployment on `main`.
-- Created standardized turnkey Agent Skill in `skills/paper-drift/SKILL.md` and `.agent/skills/paper-drift/SKILL.md`.
-- Implemented `npx paper-drift skill` CLI subcommand supporting automatic workspace detection, `--claude`, `--cursor`, `--global`, and `skill cat` stdout output.
-- Embedded turnkey Agent Skill specification, 5 install command options/targets, and 1-click clipboard export into `docs/index.html`.
+- Transformed developer website from `website/` into standard `/docs` directory for GitHub Pages hosting with automated Pages deployment (`.github/workflows/pages.yml`).
+- Created standardized turnkey Agent Skill in `skills/paper-drift/SKILL.md` (and `.agent/skills/`) with `npx paper-drift skill` CLI installer and 5 target options.
+- Embedded turnkey Agent Skill specification, installation command targets, and 1-click clipboard export into `docs/index.html`.
 - Added interactive terminal tabs (`CLI`, `Node.js SDK`, `Agent Quickstart`, `SKILL.md`) with dynamic language indicators and copy actions in `docs/app.js`.
 - Integrated official npm vector branding badge into website navigation bar and footer.
-- Maintained strict `.gitignore` privacy for `docs/goal.md` while tracking `docs/index.html`, `docs/style.css`, and `docs/app.js`.
-- Added comprehensive unit tests in `test/cli.test.js` covering skill file installation and raw markdown dumping.
+
+### fix: eliminate dependency bloat, add types, license, and fix page filtering
+- Removed unused `pdfjs-dist` dependency, cutting 65 transitive packages from `node_modules`.
+- Added official Apache-2.0 `LICENSE` file and complete TypeScript definitions (`src/index.d.ts`).
+- Fixed `options.pages` handling across Markdown and HTML converters to support numbers, arrays, and ranges.
+- Fixed table cell formatting to normalize internal newlines and preserve Markdown table row integrity.
+- Added strict CLI `--format` validation and expanded automated unit tests in `test/cli.test.js`, `test/tables.test.js`, and `test/markdown.test.js`.

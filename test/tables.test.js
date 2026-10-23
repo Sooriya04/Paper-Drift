@@ -41,6 +41,9 @@ console.log('\nRunning Table Reconstruction Test Suite');
   const pipeEsc = formatTableCell('A | B');
   assert.strictEqual(pipeEsc, 'A \\| B', 'Pipes should be escaped');
 
+  const newlineCell = formatTableCell('First line\nsecond line\r\nthird');
+  assert.strictEqual(newlineCell, 'First line second line third', 'Newlines inside cells must be normalized to spaces');
+
   console.log('  ✔ formatTableCell restores scientific notation, big-O math, and escapes pipes');
 }
 

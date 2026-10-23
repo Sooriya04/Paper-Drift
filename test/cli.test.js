@@ -63,6 +63,12 @@ try {
 
     const range3 = parsePageRange('all', 3);
     if (JSON.stringify(range3) !== JSON.stringify([0, 1, 2])) throw new Error(`Unexpected range: ${JSON.stringify(range3)}`);
+
+    const range4 = parsePageRange(2, 5);
+    if (JSON.stringify(range4) !== JSON.stringify([1])) throw new Error(`Unexpected single number range: ${JSON.stringify(range4)}`);
+
+    const range5 = parsePageRange([1, 3], 5);
+    if (JSON.stringify(range5) !== JSON.stringify([0, 2])) throw new Error(`Unexpected array range: ${JSON.stringify(range5)}`);
   });
 
   // 2. CLI --help flag
@@ -109,6 +115,17 @@ try {
     if (!content.includes('class="pdf-page"') || !content.includes('paper-drift')) {
       throw new Error('Output HTML missing expected page markup');
     }
+  });
+
+  // 7. CLI format validation test
+  runTest('CLI rejects unsupported --format and exits with non-zero code', () => {
+    let failed = false;
+    try {
+      execSync(`node bin/cli.js "${samplePdfPath}" --format invalidFormat`, { stdio: 'pipe' });
+    } catch (err) {
+      failed = true;
+    }
+    if (!failed) throw new Error('CLI should have failed with invalid format');
   });
 
   // 5. Programmatic API with Buffer input

@@ -147,6 +147,12 @@ async function run() {
     process.exit(1);
   }
 
+  const validFormats = ['html', 'md', 'markdown', 'text', 'json'];
+  if (!validFormats.includes(format)) {
+    console.error(`\x1b[31mError: Unsupported format "${format}". Supported: markdown (md) | html | text | json\x1b[0m`);
+    process.exit(1);
+  }
+
   const isMarkdown = format === 'md' || format === 'markdown';
   const ext = isMarkdown ? 'md' : (format === 'text' ? 'txt' : (format === 'json' ? 'json' : 'html'));
   if (!outputFile) {

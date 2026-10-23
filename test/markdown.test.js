@@ -35,6 +35,10 @@ console.log('\nRunning Direct PDF to Markdown Test Suite');
   assert(typeof result.durationMs === 'number', 'durationMs should be a number');
 
   fs.writeFileSync(path.join(resultsDir, 'sample.md'), result.markdown);
+
+  const numericPagesResult = await convertPdfToMarkdown(samplePdf, { pages: 1 });
+  assert.strictEqual(numericPagesResult.pagesProcessed, 1, 'Should process exactly 1 page when pages: 1 is passed');
+
   console.log('  ✔ convertPdfToMarkdown converts sample.pdf to valid Markdown');
 }
 

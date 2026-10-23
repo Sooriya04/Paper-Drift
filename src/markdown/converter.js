@@ -180,7 +180,7 @@ export function pageToMarkdown(pageJson, widthPt, heightPt, options = {}) {
  */
 export async function convertPdfToMarkdown(input, options = {}) {
   const startTime = Date.now();
-  const pageRangeStr = options.pageRange || 'all';
+  const pageRangeStr = options.pages !== undefined ? options.pages : (options.pageRange || 'all');
 
   let pdfBuffer;
   if (typeof input === 'string') {

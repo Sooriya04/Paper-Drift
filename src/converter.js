@@ -18,12 +18,21 @@ import { resolveReadingOrder } from './spatial/reading-order.js';
  * @returns {number[]} 0-indexed page numbers.
  */
 export function parsePageRange(range, totalPages) {
-  if (!range || range === 'all') {
+  if (range === undefined || range === null || range === '' || range === 'all') {
     return Array.from({ length: totalPages }, (_, i) => i);
   }
 
+  if (typeof range === 'number') {
+    if (range >= 1 && range <= totalPages) {
+      return [range - 1];
+    }
+    return [];
+  }
+
   if (Array.isArray(range)) {
-    return range.map(p => p - 1).filter(p => p >= 0 && p < totalPages);
+    return range
+      .map(p => Number(p) - 1)
+      .filter(p => !isNaN(p) && p >= 0 && p < totalPages);
   }
 
   const indices = new Set();
@@ -75,7 +84,7 @@ export async function convertPdfToHtml(input, options = {}) {
   const startTime = Date.now();
   const scale = typeof options.scale === 'number' ? options.scale : 2.0;
   const withBg = options.withBg !== false;
-  const pageRangeStr = options.pageRange || 'all';
+  const pageRangeStr = options.pages !== undefined ? options.pages : (options.pageRange || 'all');
 
   let pdfBuffer;
   let docTitle = options.title || 'Converted Document';

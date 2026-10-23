@@ -4,8 +4,12 @@
   "description": "Zero-Python, zero-Chromium WebAssembly document parser, HTML renderer, and Markdown engine with GFM tables and math",
   "type": "module",
   "main": "src/index.js",
+  "types": "src/index.d.ts",
   "exports": {
-    ".": "./src/index.js"
+    ".": {
+      "types": "./src/index.d.ts",
+      "import": "./src/index.js"
+    }
   },
   "files": [
     "src",
@@ -43,7 +47,6 @@
   "author": "Sooriya",
   "license": "Apache-2.0",
   "dependencies": {
-    "mupdf": "^1.28.1",
-    "pdfjs-dist": "^3.11.174"
+    "mupdf": "^1.28.1"
   }
 }
