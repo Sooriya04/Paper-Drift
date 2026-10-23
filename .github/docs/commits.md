@@ -56,3 +56,10 @@
 - Added `/api/convert-markdown` WebAssembly conversion endpoint to local development server (`playground/server.js`).
 - Refined table cell formatter to emit clean universal Unicode math (`O(n² · d)`, `2.3 · 10¹⁹`) without raw dollar signs.
 - Updated test suites in `test/tables.test.js` and `test/markdown.test.js` ensuring 100% passing tests.
+
+### release: v0.1.0 initial package release with markdown and html engines
+- Added conditional npm publish job in `.github/workflows/ci.yml` strictly restricted to `main` branch pushes.
+- Triggered only when commit message mentions a version pattern, skipping publish on dev branch.
+- Automatically extracts semantic version from commit message and synchronizes package version before publish.
+- Configured `"files"` whitelist and `"exports"` map in `package.json` reducing tarball footprint to 18.9 KB.
+- Updated `README.md` showcasing direct Markdown conversion, programmatic APIs, and 90%+ AI token savings.

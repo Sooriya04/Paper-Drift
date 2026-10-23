@@ -1,9 +1,18 @@
 {
   "name": "paper-drift",
   "version": "0.1.0",
-  "description": "Zero-Python, zero-Chromium high-fidelity PDF parser and HTML converter powered by WebAssembly",
+  "description": "Zero-Python, zero-Chromium WebAssembly document parser, HTML renderer, and Markdown engine with GFM tables and math",
   "type": "module",
   "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "src",
+    "bin",
+    "README.md",
+    "LICENSE"
+  ],
   "bin": {
     "paper-drift": "./bin/cli.js"
   },
