@@ -48,13 +48,13 @@ jobs:
           retention-days: 7
 
   publish:
-    name: Conditional npm Release
+    name: Conditional GitHub Packages Release
     needs: test
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write
+      packages: write
 
     steps:
       - name: Checkout repository
@@ -73,18 +73,19 @@ jobs:
             # Extract semantic version number if explicitly specified (e.g. 0.1.0)
             EXTRACTED_VER=$(echo "$COMMIT_MSG" | grep -oEi '\b[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?\b' | head -n 1 || true)
             echo "extracted_version=$EXTRACTED_VER" >> "$GITHUB_OUTPUT"
-            echo "✔ Version mention detected ('$EXTRACTED_VER')! Triggering npm publish."
+            echo "✔ Version mention detected ('$EXTRACTED_VER')! Triggering GitHub Packages publish."
           else
             echo "should_publish=false" >> "$GITHUB_OUTPUT"
-            echo "ℹ No version mention detected in commit message. Skipping npm publish."
+            echo "ℹ No version mention detected in commit message. Skipping publish."
           fi
 
-      - name: Set up Node.js for npm Registry
+      - name: Set up Node.js for GitHub Packages Registry
         if: steps.check_version.outputs.should_publish == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '20.x'
-          registry-url: 'https://registry.npmjs.org'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@sooriya04'
 
       - name: Install dependencies
         if: steps.check_version.outputs.should_publish == 'true'
@@ -97,15 +98,10 @@ jobs:
           echo "Setting package version to: $TARGET_VER"
           npm version "$TARGET_VER" --no-git-tag-version --allow-same-version
 
-      - name: Publish to npm Package Registry
+      - name: Publish to GitHub Packages
         if: steps.check_version.outputs.should_publish == 'true'
         run: |
-          if [ -z "$NODE_AUTH_TOKEN" ]; then
-            echo "❌ Error: NPM_TOKEN secret is not set in GitHub repository secrets."
-            echo "👉 Go to GitHub Repo -> Settings -> Secrets and variables -> Actions -> Add NPM_TOKEN"
-            exit 1
-          fi
-          echo "🚀 Publishing package to npm..."
-          npm publish --access public --provenance || npm publish --access public
+          echo "🚀 Publishing @sooriya04/paper-drift to GitHub Packages..."
+          npm publish
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

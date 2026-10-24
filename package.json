@@ -1,5 +1,5 @@
 {
-  "name": "paper-drift",
+  "name": "@sooriya04/paper-drift",
   "version": "0.1.2",
   "description": "Zero-Python, zero-Chromium WebAssembly document parser, HTML renderer, and Markdown engine with GFM tables and math",
   "type": "module",
@@ -10,6 +10,9 @@
       "types": "./src/index.d.ts",
       "import": "./src/index.js"
     }
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
   },
   "files": [
     "src",

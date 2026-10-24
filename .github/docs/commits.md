@@ -104,3 +104,9 @@
 - Replaced synthetic token-multiplier estimates with direct, verifiable value propositions: converting PDFs to structured Markdown slashes LLM context consumption compared to sending raw PDFs or vision images.
 - Emphasized high-fidelity GFM pipe tables and Unicode math retention without multimodal image hallucination.
 - Corrected package footprint specifications and clarified zero-microservice WASM architecture.
+
+
+### feat: configure github packages npm registry and scoped package name
+- Updated package identity to `@sooriya04/paper-drift` scoped under GitHub Packages.
+- Added `publishConfig.registry` targeting `https://npm.pkg.github.com`.
+- Updated GitHub Actions CI publish job with `packages: write` permissions using native `GITHUB_TOKEN`.
