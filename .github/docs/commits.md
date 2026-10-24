@@ -96,3 +96,11 @@
 - Fixed `options.pages` handling across Markdown and HTML converters to support numbers, arrays, and ranges.
 - Fixed table cell formatting to normalize internal newlines and preserve Markdown table row integrity.
 - Expanded `README.md` and `docs/index.html` with turnkey AI Agent Skill workflows and 1-click `npx` installer.
+
+
+### release: v0.1.2 refine token savings claims and streamline agent documentation
+- Bumped package version to `v0.1.2` for npm release and GitHub release.
+- Refined AI token efficiency documentation across `README.md`, `skills/paper-drift/SKILL.md`, and `docs/index.html`.
+- Replaced synthetic token-multiplier estimates with direct, verifiable value propositions: converting PDFs to structured Markdown slashes LLM context consumption compared to sending raw PDFs or vision images.
+- Emphasized high-fidelity GFM pipe tables and Unicode math retention without multimodal image hallucination.
+- Corrected package footprint specifications and clarified zero-microservice WASM architecture.

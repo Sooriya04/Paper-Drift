@@ -11,15 +11,15 @@ Instead, invoke `paper-drift` locally via WebAssembly to convert the document in
 
 ---
 
-## 1. Why Use `paper-drift` (The Token Economics)
+## 1. Why Use `paper-drift` (Token Savings & Fidelity)
 
-| Approach | Tokens per 10-Page Paper | Cost per Query | Execution Latency |
-| :--- | :--- | :--- | :--- |
-| **Multimodal Vision (PDF $\rightarrow$ Image)** | ~16,000 – 20,000 vision tokens | ~$0.20 – $0.40 | 10–25s (image rendering & transfer) |
-| **`paper-drift` WASM Preprocessing** | **~1,200 – 1,800 text tokens** | **~$0.01 – $0.02** | **< 400ms (100% local WASM)** |
-| **Savings** | **~92% Token Reduction** | **15x Cheaper** | **30x–40x Faster** |
+Sending raw PDF documents or full-page screenshots to LLMs burns massive vision tokens and causes severe hallucinations on dense math and tables.
 
-`paper-drift` resolves multi-column reading flow (Recursive XY-Cut) so two-column academic papers are not scrambled, detects display math as `$$...$$` with equation numbers (`\tag{N}`), and reconstructs multi-tier data tables into standard Markdown grids.
+Converting PDFs to Markdown with `paper-drift` provides:
+- **Drastically Reduced Token Costs**: Markdown sends only pure text, pipe tables, and math—eliminating the heavy pixel-tiling token bloat of multimodal vision models and unstructured OCR dumps.
+- **Accurate Reading Order**: Multi-column papers are properly ordered via Recursive XY-Cut without line interleaving.
+- **Intact Tables & Math**: Reconstructs multi-tier data tables into standard Markdown grids (`| col1 | col2 |`) and math into clean LaTeX/Unicode.
+- **Fast Local Execution**: Runs locally in milliseconds via compiled WebAssembly with zero external dependencies (no Python, no Poppler, no Chromium).
 
 ---
 

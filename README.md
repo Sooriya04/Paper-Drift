@@ -7,7 +7,7 @@
 
 > **Zero-Python, zero-Chromium WebAssembly document parser, HTML renderer, and Markdown engine with GFM tables and math.**
 
-Convert complex academic research papers and enterprise PDFs directly into clean, structured **Markdown** or standalone **HTML** with pixel-perfect visual fidelity—without Puppeteer, Python, Docker, or external servers. Slashes AI Agent token ingestion costs by 90%+.
+Convert complex academic research papers and enterprise PDFs directly into clean, structured **Markdown** or standalone **HTML** with pixel-perfect visual fidelity—without Puppeteer, Python, Docker, or external servers. Drastically reduces LLM token consumption compared to sending raw PDFs or vision images.
 
 ---
 
@@ -18,7 +18,7 @@ Most PDF conversion pipelines in JavaScript suffer from two major flaws:
 2. **The "Text Soup" Trap**: Spatially naive parsers that dump unordered lines, break multi-column layouts, and butcher tabular grids.
 
 **`paper-drift` solves this natively:**
-* **Zero-Python & Zero-Chromium**: Runs compiled WebAssembly directly in any V8 runtime (Node.js, Bun, or modern browsers). Under 20 KB package footprint.
+* **Zero-Python & Zero-Chromium**: Runs compiled WebAssembly directly in any V8 runtime (Node.js, Bun, or modern browsers). Zero external microservices or headless browsers required.
 * **Direct Markdown Engine**: Converts directly into GitHub Flavored Markdown (GFM) with auto-detected `#`, `##` headings, list markers, and clean math.
 * **Geometric Table Reconstruction**: Discovers column gutters and slices cells into standard pipe tables (`| col1 | col2 |`) with clean universal math exponents (`O(n² · d)`, `10¹⁹`).
 * **Multi-Column Spatial Ordering**: Resolves 2-column papers via Recursive XY-Cut without column interweaving.
@@ -116,17 +116,15 @@ const { markdown } = await convertPdfToMarkdown(Buffer.from(pdfBuffer));
 
 ---
 
-## 💸 AI Agent Token Savings
+## 💸 Reduce Token Costs for AI Agents
 
-When feeding 10-page academic papers into LLMs (Claude, GPT-4, Cursor, Antigravity):
+Sending raw PDF documents or full-page screenshots to LLMs wastes massive amounts of context window tokens and introduces vision hallucinations on formulas and tabular data.
 
-| Mode | Tokens Consumed | Cost / Ingestion | Reading Accuracy |
-| :--- | :--- | :--- | :--- |
-| **Multimodal Vision (Images)** | ~16,000 – 20,000 tokens | ~$0.15 – $0.40 | Heavy hallucinations on dense math |
-| **Naive OCR / PDF Text Dump** | ~8,000 tokens | ~$0.08 | Tables destroyed into loose lines |
-| **`paper-drift` Markdown** | **~1,200 – 1,800 tokens** | **~$0.01** | **Pixel-accurate reading order, GFM tables, math** |
-
-> **Net Savings:** Over **90% token reduction** and **12x faster ingestion**.
+**`paper-drift` converts PDFs into clean, structured Markdown before sending them to the model:**
+* **Drastically Reduced Token Footprint**: Markdown transmits only the actual text, pipe tables, and math equations—eliminating the heavy pixel-tiling token overhead of multimodal vision models and unstructured OCR dumps.
+* **100% Reading Order Accuracy**: Recursive XY-Cut sequences multi-column research papers in natural human reading order without column line-mixing.
+* **High-Fidelity Tables & Math**: Tables are converted to clean GFM pipe tables (`| col1 | col2 |`) and math is preserved as clean Unicode/LaTeX without visual distortion.
+* **Fast & Lightweight Ingestion**: Ingests pages locally via WebAssembly in milliseconds, slashing API latency and context costs.
 
 ---
 
@@ -134,7 +132,7 @@ When feeding 10-page academic papers into LLMs (Claude, GPT-4, Cursor, Antigravi
 
 `paper-drift` is built from the ground up as a native **AI Agent Skill** to eliminate the **"Multimodal PDF Token Tax"**. 
 
-When an AI coding or research agent ingests raw PDFs as images, it burns ~1,500 to 2,000 vision tokens per page (crowding context windows and costing $0.50–$2.00 per query). By equipping your agent with the `paper-drift` skill, the agent pre-processes PDFs locally via WebAssembly into clean Markdown, GFM tables, and LaTeX equations in **< 400ms**—cutting token consumption by **90%+**.
+When an AI coding or research agent ingests raw PDFs as images, it burns thousands of vision tokens per page and quickly crowds context windows. By equipping your agent with the `paper-drift` skill, the agent pre-processes PDFs locally via WebAssembly into clean Markdown, GFM tables, and LaTeX equations in milliseconds—drastically reducing token consumption compared to sending raw PDFs.
 
 ### 1-Click Skill Installation
 
@@ -168,7 +166,7 @@ Agent (Internal):
   1. Detects paper-drift skill
   2. Executes: npx -y paper-drift attention-is-all-you-need.pdf --format md --pages 6-8
   3. Receives clean GFM Table 1 and BLEU score comparisons in < 250ms
-  4. Answers your query using 1,200 text tokens instead of 20,000 vision tokens!
+  4. Answers your query directly from clean Markdown text without burning multimodal vision tokens!
 ```
 
 - 📖 **Skill Specification:** [`skills/paper-drift/SKILL.md`](skills/paper-drift/SKILL.md)
