@@ -68,7 +68,7 @@ export function foldHeaders(headerRows, colCount) {
     const parts = [];
     for (const hr of headerRows) {
       if (hr[c] && hr[c].trim()) {
-        parts.push(hr[c].trim());
+        parts.push(hr[c].trim().replace(/\|/g, '\\|'));
       }
     }
     finalHeaders[c] = parts.join(' ') || '';
@@ -88,14 +88,20 @@ export function foldHeaders(headerRows, colCount) {
 export function reconstructTableFromLines(lines, options = {}) {
   if (!lines || lines.length < 3) return null;
 
-  const rowProximity = typeof options.rowProximity === 'number' ? options.rowProximity : 4.5;
-
   // 1. Sort lines primarily by vertical coordinate Y, then by horizontal X
   const sortedLines = [...lines]
     .filter(l => l.text && l.text.trim())
     .sort((a, b) => a.bbox.y - b.bbox.y || a.bbox.x - b.bbox.x);
 
   if (sortedLines.length < 3) return null;
+
+  // Dynamic row proximity based on median line height: handles both dense 7pt conference papers and spacious 12pt types
+  const lineHeights = sortedLines.map(l => l.bbox?.h || 8).filter(h => h > 0);
+  const medianHeight = lineHeights.length > 0
+    ? lineHeights.sort((a, b) => a - b)[Math.floor(lineHeights.length / 2)]
+    : 8;
+  const defaultProximity = medianHeight >= 6.5 ? 4.5 : Math.max(1.8, medianHeight * 0.5);
+  const rowProximity = typeof options.rowProximity === 'number' ? options.rowProximity : defaultProximity;
 
   // 2. Group lines into horizontal rows by Y overlap
   const rows = [];

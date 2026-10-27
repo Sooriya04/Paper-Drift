@@ -97,12 +97,14 @@ export const MATH_RELATIONS = {
 };
 
 export const ARROWS_AND_LOGIC = {
-  '→': '\\to',
-  '←': '\\leftarrow',
-  '↔': '\\leftrightarrow',
+  '=⇒': '\\implies',
+  '=→': '\\to',
   '⇒': '\\implies',
   '⇐': '\\impliedby',
   '⇔': '\\iff',
+  '→': '\\to',
+  '←': '\\leftarrow',
+  '↔': '\\leftrightarrow',
   '↑': '\\uparrow',
   '↓': '\\downarrow',
   '∀': '\\forall',
@@ -143,7 +145,16 @@ export const ALL_MATH_SYMBOLS = {
  */
 export function mapUnicodeToLatex(text) {
   if (!text) return '';
-  let out = text;
+  let out = String(text);
+
+  // Normalize combining slashes and negations (e.g. s̸= -> \neq)
+  out = out.replace(/(\u0338=|=\u0338)/g, ' \\neq ');
+  out = out.replace(/\u0338/g, '');
+
+  // Normalize Unicode minuses, hyphens, and primes
+  out = out.replace(/[−–]/g, '-');
+  out = out.replace(/′/g, "'");
+
   for (const [sym, latex] of Object.entries(ALL_MATH_SYMBOLS)) {
     if (out.includes(sym)) {
       out = out.split(sym).join(` ${latex} `);

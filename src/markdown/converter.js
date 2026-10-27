@@ -100,14 +100,28 @@ export function pageToMarkdown(pageJson, widthPt, heightPt, options = {}, pageIm
       continue;
     }
 
-    // 2. Check for Table Caption (e.g. "Table 1: ...", "Table 2. ...", "TABLE I: ...")
-    if (/^(Table|TABLE)\s+([0-9]+|[IVXLCDM]+)[:.]/i.test(blockText)) {
-      mdSections.push(`**${blockText}**`);
+    // 2. Check for Table Caption (e.g. "Table 1: ...", "Table 2. ...", "TABLE I", "TABLE III")
+    if (/^(Table|TABLE)\s+([0-9]+|[IVXLCDM]+)[:.]?\s*/i.test(blockText)) {
+      let caption = blockText;
+      let j = i + 1;
+
+      // Absorb caption continuation (e.g. 'GRAPH' or 'SYSTEMS')
+      while (j < blocks.length) {
+        const nextText = (blocks[j].lines || []).map(l => l.text).join(' ').trim();
+        const nextWords = nextText.split(/\s+/).length;
+        if (nextWords <= 3 && /^[A-Z0-9\s—–-]+$/.test(nextText)) {
+          caption += ' ' + nextText;
+          j++;
+        } else {
+          break;
+        }
+      }
+
+      mdSections.push(`**${caption}**`);
 
       // Look ahead to collect consecutive table rows/blocks directly beneath this caption
       const tableLines = [];
-      let j = i + 1;
-      let lastBlockBottom = block.bbox.y + block.bbox.h;
+      let lastBlockBottom = blocks[j - 1].bbox.y + blocks[j - 1].bbox.h;
 
       while (j < blocks.length) {
         const nextB = blocks[j];
@@ -116,7 +130,10 @@ export function pageToMarkdown(pageJson, widthPt, heightPt, options = {}, pageIm
 
         const nextText = nextLines.map(l => l.text).join(' ').trim();
         const isParagraph = nextText.split(/\s+/).length > 16 && /[.!?]$/.test(nextText);
-        if (isParagraph) {
+        const isHeading = /^([A-Z0-9]+\.|\bAbstract\b|\bReferences\b)/.test(nextText);
+        const isNextCaption = /^(Table|TABLE|Figure|Fig\.)\s+[0-9IVXLCDM]+/i.test(nextText);
+
+        if (isParagraph || isHeading || isNextCaption) {
           break;
         }
 
@@ -130,7 +147,7 @@ export function pageToMarkdown(pageJson, widthPt, heightPt, options = {}, pageIm
         j++;
       }
 
-      if (tableLines.length >= 4) {
+      if (tableLines.length >= 3) {
         const tableMd = reconstructTableFromLines(tableLines);
         if (tableMd) {
           mdSections.push(tableMd);
@@ -140,7 +157,7 @@ export function pageToMarkdown(pageJson, widthPt, heightPt, options = {}, pageIm
         }
       }
 
-      i++;
+      i = j;
       continue;
     }
 
@@ -187,8 +204,10 @@ export function pageToMarkdown(pageJson, widthPt, heightPt, options = {}, pageIm
           hasOpenParen ||
           nextText.startsWith('√') ||
           nextText.startsWith('/') ||
-          /^\)[A-Za-z0-9\s()]*\(\d+\)$/.test(nextText) ||
-          /^\(\d+(\.\d+)?\)$/.test(nextText)
+          nextText.startsWith('∑') ||
+          nextText.includes('=') ||
+          /^\(?(\d+(\.\d+)?)\)?$/.test(nextText) ||
+          /^[a-zA-Z0-9_{}()\-+,/|·×\s\u0338\\=\in]+$/.test(nextText)
         )) {
           if (nextText.startsWith('√')) {
             combinedEquation += ` / ${nextText}`;
@@ -196,6 +215,9 @@ export function pageToMarkdown(pageJson, widthPt, heightPt, options = {}, pageIm
             combinedEquation += ` ${nextText}`;
           }
           j++;
+          if (/^\(?\d+(\.\d+)?\)?$/.test(nextText)) {
+            break; // Stop when closing equation tag is reached
+          }
         } else {
           break;
         }
