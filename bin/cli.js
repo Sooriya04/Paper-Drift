@@ -36,12 +36,17 @@ High-fidelity, zero-Chromium PDF parser powered by WebAssembly & spatial layout 
   --format <fmt>   Output format: markdown (md) | html | text | json (default: html)
   --scale <num>    DPI scale for background raster rendering (default: 2.0)
   --no-bg          Text-only mode; disables background raster rendering
+  --inline         Embed background images directly as Base64 strings in the HTML file
+  --assets-dir <d> Custom directory to store extracted page background images
   --pages <range>  Target pages to convert (e.g. "1-5", "2,4,6", default: "all")
   -v, --version    Show version number
   -h, --help       Display this help message
 
 \x1b[1mEXAMPLES:\x1b[0m
   $ paper-drift document.pdf
+  $ paper-drift paper.pdf output.html
+  $ paper-drift paper.pdf output.html --inline
+  $ paper-drift paper.pdf output.html --assets-dir ./custom_assets
   $ paper-drift paper.pdf output.md --format md
   $ paper-drift paper.pdf output.txt --format text
   $ paper-drift paper.pdf output.html --scale 2.5
@@ -114,16 +119,25 @@ async function run() {
   let format = 'html';
   let scale = 2.0;
   let withBg = true;
+  let inlineImages = false;
+  let customAssetsDir = null;
   let pageRange = 'all';
+  let isReplica = false;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === '--format') {
       format = (args[++i] || 'html').toLowerCase();
+    } else if (arg === '--replica' || arg === '--viewer') {
+      isReplica = true;
     } else if (arg === '--scale') {
       scale = parseFloat(args[++i]) || 2.0;
     } else if (arg === '--no-bg') {
       withBg = false;
+    } else if (arg === '--inline' || arg === '--inline-bg' || arg === '--inline-images') {
+      inlineImages = true;
+    } else if (arg === '--assets-dir') {
+      customAssetsDir = args[++i];
     } else if (arg === '--pages') {
       pageRange = args[++i] || 'all';
     } else if (!arg.startsWith('-')) {
@@ -162,10 +176,19 @@ async function run() {
     outputFile = path.resolve(process.cwd(), outputFile);
   }
 
+  const outParsed = path.parse(outputFile);
+  const defaultAssetsDir = path.join(outParsed.dir, `${outParsed.name}_assets`);
+  const effectiveAssetsDir = inlineImages ? null : (customAssetsDir ? path.resolve(process.cwd(), customAssetsDir) : defaultAssetsDir);
+  const effectiveAssetsPath = inlineImages ? null : (customAssetsDir ? path.relative(outParsed.dir, effectiveAssetsDir) || '.' : `./${outParsed.name}_assets`);
+
+  const bgConfigDesc = !withBg
+    ? 'disabled'
+    : (inlineImages ? 'lossless (inline Base64)' : `lossless (assets: ${path.basename(effectiveAssetsDir)}/)`);
+
   console.log(`\x1b[36m⚡ paper-drift\x1b[0m v${packageJson.version}`);
   console.log(`📄 Input:   ${resolvedInput}`);
   console.log(`🎯 Output:  ${outputFile} (Format: ${format.toUpperCase()})`);
-  console.log(`⚙️  Config:  Scale=${scale}x, Background=${withBg ? 'lossless' : 'disabled'}, Pages=${pageRange}`);
+  console.log(`⚙️  Config:  Scale=${scale}x, Background=${bgConfigDesc}, Pages=${pageRange}`);
   console.log('🔄 Running WebAssembly parser with spatial reading order decomposition...');
 
   try {
@@ -174,9 +197,12 @@ async function run() {
     let pagesProcessed = 0;
     let totalPages = 0;
     let columnsOrTablesInfo = '';
+    let assetsDirCreated = null;
 
     if (isMarkdown) {
       const result = await convertPdfToMarkdown(resolvedInput, {
+        assetsDir: effectiveAssetsDir,
+        assetsPath: effectiveAssetsPath,
         pageRange,
         onProgress: ({ current, total, pageNumber }) => {
           process.stdout.write(`   ⏳ Processing page ${pageNumber} (${current}/${total})...\r`);
@@ -187,10 +213,15 @@ async function run() {
       pagesProcessed = result.pagesProcessed;
       totalPages = result.totalPages;
       columnsOrTablesInfo = result.pages.map(p => `p${p.pageNumber}:${p.tablesCount}tables`).join(', ');
+      assetsDirCreated = result.assetsDir;
     } else {
       const result = await convertPdfToHtml(resolvedInput, {
         scale,
         withBg,
+        inlineImages,
+        replica: isReplica,
+        assetsDir: effectiveAssetsDir,
+        assetsPath: effectiveAssetsPath,
         pageRange,
         format,
         onProgress: ({ current, total, pageNumber }) => {
@@ -200,7 +231,8 @@ async function run() {
       durationMs = result.durationMs;
       pagesProcessed = result.pagesProcessed;
       totalPages = result.totalPages;
-      columnsOrTablesInfo = result.pages.map(p => `p${p.pageNumber}:${p.columnsDetected}col`).join(', ');
+      columnsOrTablesInfo = result.pages.map(p => `p${p.pageNumber}:${p.columnsDetected || 0}col`).join(', ');
+      assetsDirCreated = result.assetsDir;
 
       if (format === 'text') {
         outputContent = result.text;
@@ -217,6 +249,9 @@ async function run() {
 
     console.log(`\n\x1b[32m✔ Conversion complete in ${durationMs}ms!\x1b[0m`);
     console.log(`📊 Converted ${pagesProcessed} of ${totalPages} pages (${sizeKb} KB) [${columnsOrTablesInfo}]`);
+    if (assetsDirCreated) {
+      console.log(`🖼️  Assets:   \x1b[4mfile://${assetsDirCreated}\x1b[0m`);
+    }
     console.log(`✨ Open your file: \x1b[4mfile://${outputFile}\x1b[0m\n`);
   } catch (err) {
     console.error(`\n\x1b[31m❌ Conversion failed:\x1b[0m ${err.message}`);

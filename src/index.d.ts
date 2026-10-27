@@ -36,8 +36,18 @@ export interface ConvertMarkdownResult {
 export interface ConvertHtmlOptions {
   /** DPI scale for background raster rendering (default: 2.0). */
   scale?: number;
-  /** Whether to render lossless background image layer (default: true). */
+  /** Whether to render in replica mode with pixel-perfect background canvas overlay (default: false, uses Option 3 Semantic Web DOM). */
+  replica?: boolean;
+  /** Whether to render lossless background image layer in replica mode (default: true). */
   withBg?: boolean;
+  /** Whether to embed background images directly as Base64 strings in the HTML file (default: false when assetsDir is available). */
+  inlineImages?: boolean;
+  /** Filesystem directory to save extracted page background images. */
+  assetsDir?: string;
+  /** Relative URL prefix for image src paths in the HTML document. */
+  assetsPath?: string;
+  /** Destination HTML output file path, used to auto-derive the assets folder if not provided. */
+  outputFile?: string;
   /** Target page range (e.g. "1-5", "2,4,6", 1, or [1, 2, 3]). Defaults to "all". */
   pages?: string | number | number[];
   /** Legacy alias for `pages`. */
@@ -54,6 +64,7 @@ export interface ConvertHtmlResult {
   html: string;
   text: string;
   pages: PageResult[];
+  assetsDir: string | null;
   totalPages: number;
   pagesProcessed: number;
   durationMs: number;

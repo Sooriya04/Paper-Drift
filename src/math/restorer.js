@@ -53,11 +53,14 @@ export function normalizeMathIndices(str) {
 
   // Common academic math variable patterns
   return str
+    .replace(/([a-zA-Z])_\{([a-zA-Z0-9]+)\}[−\-]([0-9]+)/g, '$1_{$2-$3}')
     .replace(/\b([dD])([kqv])\b/g, '$1_{$2}')
     .replace(/\b(d)(model)\b/g, '$1_{\\text{$2}}')
-    .replace(/\b(head)([i-k])\b/g, '\\text{$1}_{$2}')
-    .replace(/\b([Ww])([0-9a-zA-Z])\b/g, '$1_{$2}')
-    .replace(/\b([XxYyZz])([i-k0-9])\b/g, '$1_{$2}');
+    .replace(/\b(head)([i-k0-9])\b/g, '\\text{$1}_{$2}')
+    .replace(/\b([Ww])([0-9ijk])\b/g, '$1_{$2}')
+    .replace(/\b([hH])(t([−\-]1|\+1)?)\b/g, (m, h, script) => `${h}_{${script.replace('−', '-')}}`)
+    .replace(/\b([hH])([0-9ijkmt])\b/g, '$1_{$2}')
+    .replace(/\b([XxYyZz])([i-kmn0-9])\b/g, '$1_{$2}');
 }
 
 /**
@@ -171,10 +174,25 @@ export function restoreBlockMath(block, options = {}) {
   const equationLabelMatch = rawText.match(/\((\d+(\.\d+)?)\)\s*$/);
   const hasEquationLabel = Boolean(equationLabelMatch);
 
-  // High math likelihood triggers
-  const isEquation = mathDensity >= 0.25 ||
-                     hasEquationLabel ||
-                     (containsMathSymbols(rawText) && (rawText.includes('=') || rawText.includes('+')));
+  // Disqualify blocks that contain emails, author affiliations, or metadata
+  const hasEmail = /@\w+\.\w+/.test(rawText);
+  const isFootnoteAffiliation = /^(†|‡|\*|§)\s*(Work|Equal|Listing|This|All|Correspondence)/i.test(rawText);
+
+  // Disqualify blocks that contain English prose words unless they have an explicit equation label
+  const words = rawText.split(/\s+/);
+  const hasProseWords = words.length >= 4 && /\b(the|and|has|have|is|are|were|mean|variance|with|for|from|that|this|these|those|work|research|google|university)\b/i.test(rawText);
+
+  // A genuine display equation must have a relation (=, \le, \approx, etc.) or equation label or core math operator
+  const hasMathRelation = /[=≤≥≈∈≠~≃∝]/.test(rawText) || rawText.includes('\\sum') || rawText.includes('\\int') || rawText.includes('\\prod') || rawText.includes('∑') || rawText.includes('∫');
+
+  // Disqualify inline variable constraint fragments like "i \in Rdmodel" unless explicitly labeled
+  const isInlineConstraintFragment = /^[a-z]\s*(∈|\\in)/.test(rawText);
+
+  // High math likelihood triggers: must have a relation or explicit label
+  const isEquation = !hasEmail && !isFootnoteAffiliation && !isInlineConstraintFragment && (!hasProseWords || hasEquationLabel) && (
+    hasEquationLabel ||
+    (hasMathRelation && (mathDensity >= 0.2 || containsMathSymbols(rawText)))
+  );
 
   if (!isEquation) {
     return { isMath: false, latex: rawText };
@@ -210,12 +228,36 @@ export function formatInlineMath(text) {
   if (!text) return '';
 
   let result = mapUnicodeToLatex(text);
+  result = result.replace(/√\s*([a-zA-Z0-9_{}]+)/g, '\\sqrt{$1}');
   result = normalizeMathIndices(result);
 
-  // Wrap isolated sub/superscript tokens or Greek symbols in $...$
-  result = result.replace(/(^|\s)([a-zA-Z0-9\\]+[\^_]\{[^{}]+\})($|\s|[.,;:])/g, (match, prefix, math, suffix) => {
-    return `${prefix}$${math}$${suffix}`;
+  // Dimension sets and matrix projection indices: Rdmodel -> \mathbb{R}^{d_{\text{model}}}, W Q i -> W_i^Q
+  result = result.replace(/\bR(d|n|k|m)\b/g, '\\mathbb{R}^{$1}');
+  result = result.replace(/\bRdmodel\b/gi, '\\mathbb{R}^{d_{\\text{model}}}');
+  result = result.replace(/\bRhdv\b/gi, '\\mathbb{R}^{h d_v}');
+  result = result.replace(/\b([Ww])\s*([QKV])\s*([i-k0-9])\b/g, '$1_{$3}^{$2}');
+  result = result.replace(/\b([Ww])\s*([O])\b/g, '$1^{$2}');
+
+  // 1. Wrap variables with nested \text{...} braces: e.g. d_{\text{model}}, \text{head}_i, \mathbb{R}^{...}
+  result = result.replace(/(^|[\s(\[{<«'"])(\\text\{[^{}]+\}_\{?[^{}\s]+\}?|[a-zA-Z0-9]+_\{?\\text\{[^{}]+\}\}?|\\mathbb\{R\}\^\{[^{}]+\})(?=[\s)\]}>».,;:!?'"\\—\-\/]|$)/g, (m, p, math) => {
+    return `${p}$${math}$`;
   });
+
+  // 2. Wrap standard sub/superscripts: e.g. d_k, h_{t-1}, W_1, x_i, W_i^Q
+  result = result.replace(/(^|[\s(\[{<«'"])([a-zA-Z0-9\\]+[\^_]\{?[a-zA-Z0-9_{}\\]+\}?(\^\{?[a-zA-Z0-9_{}\\]+\}?)?)(?=[\s)\]}>».,;:!?'"\\—\-\/]|$)/g, (m, p, math) => {
+    return `${p}$${math}$`;
+  });
+
+  // 3. Wrap isolated square roots: e.g. \sqrt{d_k}
+  result = result.replace(/(^|[\s(\[{<«'"])(\\sqrt\{[^{}]+\})(?=[\s)\]}>».,;:!?'"\\—\-\/]|$)/g, (m, p, math) => {
+    return `${p}$${math}$`;
+  });
+
+  // 4. Normalize sequence lists: e.g. ($x_1$, ..., $x_n$) -> ($x_1$, \dots, $x_n$)
+  result = result.replace(/,\s*\.{3},\s*/g, ', \\dots, ');
+
+  // Clean up any double dollar signs that were wrapped twice ($$...$$ -> $...$)
+  result = result.replace(/([^$\n])\$\$([^\$\n]+?)\$\$([^$\n])/g, '$1$$$2$$$3');
 
   return result;
 }

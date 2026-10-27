@@ -104,16 +104,59 @@ try {
     }
   });
 
-  // 6. CLI file conversion test
+  // 6. CLI file conversion test with assets folder in replica mode
   const cliOutputFile = path.join(resultsOutputDir, 'sample.html');
-  runTest('CLI converts PDF to standalone HTML with background', () => {
+  const cliAssetsDir = path.join(resultsOutputDir, 'sample_assets');
+  runTest('CLI converts PDF to HTML with extracted assets folder (replica mode)', () => {
     if (fs.existsSync(cliOutputFile)) fs.unlinkSync(cliOutputFile);
-    execSync(`node bin/cli.js "${samplePdfPath}" "${cliOutputFile}" --scale 1.5`, { stdio: 'pipe' });
+    if (fs.existsSync(cliAssetsDir)) fs.rmSync(cliAssetsDir, { recursive: true, force: true });
+
+    execSync(`node bin/cli.js "${samplePdfPath}" "${cliOutputFile}" --replica --scale 1.5`, { stdio: 'pipe' });
 
     if (!fs.existsSync(cliOutputFile)) throw new Error('Output HTML was not created');
+    if (!fs.existsSync(cliAssetsDir)) throw new Error('Assets directory was not created');
+    if (!fs.existsSync(path.join(cliAssetsDir, 'page-1.png'))) throw new Error('Page 1 image was not saved into assets folder');
+
     const content = fs.readFileSync(cliOutputFile, 'utf-8');
     if (!content.includes('class="pdf-page"') || !content.includes('paper-drift')) {
       throw new Error('Output HTML missing expected page markup');
+    }
+    if (content.includes('data:image/png;base64')) {
+      throw new Error('Output HTML should not contain Base64 data strings when extracting assets');
+    }
+    if (!content.includes('src="./sample_assets/page-1.png"')) {
+      throw new Error('Output HTML missing relative image src path to assets folder');
+    }
+  });
+
+  // 6b. CLI --inline flag test in replica mode
+  const inlineOutputFile = path.join(resultsOutputDir, 'inline-sample.html');
+  runTest('CLI converts PDF with --inline flag to self-contained Base64 HTML (replica mode)', () => {
+    if (fs.existsSync(inlineOutputFile)) fs.unlinkSync(inlineOutputFile);
+
+    execSync(`node bin/cli.js "${samplePdfPath}" "${inlineOutputFile}" --replica --inline`, { stdio: 'pipe' });
+
+    if (!fs.existsSync(inlineOutputFile)) throw new Error('Inline output HTML was not created');
+    const content = fs.readFileSync(inlineOutputFile, 'utf-8');
+    if (!content.includes('data:image/png;base64')) {
+      throw new Error('Inline HTML missing expected Base64 image layer');
+    }
+  });
+
+  // 6c. CLI Option 3: Semantic HTML test (Pure Web DOM)
+  const semanticOutputFile = path.join(resultsOutputDir, 'semantic-sample.html');
+  runTest('CLI converts PDF to Semantic HTML5 (Option 3 Pure Web DOM, no background overlay)', () => {
+    if (fs.existsSync(semanticOutputFile)) fs.unlinkSync(semanticOutputFile);
+
+    execSync(`node bin/cli.js "${samplePdfPath}" "${semanticOutputFile}"`, { stdio: 'pipe' });
+
+    if (!fs.existsSync(semanticOutputFile)) throw new Error('Semantic HTML output was not created');
+    const content = fs.readFileSync(semanticOutputFile, 'utf-8');
+    if (!content.includes('class="pdf-heading') || !content.includes('class="pdf-paragraph"')) {
+      throw new Error('Semantic HTML missing expected semantic tags');
+    }
+    if (content.includes('class="pdf-bg-layer"')) {
+      throw new Error('Semantic HTML should not contain background canvas layer');
     }
   });
 

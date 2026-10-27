@@ -59,6 +59,22 @@ console.log('\nRunning Direct PDF to Markdown Test Suite');
 
     fs.writeFileSync(path.join(resultsDir, 'attention-page6.md'), result.markdown);
     console.log('  ✔ convertPdfToMarkdown reconstructs tables, headings, and LaTeX math on Page 6');
+
+    // Test 2b: Test Page 4 for display math LaTeX fraction, figure extraction, and prose preservation
+    const assetsDir = path.join(resultsDir, 'attention-page4_assets');
+    const p4Result = await convertPdfToMarkdown(attentionPdf, {
+      pageRange: '4',
+      assetsDir
+    });
+
+    assert(p4Result.markdown.includes('\\text{Attention}(Q, K, V ) = \\text{softmax}\\left(\\frac{Q K^T}{\\sqrt{d_k}} \\right) V \\tag{1}'),
+      'Should accurately reconstruct compound display LaTeX equation with fraction and tag');
+    assert(p4Result.markdown.includes('![Figure 2:'), 'Should insert figure markdown image tag');
+    assert(!p4Result.markdown.includes('$$\ni=1 qiki'), 'Prose footnotes should not be falsely treated as display equations');
+    assert(fs.existsSync(path.join(assetsDir, 'figure-p4-1.png')), 'Embedded figure should be extracted to assets directory');
+
+    fs.writeFileSync(path.join(resultsDir, 'attention-page4.md'), p4Result.markdown);
+    console.log('  ✔ convertPdfToMarkdown reconstructs compound LaTeX equations, extracts figures, and preserves footnotes on Page 4');
   } else {
     console.log('  ⚠ Attention paper benchmark fixture skipped (fixture not found)');
   }

@@ -494,6 +494,47 @@ body {
   padding: 0.5rem 0;
 }
 
+/* Extracted Figures and Diagram Containment */
+.markdown-rendered-viewport img {
+  max-width: min(100%, 600px);
+  max-height: 420px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
+  margin: 1.5rem auto 0.75rem auto;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.markdown-rendered-viewport p:has(img) {
+  text-align: center;
+  margin-bottom: 0.5rem;
+}
+
+/* KaTeX Fallback styling */
+.katex-display-fallback {
+  background: #1e293b;
+  border-left: 3px solid #f59e0b;
+  padding: 0.75rem 1rem;
+  margin: 1rem 0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.9rem;
+  color: #fbbf24;
+  overflow-x: auto;
+}
+
+.katex-inline-fallback {
+  background: #1e293b;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.85em;
+  color: #38bdf8;
+}
+
 .preview-viewport {
   background: #ffffff;
   border: 1px solid var(--border-color);

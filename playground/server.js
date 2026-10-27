@@ -38,8 +38,14 @@ const server = http.createServer((req, res) => {
       try {
         const buffer = Buffer.concat(chunks);
         const pageRange = urlObj.searchParams.get('pages') || 'all';
+        const assetsDir = path.join(__dirname, 'extracted_assets');
+        fs.mkdirSync(assetsDir, { recursive: true });
 
-        const result = await convertPdfToMarkdown(buffer, { pageRange });
+        const result = await convertPdfToMarkdown(buffer, {
+          pageRange,
+          assetsDir,
+          assetsPath: '/extracted_assets'
+        });
         const visionTokens = result.pagesProcessed * 1600;
         const markdownTokens = Math.max(1, Math.round(result.markdown.length / 4));
         const savingsPercent = Math.max(0, Math.min(99.9, ((visionTokens - markdownTokens) / visionTokens) * 100)).toFixed(1);
@@ -57,6 +63,43 @@ const server = http.createServer((req, res) => {
           visionTokens,
           markdownTokens,
           savingsPercent
+        }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+  // API Endpoint: PDF to HTML conversion
+  if (req.method === 'POST' && reqPath === '/api/convert-html') {
+    const chunks = [];
+    req.on('data', chunk => chunks.push(chunk));
+    req.on('end', async () => {
+      try {
+        const buffer = Buffer.concat(chunks);
+        const pageRange = urlObj.searchParams.get('pages') || 'all';
+        const scale = parseFloat(urlObj.searchParams.get('scale')) || 2.0;
+        const inline = urlObj.searchParams.get('inline') === 'true';
+
+        const result = await convertPdfToHtml(buffer, {
+          scale,
+          pageRange,
+          inlineImages: inline
+        });
+
+        res.writeHead(200, {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        });
+        res.end(JSON.stringify({
+          success: true,
+          html: result.html,
+          totalPages: result.totalPages,
+          pagesProcessed: result.pagesProcessed,
+          durationMs: result.durationMs,
+          pages: result.pages
         }));
       } catch (err) {
         res.writeHead(500, { 'Content-Type': 'application/json' });

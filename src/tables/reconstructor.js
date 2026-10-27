@@ -86,7 +86,7 @@ export function foldHeaders(headerRows, colCount) {
  * @returns {string|null} Reconstructed Markdown table string or null if lines do not form a table
  */
 export function reconstructTableFromLines(lines, options = {}) {
-  if (!lines || lines.length < 4) return null;
+  if (!lines || lines.length < 3) return null;
 
   const rowProximity = typeof options.rowProximity === 'number' ? options.rowProximity : 4.5;
 
@@ -95,7 +95,7 @@ export function reconstructTableFromLines(lines, options = {}) {
     .filter(l => l.text && l.text.trim())
     .sort((a, b) => a.bbox.y - b.bbox.y || a.bbox.x - b.bbox.x);
 
-  if (sortedLines.length < 4) return null;
+  if (sortedLines.length < 3) return null;
 
   // 2. Group lines into horizontal rows by Y overlap
   const rows = [];
@@ -109,19 +109,63 @@ export function reconstructTableFromLines(lines, options = {}) {
     }
   }
 
+  // 3. In each row, merge items that are merely adjacent words within the same line (gap < 8pt)
+  // This prevents inline citations (e.g. "[1]") or subscripts from creating false table columns
   for (const r of rows) {
     r.items.sort((a, b) => a.bbox.x - b.bbox.x);
+    const merged = [];
+    let cur = null;
+    for (const it of r.items) {
+      if (!cur) {
+        cur = { text: it.text, bbox: { ...it.bbox } };
+      } else {
+        const gap = it.bbox.x - (cur.bbox.x + cur.bbox.w);
+        if (gap < 8) {
+          cur.text += ' ' + it.text;
+          cur.bbox.w = (it.bbox.x + it.bbox.w) - cur.bbox.x;
+        } else {
+          merged.push(cur);
+          cur = { text: it.text, bbox: { ...it.bbox } };
+        }
+      }
+    }
+    if (cur) merged.push(cur);
+    r.items = merged;
   }
 
-  // 3. Find maximum items in any row to identify column count
+  // A genuine table must have multiple rows
+  if (rows.length < 2) return null;
+
+  // 4. Validate table geometry: multiple rows must actually contain multiple columns
   const maxItems = Math.max(...rows.map(r => r.items.length));
   if (maxItems < 2) return null; // A table must have at least 2 columns
 
-  // Filter dense rows (rows containing the maximum column representation)
+  // Count rows with multiple distinct columns
+  const multiColRows = rows.filter(r => r.items.length >= 2);
+  // A table must have multiple rows spanning columns (at least 2 rows, and >= 40% of rows)
+  if (multiColRows.length < 2 || multiColRows.length < rows.length * 0.4) {
+    return null;
+  }
+
+  // Prose filter: if text lines are long running sentences ending in periods, it is prose, not a table
+  let longSentenceCount = 0;
+  for (const r of rows) {
+    for (const it of r.items) {
+      const words = it.text.trim().split(/\s+/).length;
+      if (words > 12 && /[.,;]$/.test(it.text.trim())) {
+        longSentenceCount++;
+      }
+    }
+  }
+  if (longSentenceCount >= rows.length * 0.5) {
+    return null;
+  }
+
+  // 5. Filter dense rows (rows containing the maximum column representation)
   const maxRows = rows.filter(r => r.items.length === maxItems);
   if (maxRows.length === 0) return null;
 
-  // 4. Calculate column intervals and cut boundaries
+  // 6. Calculate column intervals and cut boundaries
   const colIntervals = [];
   for (let c = 0; c < maxItems; c++) {
     const itemsInCol = maxRows.map(r => r.items[c]);
@@ -138,7 +182,7 @@ export function reconstructTableFromLines(lines, options = {}) {
   }
   cuts.push(colIntervals[maxItems - 1].maxRight + 15);
 
-  // 5. Slice each row's items into columns
+  // 7. Slice each row's items into columns
   const grid = [];
   for (const r of rows) {
     const rowCells = new Array(maxItems).fill('');
@@ -156,32 +200,28 @@ export function reconstructTableFromLines(lines, options = {}) {
     grid.push(rowCells);
   }
 
-  // 6. Separate header rows from data rows
-  const isSubheaderRow = (row, idx) => {
-    if (idx === 0) return true;
-    const joined = row.join(' ');
-    // Header words or empty column cells under super-headers
-    return joined.includes('Operations') ||
-           joined.includes('EN-DE') ||
-           joined.includes('Model') ||
-           joined.includes('top-1') ||
-           joined.includes('top-5');
+  // 8. Dynamic Header Identification (Zero Hardcoded Strings)
+  // Check if row 1 is a hierarchical sub-header under row 0 (e.g. empty super-header cells)
+  const isSubheader = (row, prevRow) => {
+    const hasEmptyUnderFilled = row.some((c, idx) => !c.trim() && prevRow[idx] && prevRow[idx].trim());
+    const hasNumericData = row.some(c => /^\d+(\.\d+)?%?$/.test(c.trim()));
+    return hasEmptyUnderFilled && !hasNumericData;
   };
 
-  const headerRows = [];
-  const dataRows = [];
-  for (let i = 0; i < grid.length; i++) {
-    if (isSubheaderRow(grid[i], i) && dataRows.length === 0) {
+  const headerRows = [grid[0]];
+  let dataRowsStart = 1;
+
+  for (let i = 1; i < grid.length; i++) {
+    if (isSubheader(grid[i], grid[i - 1])) {
       headerRows.push(grid[i]);
+      dataRowsStart = i + 1;
     } else {
-      dataRows.push(grid[i]);
+      break;
     }
   }
 
-  if (headerRows.length === 0 && grid.length > 0) {
-    headerRows.push(grid[0]);
-    dataRows.push(...grid.slice(1));
-  }
+  const dataRows = grid.slice(dataRowsStart);
+  if (dataRows.length === 0) return null; // Must contain data rows, not just headers
 
   const finalHeaders = foldHeaders(headerRows, maxItems);
   const separator = new Array(maxItems).fill(':---');

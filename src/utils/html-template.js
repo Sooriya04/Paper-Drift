@@ -1,9 +1,23 @@
 /**
  * @file src/utils/html-template.js
  * @description Generates self-contained standalone HTML documents for paper-drift outputs.
- * Provides CSS reset, seamless page flow, high-DPI background positioning, and selectable text layer styles.
+ * Provides clean semantic HTML5 layout, responsive typography, styled tables, KaTeX math support, and print styling.
  * Part of paper-drift - https://github.com/Sooriya04/Paper-Drift
  */
+
+/**
+ * Escapes HTML characters.
+ * @param {string} str
+ * @returns {string}
+ */
+export function escapeHtml(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 /**
  * Wraps page markup blocks into a complete, standalone HTML document.
@@ -14,6 +28,159 @@
  * @returns {string} Fully standalone HTML string.
  */
 export function buildHtmlDocument({ title, pagesHtml, options = {} }) {
+  const isReplica = Boolean(options.replica || options.viewer);
+
+  if (isReplica) {
+    return buildReplicaDocument({ title, pagesHtml, options });
+  }
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="generator" content="paper-drift">
+  <title>${escapeHtml(title)}</title>
+  <!-- KaTeX for crisp client-side LaTeX formula rendering -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body, {delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});"></script>
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    html, body {
+      background-color: #f8fafc;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #1e293b;
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+    }
+    .pdf-container {
+      max-width: 880px;
+      margin: 0 auto;
+      padding: 40px 20px;
+    }
+    .pdf-page {
+      background: #ffffff;
+      border-radius: 10px;
+      padding: 48px;
+      margin-bottom: 32px;
+      box-shadow: 0 1px 4px 0 rgba(0, 0, 0, 0.07), 0 2px 8px -2px rgba(0, 0, 0, 0.05);
+      position: relative;
+    }
+    .pdf-heading {
+      color: #0f172a;
+      font-weight: 700;
+      line-height: 1.3;
+      margin: 28px 0 12px 0;
+    }
+    .pdf-h1 { font-size: 2rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; }
+    .pdf-h2 { font-size: 1.5rem; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; }
+    .pdf-h3 { font-size: 1.25rem; }
+    .pdf-paragraph {
+      margin: 14px 0;
+      color: #334155;
+      font-size: 1rem;
+    }
+    .pdf-list {
+      margin: 12px 0 16px 24px;
+      color: #334155;
+    }
+    .pdf-list li {
+      margin-bottom: 6px;
+    }
+    .table-container {
+      overflow-x: auto;
+      margin: 24px 0;
+    }
+    .pdf-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.925rem;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .pdf-table th {
+      background: #f1f5f9;
+      font-weight: 600;
+      color: #0f172a;
+      text-align: left;
+      padding: 10px 14px;
+      border-bottom: 2px solid #cbd5e1;
+    }
+    .pdf-table td {
+      padding: 9px 14px;
+      border-bottom: 1px solid #e2e8f0;
+      color: #334155;
+    }
+    .pdf-table tr:hover {
+      background-color: #f8fafc;
+    }
+    .pdf-caption {
+      font-weight: 600;
+      color: #475569;
+      font-size: 0.95rem;
+      margin: 18px 0 8px 0;
+    }
+    .pdf-figure {
+      margin: 28px auto;
+      text-align: center;
+    }
+    .figure-img {
+      max-width: min(100%, 650px);
+      max-height: 440px;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      display: block;
+      margin: 0 auto;
+      border-radius: 8px;
+      background: #ffffff;
+      padding: 6px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+    }
+    .figure-caption {
+      font-size: 0.875rem;
+      color: #64748b;
+      margin-top: 10px;
+      font-style: italic;
+    }
+    .math-display {
+      padding: 14px 18px;
+      background: #f8fafc;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-family: "KaTeX_Main", "Times New Roman", serif;
+      margin: 16px 0;
+      border-left: 3px solid #3b82f6;
+    }
+    code {
+      background: #f1f5f9;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.875em;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    @media print {
+      body { background-color: #ffffff; }
+      .pdf-container { padding: 0; max-width: 100%; }
+      .pdf-page { box-shadow: none; padding: 24px 0; page-break-after: always; }
+    }
+  </style>
+</head>
+<body>
+  <main class="pdf-container">
+${pagesHtml.join('\n')}
+  </main>
+</body>
+</html>`;
+}
+
+function buildReplicaDocument({ title, pagesHtml, options = {} }) {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -22,12 +189,7 @@ export function buildHtmlDocument({ title, pagesHtml, options = {} }) {
   <meta name="generator" content="paper-drift">
   <title>${escapeHtml(title)}</title>
   <style>
-    /* CSS Reset & Canvas Defaults */
-    *, *::before, *::after {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body {
       background-color: #525659;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -69,34 +231,21 @@ export function buildHtmlDocument({ title, pagesHtml, options = {} }) {
       z-index: 2;
       pointer-events: auto;
     }
-    .pdf-text-layer p,
-    .pdf-text-layer span {
+    .pdf-text-layer p {
       position: absolute;
       white-space: pre;
       line-height: 1;
       transform-origin: left top;
     }
-    /* When visual background is enabled, text layer is transparent for 1:1 selection */
-    .with-bg .pdf-text-layer {
-      color: transparent;
-    }
+    .with-bg .pdf-text-layer { color: transparent; }
     .with-bg .pdf-text-layer ::selection {
       background: rgba(59, 130, 246, 0.35);
       color: transparent;
     }
-    /* Print optimizations */
     @media print {
-      body {
-        background-color: #ffffff;
-      }
-      .pdf-container {
-        padding: 0;
-        gap: 0;
-      }
-      .pdf-page {
-        box-shadow: none;
-        page-break-after: always;
-      }
+      body { background-color: #ffffff; }
+      .pdf-container { padding: 0; gap: 0; }
+      .pdf-page { box-shadow: none; page-break-after: always; }
     }
   </style>
 </head>
@@ -106,13 +255,4 @@ ${pagesHtml.join('\n')}
   </main>
 </body>
 </html>`;
-}
-
-function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
 }

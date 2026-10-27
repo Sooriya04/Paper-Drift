@@ -91,6 +91,21 @@ console.log('\nRunning Table Reconstruction Test Suite');
   console.log('  ✔ reconstructTableFromLines correctly assembles synthetic 3-column table');
 }
 
+// Test 3b: Rejection of false positive prose paragraphs with inline citations
+{
+  const paragraphLines = [
+    { text: 'In this work we propose the Transformer, a model architecture', bbox: { x: 50, y: 100, w: 200, h: 10 } },
+    { text: 'eschewing recurrence and relying entirely on attention', bbox: { x: 50, y: 115, w: 180, h: 10 } },
+    { text: '[1].', bbox: { x: 232, y: 115, w: 15, h: 10 } },
+    { text: 'Experiments on two machine translation tasks show these models', bbox: { x: 50, y: 130, w: 200, h: 10 } },
+    { text: 'to be superior in quality while being more parallelizable.', bbox: { x: 50, y: 145, w: 195, h: 10 } }
+  ];
+
+  const falseTable = reconstructTableFromLines(paragraphLines);
+  assert.strictEqual(falseTable, null, 'Normal text paragraph with citation fragment must NOT be converted to a table');
+  console.log('  ✔ reconstructTableFromLines correctly rejects prose paragraphs with citations');
+}
+
 // Test 4: Real benchmark: Table 1 on Attention Is All You Need (Page 6)
 {
   const fixturePath = path.join(__dirname, 'fixtures/benchmarks/01-attention-is-all-you-need.pdf');

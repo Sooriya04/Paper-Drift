@@ -19,7 +19,8 @@
     "LICENSE"
   ],
   "bin": {
-    "paper-drift": "./bin/cli.js"
+    "paper-drift": "./bin/cli.js",
+    "paper-kit": "./bin/cli.js"
   },
   "repository": {
     "type": "git",

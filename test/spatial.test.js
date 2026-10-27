@@ -82,6 +82,26 @@ runTest('recursiveXyCut preserves simple single-column top-to-bottom layout', ()
   assert(texts[2] === 'Paragraph 3', 'Must sort top-to-bottom');
 });
 
+// 2b. Multi-column test with centered divider/equation
+runTest('recursiveXyCut preserves 2-column order even with centered divider or equation', () => {
+  const blocks = [
+    { bbox: { x: 50, y: 100, w: 200, h: 40 }, lines: [{ text: 'Col 1 paragraph 1' }] },
+    { bbox: { x: 50, y: 150, w: 200, h: 40 }, lines: [{ text: 'Col 1 paragraph 2' }] },
+    { bbox: { x: 240, y: 200, w: 100, h: 20 }, lines: [{ text: 'Centered Equation' }] },
+    { bbox: { x: 320, y: 100, w: 200, h: 40 }, lines: [{ text: 'Col 2 paragraph 1' }] },
+    { bbox: { x: 320, y: 150, w: 200, h: 40 }, lines: [{ text: 'Col 2 paragraph 2' }] }
+  ];
+
+  const ordered = recursiveXyCut(blocks);
+  const texts = ordered.map(b => b.lines[0].text);
+
+  assert(texts[0] === 'Col 1 paragraph 1', 'Col 1 p1 must be first');
+  assert(texts[1] === 'Col 1 paragraph 2', 'Col 1 p2 must follow Col 1 p1');
+  assert(texts[2] === 'Col 2 paragraph 1', 'Col 2 p1 must follow Col 1');
+  assert(texts[3] === 'Col 2 paragraph 2', 'Col 2 p2 must follow Col 2 p1');
+  assert(texts[4] === 'Centered Equation', 'Centered Equation must come after columns');
+});
+
 // 3. Real PDF test on sample.pdf
 const samplePath = path.resolve(__dirname, 'fixtures/sample.pdf');
 if (fs.existsSync(samplePath)) {

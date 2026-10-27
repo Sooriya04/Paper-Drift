@@ -17,6 +17,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <!-- KaTeX CSS for LaTeX Math Equations -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+  <!-- JSZip for clean ZIP asset bundle downloads -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <!-- PDF.js WebAssembly / Worker engine -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <!-- Marked.js for GitHub Flavored Markdown parsing -->
@@ -61,6 +63,15 @@
         </div>
 
         <div class="option-card">
+          <label for="assetMode" class="option-title">Image / Asset Storage</label>
+          <select id="assetMode" class="input-select">
+            <option value="assets" selected>Assets Folder / ZIP (Token Efficient - No Base64)</option>
+            <option value="inline">Inline Base64 (Legacy Single File)</option>
+          </select>
+          <span class="option-hint">Extracting assets eliminates token bloat and keeps HTML lightweight.</span>
+        </div>
+
+        <div class="option-card">
           <label for="renderScale" class="option-title">Resolution / Scale (HTML)</label>
           <select id="renderScale" class="input-select">
             <option value="1.5">Standard (1.5x - Fast &amp; Crisp)</option>
@@ -84,6 +95,9 @@
         </button>
         <button id="downloadMdBtn" class="btn-secondary btn-accent" disabled>
           <span>📥 Download .md</span>
+        </button>
+        <button id="downloadZipBtn" class="btn-secondary btn-accent" disabled>
+          <span>📦 Download Bundle (.zip)</span>
         </button>
         <button id="downloadHtmlBtn" class="btn-secondary" disabled>
           <span>📥 Download .html</span>

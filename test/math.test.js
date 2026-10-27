@@ -118,11 +118,43 @@ runTest('normalizeMathIndices automatically formats common math variable subscri
 
 // 7. Inline math paragraph formatting
 runTest('formatInlineMath wraps variables with scripts in $...$', () => {
-  const paragraph = 'The output of the projection is W_{q} and the key dimension is d_{k}.';
+  const paragraph = 'The output of the projection is W_{q} and the key dimension is d_{k}. We also use dmodel-dimensional vectors and headi.';
   const out = formatInlineMath(paragraph);
 
   assert(out.includes('$W_{q}$'), 'Must wrap W_{q} in $');
   assert(out.includes('$d_{k}$'), 'Must wrap d_{k} in $');
+  assert(out.includes('$d_{\\text{model}}$'), 'Must wrap dmodel as $d_{\\text{model}}$ in $');
+  assert(out.includes('$\\text{head}_{i}$'), 'Must wrap headi as $\\text{head}_{i}$ in $');
+});
+
+// 8. Author metadata and non-equations rejection
+runTest('restoreBlockMath rejects author names with asterisks or email addresses', () => {
+  const authorBlock = {
+    lines: [
+      {
+        text: 'Ashish Vaswani *',
+        tokens: [
+          { str: 'Ashish', x: 10, y: 100, fontSize: 10 },
+          { str: 'Vaswani', x: 50, y: 100, fontSize: 10 },
+          { str: '∗', x: 100, y: 100, fontSize: 10, fontName: 'CMSY10' }
+        ]
+      }
+    ]
+  };
+
+  const emailBlock = {
+    lines: [
+      {
+        text: 'Llion Jones * Google Research llion@google.com',
+        tokens: [
+          { str: 'Llion Jones * Google Research llion@google.com', x: 10, y: 100, fontSize: 10 }
+        ]
+      }
+    ]
+  };
+
+  assert(restoreBlockMath(authorBlock).isMath === false, 'Author names with asterisks must NOT be flagged as math');
+  assert(restoreBlockMath(emailBlock).isMath === false, 'Author lines with emails must NOT be flagged as math');
 });
 
 console.log('\n\x1b[32m✔ All LaTeX math restoration tests passed successfully!\x1b[0m\n');

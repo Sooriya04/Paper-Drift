@@ -18,9 +18,11 @@ const browseBtn = document.getElementById('browseBtn');
 const fileInfo = document.getElementById('fileInfo');
 const convertBtn = document.getElementById('convertBtn');
 const downloadMdBtn = document.getElementById('downloadMdBtn');
+const downloadZipBtn = document.getElementById('downloadZipBtn');
 const downloadHtmlBtn = document.getElementById('downloadHtmlBtn');
 const copyMdBtn = document.getElementById('copyMdBtn');
 const outputTarget = document.getElementById('outputTarget');
+const assetMode = document.getElementById('assetMode');
 const renderScale = document.getElementById('renderScale');
 const pageRange = document.getElementById('pageRange');
 const progressContainer = document.getElementById('progressContainer');
@@ -44,6 +46,7 @@ let currentFile = null;
 let currentPdfData = null;
 let generatedHtml = '';
 let generatedMarkdown = '';
+let pageImages = [];
 
 // Drag and drop handlers
 dropZone.addEventListener('click', (e) => {
@@ -90,9 +93,11 @@ function handleFileSelected(file) {
   fileInfo.textContent = `Selected: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
   convertBtn.disabled = false;
   downloadMdBtn.disabled = true;
+  downloadZipBtn.disabled = true;
   downloadHtmlBtn.disabled = true;
   previewSection.style.display = 'none';
   tokenSavingsBanner.style.display = 'none';
+  pageImages = [];
 
   const reader = new FileReader();
   reader.onload = function(evt) {
@@ -163,30 +168,81 @@ function parsePageRange(rangeStr, totalPages) {
   return Array.from(pages).sort((a, b) => a - b);
 }
 
-// Render Markdown and Auto-Render KaTeX Math
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Render Markdown safely with KaTeX: Protects math from marked.js to avoid parse errors and false bolding
 function renderMarkdownWithKaTeX(markdownText) {
-  if (window.marked) {
-    marked.setOptions({ gfm: true, breaks: false });
-    const rawHtml = marked.parse(markdownText);
-    markdownRendered.innerHTML = rawHtml;
-  } else {
-    markdownRendered.textContent = markdownText;
+  if (!markdownText) {
+    markdownRendered.innerHTML = '';
+    return;
   }
 
-  // Trigger KaTeX math formula rendering on the rendered markdown container
-  if (window.renderMathInElement) {
-    try {
-      renderMathInElement(markdownRendered, {
-        delimiters: [
-          { left: '$$', right: '$$', display: true },
-          { left: '$', right: '$', display: false }
-        ],
-        throwOnError: false
-      });
-    } catch (katexErr) {
-      console.warn('KaTeX render warning:', katexErr);
+  // 1. Protect Display Math ($$...$$) and Inline Math ($...$) from Marked.js mangling
+  const mathPlaceholders = [];
+  let placeholderCounter = 0;
+
+  // Protect display math first ($$...$$)
+  let protectedMd = markdownText.replace(/\$\$([\s\S]*?)\$\$/g, (match, equation) => {
+    const key = `XKMATHBLOCKX${placeholderCounter++}X`;
+    mathPlaceholders.push({ key, type: 'display', math: equation.trim() });
+    return `\n\n${key}\n\n`;
+  });
+
+  // Protect inline math ($...$) - ensure not currency like $50
+  protectedMd = protectedMd.replace(/(^|[^\\\$])\$([^\$\n]+?)\$/g, (match, prefix, math) => {
+    if (/^\s*\d+/.test(math)) return match;
+    const key = `XKMATHINLINEX${placeholderCounter++}X`;
+    mathPlaceholders.push({ key, type: 'inline', math: math.trim() });
+    return `${prefix}${key}`;
+  });
+
+  // 2. Parse Markdown safely with marked.js (no math underscores or backslashes to mangle)
+  let rawHtml = '';
+  if (window.marked) {
+    marked.setOptions({ gfm: true, breaks: false });
+    rawHtml = marked.parse(protectedMd);
+  } else {
+    rawHtml = protectedMd;
+  }
+
+  // 3. Render KaTeX directly for each math placeholder and substitute back
+  for (const item of mathPlaceholders) {
+    let renderedMath = '';
+    if (window.katex) {
+      try {
+        renderedMath = katex.renderToString(item.math, {
+          displayMode: item.type === 'display',
+          throwOnError: false
+        });
+      } catch (err) {
+        renderedMath = item.type === 'display'
+          ? `<div class="katex-display-fallback">${escapeHtml(item.math)}</div>`
+          : `<code class="katex-inline-fallback">${escapeHtml(item.math)}</code>`;
+      }
+    } else {
+      renderedMath = item.type === 'display' ? `$$${item.math}$$` : `$${item.math}$`;
+    }
+
+    if (item.type === 'display') {
+      const pWrappedKey = new RegExp(`<p>\\s*${item.key}\\s*<\\/p>`, 'g');
+      if (pWrappedKey.test(rawHtml)) {
+        rawHtml = rawHtml.replace(pWrappedKey, renderedMath);
+      } else {
+        rawHtml = rawHtml.replace(item.key, renderedMath);
+      }
+    } else {
+      rawHtml = rawHtml.replace(item.key, renderedMath);
     }
   }
+
+  markdownRendered.innerHTML = rawHtml;
 }
 
 // Main conversion logic
@@ -195,16 +251,20 @@ convertBtn.addEventListener('click', async () => {
 
   convertBtn.disabled = true;
   downloadMdBtn.disabled = true;
+  downloadZipBtn.disabled = true;
   downloadHtmlBtn.disabled = true;
   previewSection.style.display = 'none';
   tokenSavingsBanner.style.display = 'none';
   previewContainer.innerHTML = '';
   markdownRendered.innerHTML = '';
+  pageImages = [];
 
   const targetMode = outputTarget.value;
   const wantMarkdown = targetMode === 'markdown' || targetMode === 'both';
   const wantHtml = targetMode === 'dual' || targetMode === 'both';
   const requestedPages = pageRange.value.trim() || 'all';
+  const isAssetsMode = assetMode ? assetMode.value === 'assets' : true;
+  const docBaseName = (currentFile ? currentFile.name : 'document').replace(/\.pdf$/i, '');
 
   setProgress(10, 'Initializing WebAssembly conversion engine...');
 
@@ -282,7 +342,8 @@ convertBtn.addEventListener('click', async () => {
       const scale = parseFloat(renderScale.value);
       const targetPagesList = parsePageRange(requestedPages, totalPages);
 
-      const pagesHtml = [];
+      const previewPagesHtml = [];
+      const exportPagesHtml = [];
 
       for (let i = 0; i < targetPagesList.length; i++) {
         const pageNum = targetPagesList[i];
@@ -324,16 +385,43 @@ convertBtn.addEventListener('click', async () => {
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         await page.render({ canvasContext: ctx, viewport: scaledViewport }).promise;
-        const bgDataUrl = canvas.toDataURL('image/png');
 
-        const pageMarkup = `
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+        const blobUrl = URL.createObjectURL(blob);
+        const filename = `page-${pageNum}.png`;
+
+        let bgDataUrl = null;
+        if (!isAssetsMode) {
+          bgDataUrl = canvas.toDataURL('image/png');
+        }
+
+        pageImages.push({
+          pageNum,
+          filename,
+          blob,
+          dataUrl: bgDataUrl
+        });
+
+        // Live in-browser preview uses Blob URL (instant, lightweight, zero Base64 lag)
+        const previewMarkup = `
 <!-- Page ${pageNum} -->
 <div class="pdf-page" id="page-${pageNum}" style="position: relative; width: ${pageWidth.toFixed(1)}px; height: ${pageHeight.toFixed(1)}px; margin: 0 auto; background: #ffffff; overflow: hidden; display: block; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);">
-  <img src="${bgDataUrl}" class="pdf-bg-layer" alt="Page ${pageNum}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; display: block;" />
+  <img src="${blobUrl}" class="pdf-bg-layer" alt="Page ${pageNum}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; display: block;" />
   <div class="pdf-text-layer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; pointer-events: auto;">
 ${textSpansHtml}  </div>
 </div>`;
-        pagesHtml.push(pageMarkup);
+        previewPagesHtml.push(previewMarkup);
+
+        // Exported HTML uses companion assets folder reference or Base64 if inline requested
+        const imgSrc = isAssetsMode ? `./${docBaseName}_assets/${filename}` : bgDataUrl;
+        const exportMarkup = `
+<!-- Page ${pageNum} -->
+<div class="pdf-page" id="page-${pageNum}" style="position: relative; width: ${pageWidth.toFixed(1)}px; height: ${pageHeight.toFixed(1)}px; margin: 0 auto; background: #ffffff; overflow: hidden; display: block; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);">
+  <img src="${imgSrc}" class="pdf-bg-layer" alt="Page ${pageNum}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; display: block;" />
+  <div class="pdf-text-layer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; pointer-events: auto;">
+${textSpansHtml}  </div>
+</div>`;
+        exportPagesHtml.push(exportMarkup);
       }
 
       generatedHtml = `<!DOCTYPE html>
@@ -341,19 +429,19 @@ ${textSpansHtml}  </div>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${currentFile.name.replace(/\.pdf$/i, '')}</title>
+  <title>${docBaseName}</title>
   <style>
     body { background-color: #525659; margin: 0; padding: 24px 0; display: flex; flex-direction: column; align-items: center; gap: 16px; }
     ::selection { background: rgba(59, 130, 246, 0.4); color: transparent; }
   </style>
 </head>
 <body>
-${pagesHtml.join('\n')}
+${exportPagesHtml.join('\n')}
 </body>
 </html>`;
 
-      previewContainer.innerHTML = pagesHtml.join('\n');
-      codeViewer.textContent = generatedHtml.slice(0, 5000) + (generatedHtml.length > 5000 ? '\n\n... [truncated for display, full document on download] ...' : '');
+      previewContainer.innerHTML = previewPagesHtml.join('\n');
+      codeViewer.textContent = generatedHtml;
     }
 
     setProgress(100, 'Conversion completed successfully!');
@@ -363,6 +451,9 @@ ${pagesHtml.join('\n')}
     previewSection.style.display = 'flex';
     if (generatedMarkdown) downloadMdBtn.disabled = false;
     if (generatedHtml) downloadHtmlBtn.disabled = false;
+    if (isAssetsMode && pageImages.length > 0) {
+      downloadZipBtn.disabled = false;
+    }
 
     // Set default active tab based on mode
     if (wantMarkdown) {
@@ -387,6 +478,40 @@ downloadMdBtn.addEventListener('click', () => {
   const a = document.createElement('a');
   a.href = url;
   a.download = `${(currentFile ? currentFile.name : 'document').replace(/\.pdf$/i, '')}.md`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+
+// Download ZIP bundle handler (HTML + extracted assets folder)
+downloadZipBtn.addEventListener('click', async () => {
+  if (!generatedHtml || pageImages.length === 0) return;
+  if (!window.JSZip) {
+    alert('ZIP bundling library is loading, please try again in a moment.');
+    return;
+  }
+
+  const zip = new JSZip();
+  const docBaseName = (currentFile ? currentFile.name : 'document').replace(/\.pdf$/i, '');
+  const assetsFolder = zip.folder(`${docBaseName}_assets`);
+
+  for (const item of pageImages) {
+    assetsFolder.file(item.filename, item.blob);
+  }
+
+  if (generatedHtml) {
+    zip.file(`${docBaseName}.html`, generatedHtml);
+  }
+  if (generatedMarkdown) {
+    zip.file(`${docBaseName}.md`, generatedMarkdown);
+  }
+
+  const zipBlob = await zip.generateAsync({ type: 'blob' });
+  const url = URL.createObjectURL(zipBlob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${docBaseName}_bundle.zip`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
