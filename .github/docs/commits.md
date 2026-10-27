@@ -96,3 +96,23 @@
 - Fixed `options.pages` handling across Markdown and HTML converters to support numbers, arrays, and ranges.
 - Fixed table cell formatting to normalize internal newlines and preserve Markdown table row integrity.
 - Expanded `README.md` and `docs/index.html` with turnkey AI Agent Skill workflows and 1-click `npx` installer.
+
+### feat: implement Option 3 semantic CSS & structure extraction and polish Markdown generation
+- Implemented pure Web DOM semantic HTML5 engine (`src/html/semantic.js`) generating responsive semantic structures (`<h1>-<h6>`, `<p>`, `<table>`, `<figure>`, `<div class="math-display">`) without background canvas overlays.
+- Extracted standalone embedded figures and diagrams as companion PNGs via WebAssembly (`src/utils/image-extractor.js`), eliminating multi-megabyte Base64 HTML bloat.
+- Polished Markdown generation with de-hyphenation across line wraps, running page number and header watermark filtering, and strict heading constraints (`isShortTitle`).
+- Enhanced LaTeX math restoration for multi-clause equations, sinusoidal positional encodings, and variable index sequences.
+- Added `--replica` flag support to preserve legacy full-page canvas screenshot overlays when explicitly requested.
+
+### fix(html,css): fix table fragmentation, caption deduplication, and table styling
+- Resolved multi-block table fragmentation by absorbing consecutive tabular blocks across sub-section labels (`(A)`, `(B)`, `(C)`), preserving complete 25-row academic tables.
+- Eliminated duplicate `<figcaption>` and `<p class="pdf-caption">` rendering on extracted figure blocks.
+- Bound table captions directly inside `<div class="table-container">` with `.table-caption` header styling.
+- Prevented escaped cell pipes (`\|`) from splitting table cells into erroneous extra columns.
+- Upgraded table CSS in `src/utils/html-template.js` and `playground/style.css` with responsive overflow, tabular numbers font variants, zebra striping, and column alignment classes.
+
+### fix(math,tables): normalize combining negation slash and dynamic table row proximity
+- Fixed client-side KaTeX parse errors caused by Unicode combining solidus overlays (`\u0338=` $\to$ `\neq`) in graph theory formulas.
+- Implemented dynamic table row proximity scaling based on median line height (`medianHeight >= 6.5 ? 4.5 : Math.max(1.8, medianHeight * 0.5)`), resolving row collapsing in compact 2-column IEEE papers.
+- Handled multi-line table caption continuations (e.g. `TABLE III ... GRAPH`) to ensure clean table header identification.
+- Added regression tests for complex multi-block tables in `test/tables.test.js`.
