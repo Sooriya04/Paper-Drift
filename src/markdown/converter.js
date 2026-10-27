@@ -114,20 +114,19 @@ export function pageToMarkdown(pageJson, widthPt, heightPt, options = {}, pageIm
         const nextLines = nextB.lines || [];
         if (nextLines.length === 0) { j++; continue; }
 
-        // Stop if vertical gap between blocks exceeds standard table row spacing (> 20pt)
-        const gap = nextB.bbox.y - lastBlockBottom;
-        if (tableLines.length > 0 && gap > 20) {
-          break;
-        }
-
-        // Stop if next block is a full-width paragraph sentence (> 240pt with > 8 words)
-        const isParagraph = nextLines.some(l => (l.bbox?.w || 0) > 240 && (l.text || '').split(' ').length > 8);
+        const nextText = nextLines.map(l => l.text).join(' ').trim();
+        const isParagraph = nextText.split(/\s+/).length > 16 && /[.!?]$/.test(nextText);
         if (isParagraph) {
           break;
         }
 
+        const gap = nextB.bbox.y - lastBlockBottom;
+        if (tableLines.length > 0 && gap > 45) {
+          break;
+        }
+
         tableLines.push(...nextLines);
-        lastBlockBottom = nextB.bbox.y + nextB.bbox.h;
+        lastBlockBottom = Math.max(lastBlockBottom, nextB.bbox.y + nextB.bbox.h);
         j++;
       }
 

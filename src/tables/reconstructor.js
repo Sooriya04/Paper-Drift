@@ -71,7 +71,7 @@ export function foldHeaders(headerRows, colCount) {
         parts.push(hr[c].trim());
       }
     }
-    finalHeaders[c] = parts.join(' ') || `Column ${c + 1}`;
+    finalHeaders[c] = parts.join(' ') || '';
   }
 
   return finalHeaders;

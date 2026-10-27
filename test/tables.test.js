@@ -133,6 +133,21 @@ console.log('\nRunning Table Reconstruction Test Suite');
 
     fs.writeFileSync(path.join(resultsDir, 'attention-table1.md'), tableMd);
     console.log('  ✔ reconstructTableFromLines successfully reconstructs Table 1 from Attention paper');
+
+    // Test Table 3 multi-block table reconstruction on Page 9
+    const page9 = doc.loadPage(8);
+    const json9 = JSON.parse(page9.toStructuredText().asJSON());
+    const table3Lines = [];
+    for (let b = 1; b <= 9; b++) {
+      if (json9.blocks[b]) table3Lines.push(...json9.blocks[b].lines);
+    }
+    const table3Md = reconstructTableFromLines(table3Lines);
+    assert(table3Md !== null, 'Table 3 should reconstruct successfully');
+    assert(table3Md.includes('dmodel'), 'Table 3 should contain dmodel column');
+    assert(table3Md.includes('Pdrop'), 'Table 3 should contain Pdrop column');
+    assert(table3Md.includes('train steps'), 'Table 3 should contain train steps');
+    assert(!table3Md.includes('Column 1'), 'Table 3 should not contain synthetic Column 1 header');
+    console.log('  ✔ reconstructTableFromLines successfully reconstructs complex multi-block Table 3');
   } else {
     console.log('  ⚠ Attention paper benchmark fixture skipped (fixture not found)');
   }

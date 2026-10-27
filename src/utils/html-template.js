@@ -93,42 +93,66 @@ export function buildHtmlDocument({ title, pagesHtml, options = {} }) {
       margin-bottom: 6px;
     }
     .table-container {
+      width: 100%;
       overflow-x: auto;
-      margin: 24px 0;
+      margin: 28px 0;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+    }
+    .table-caption {
+      padding: 12px 16px;
+      background: #f8fafc;
+      border-bottom: 1px solid #e2e8f0;
+      font-weight: 600;
+      color: #334155;
+      font-size: 0.9rem;
+      line-height: 1.5;
     }
     .pdf-table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 0.925rem;
-      border: 1px solid #e2e8f0;
-      border-radius: 6px;
-      overflow: hidden;
+      font-size: 0.88rem;
+      line-height: 1.5;
+      font-variant-numeric: tabular-nums;
     }
     .pdf-table th {
-      background: #f1f5f9;
+      background: #f8fafc;
       font-weight: 600;
       color: #0f172a;
       text-align: left;
       padding: 10px 14px;
       border-bottom: 2px solid #cbd5e1;
+      white-space: nowrap;
     }
     .pdf-table td {
-      padding: 9px 14px;
-      border-bottom: 1px solid #e2e8f0;
+      padding: 8px 14px;
+      border-bottom: 1px solid #f1f5f9;
       color: #334155;
     }
-    .pdf-table tr:hover {
-      background-color: #f8fafc;
+    .pdf-table tbody tr:last-child td {
+      border-bottom: none;
     }
+    .pdf-table tbody tr:nth-child(even) {
+      background-color: #fafbfd;
+    }
+    .pdf-table tbody tr:hover {
+      background-color: #f1f5f9;
+    }
+    .pdf-table .cell-right { text-align: right; }
+    .pdf-table .cell-center { text-align: center; }
     .pdf-caption {
       font-weight: 600;
       color: #475569;
-      font-size: 0.95rem;
+      font-size: 0.925rem;
       margin: 18px 0 8px 0;
+      line-height: 1.5;
     }
     .pdf-figure {
       margin: 28px auto;
       text-align: center;
+      max-width: 100%;
     }
     .figure-img {
       max-width: min(100%, 650px);

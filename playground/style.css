@@ -457,15 +457,15 @@ body {
   width: 100%;
   border-collapse: collapse;
   margin: 1.5rem 0;
-  font-size: 0.92rem;
-  display: block;
-  overflow-x: auto;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
 }
 
 .markdown-rendered-viewport th,
 .markdown-rendered-viewport td {
   border: 1px solid #334155;
-  padding: 0.65rem 1rem;
+  padding: 0.65rem 0.9rem;
   text-align: left;
 }
 
@@ -473,11 +473,23 @@ body {
   background: #1e293b;
   color: #f8fafc;
   font-weight: 600;
+  white-space: nowrap;
+}
+
+.markdown-rendered-viewport td {
+  color: #cbd5e1;
 }
 
 .markdown-rendered-viewport tr:nth-child(even) td {
-  background: rgba(30, 41, 59, 0.4);
+  background: rgba(30, 41, 59, 0.45);
 }
+
+.markdown-rendered-viewport tr:hover td {
+  background: rgba(51, 65, 85, 0.4);
+}
+
+.markdown-rendered-viewport .cell-right { text-align: right; }
+.markdown-rendered-viewport .cell-center { text-align: center; }
 
 .markdown-rendered-viewport hr {
   border: 0;
