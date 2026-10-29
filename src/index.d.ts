@@ -4,19 +4,26 @@
  * Part of paper-drift - https://github.com/Sooriya04/Paper-Drift
  */
 
-export interface PageResult {
+export interface ImagePageResult {
   pageNumber: number;
   width: number;
   height: number;
-  tablesCount?: number;
-  headingsCount?: number;
-  columnsDetected?: number;
-  blocksCount?: number;
-  markdown?: string;
-  text?: string;
+  widthPt: number;
+  heightPt: number;
+  scale: number;
+  buffer: Buffer;
+  base64: string;
+  dataUrl: string;
+  text: string;
 }
 
-export interface ConvertMarkdownOptions {
+export interface ConvertImagesOptions {
+  /** DPI scale factor (default: 2.0). */
+  scale?: number;
+  /** Whether to render with a transparent background instead of opaque white (default: false). */
+  transparent?: boolean;
+  /** Alias for `transparent`. */
+  noBg?: boolean;
   /** Target page range (e.g. "1-5", "2,4,6", 1, or [1, 2, 3]). Defaults to "all". */
   pages?: string | number | number[];
   /** Legacy alias for `pages`. */
@@ -25,12 +32,20 @@ export interface ConvertMarkdownOptions {
   onProgress?: (progress: { current: number; total: number; pageNumber: number; totalPages: number }) => void;
 }
 
-export interface ConvertMarkdownResult {
-  markdown: string;
-  pages: PageResult[];
+export interface ConvertImagesResult {
+  pages: ImagePageResult[];
   totalPages: number;
   pagesProcessed: number;
   durationMs: number;
+}
+
+export interface HtmlPageResult {
+  pageNumber: number;
+  width: number;
+  height: number;
+  columnsDetected?: number;
+  blocksCount?: number;
+  text?: string;
 }
 
 export interface ConvertHtmlOptions {
@@ -53,32 +68,19 @@ export interface ConvertHtmlOptions {
 export interface ConvertHtmlResult {
   html: string;
   text: string;
-  pages: PageResult[];
+  pages: HtmlPageResult[];
   totalPages: number;
   pagesProcessed: number;
   durationMs: number;
 }
 
-export interface InstallSkillOptions {
-  /** Install globally to user home directory. */
-  global?: boolean;
-  /** Target Claude Code workspace (.claude/skills/). */
-  claude?: boolean;
-  /** Target Cursor workspace rules (.cursor/rules/). */
-  cursor?: boolean;
-  /** Target open Agent standard (.agent/skills/). */
-  agent?: boolean;
-  /** Custom destination file path. */
-  dest?: string;
-}
-
 /**
- * Converts a PDF buffer or file path directly into clean GitHub Flavored Markdown (GFM).
+ * Converts a PDF buffer or file path into high-resolution images and Base64 strings.
  */
-export function convertPdfToMarkdown(
+export function convertPdfToImages(
   input: string | Buffer | Uint8Array,
-  options?: ConvertMarkdownOptions
-): Promise<ConvertMarkdownResult>;
+  options?: ConvertImagesOptions
+): Promise<ConvertImagesResult>;
 
 /**
  * Converts a PDF buffer or file path into a standalone high-fidelity HTML document with selectable text overlay.
@@ -94,52 +96,23 @@ export function convertPdfToHtml(
 export function parsePageRange(range: string | number | number[] | undefined | null, totalPages: number): number[];
 
 /**
- * Reconstructs a collection of PDF text lines into a standard GFM pipe table.
+ * Organizes any PDF page into natural reading order without dropping any content.
  */
-export function reconstructTableFromLines(
-  lines: Array<{ text: string; bbox: { x: number; y: number; w: number; h: number } }>,
-  options?: { rowProximity?: number }
-): string | null;
-
-/**
- * Normalizes table cell formulas and values into clean Unicode math (e.g. O(n² · d)).
- */
-export function formatTableCell(text: string): string;
-
-/**
- * Folds multi-tier header rows into a unified column header array.
- */
-export function foldHeaders(headerRows: string[][], colCount: number): string[];
-
-/**
- * Resolves spatial reading order using Recursive XY-Cut.
- */
-export function resolveReadingOrder(pageJson: any, pageWidth?: number, pageHeight?: number): {
-  blocks: any[];
+export function resolveReadingOrder(
+  pageJson: object,
+  pageWidth?: number,
+  pageHeight?: number
+): {
+  blocks: Array<object>;
   text: string;
   columnsDetected: number;
 };
 
-/**
- * Installs the paper-drift Agent Skill definition into an agent workspace.
- */
-export function installSkill(options?: InstallSkillOptions): string[];
-
-/**
- * Returns the raw markdown content of SKILL.md.
- */
-export function getSkillContent(): string;
-
 declare const _default: {
+  convertPdfToImages: typeof convertPdfToImages;
   convertPdfToHtml: typeof convertPdfToHtml;
-  convertPdfToMarkdown: typeof convertPdfToMarkdown;
   parsePageRange: typeof parsePageRange;
-  reconstructTableFromLines: typeof reconstructTableFromLines;
-  formatTableCell: typeof formatTableCell;
-  foldHeaders: typeof foldHeaders;
   resolveReadingOrder: typeof resolveReadingOrder;
-  installSkill: typeof installSkill;
-  getSkillContent: typeof getSkillContent;
 };
 
 export default _default;

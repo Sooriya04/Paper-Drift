@@ -2,15 +2,14 @@
 /**
  * @file bin/cli.js
  * @description Command-line interface executable for paper-drift.
- * Enables zero-Chromium PDF to high-fidelity HTML, Markdown, and natural spatial text conversion straight from terminal.
+ * High-performance WebAssembly PDF to Image & Base64 rasterizer, HTML viewer, and spatial text extractor.
  * Part of paper-drift - https://github.com/Sooriya04/Paper-Drift
  */
 
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { convertPdfToHtml, convertPdfToMarkdown } from '../src/index.js';
-import { installSkill, getSkillContent } from '../src/skill/installer.js';
+import { convertPdfToImages, convertPdfToHtml } from '../src/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -23,80 +22,34 @@ const packageJson = JSON.parse(
 function printHelp() {
   console.log(`
 \x1b[1m\x1b[36mpaper-drift\x1b[0m v${packageJson.version}
-High-fidelity, zero-Chromium PDF parser powered by WebAssembly & spatial layout decomposition.
+High-performance, zero-Chromium WebAssembly PDF to Image (PNG / Base64) & layout engine.
 
 \x1b[1mUSAGE:\x1b[0m
   $ paper-drift <input.pdf> [output] [options]
 
 \x1b[1mARGUMENTS:\x1b[0m
   input.pdf        Path to the PDF file to convert
-  output           (Optional) Destination file path (default: <input>.<ext>)
+  output           (Optional) Destination file or directory path
 
 \x1b[1mOPTIONS:\x1b[0m
-  --format <fmt>   Output format: markdown (md) | html | text | json (default: html)
-  --scale <num>    DPI scale for background raster rendering (default: 2.0)
-  --no-bg          Text-only mode; disables background raster rendering
-  --pages <range>  Target pages to convert (e.g. "1-5", "2,4,6", default: "all")
+  --format <fmt>   Output format: image (png) | base64 | html | text | json (default: image)
+  --scale <num>    DPI resolution scale factor (default: 2.0 = Retina 144 DPI, 3.0 = 216 DPI)
+  --pages <range>  Target pages to convert (e.g. "1-5", "2,4,6", 1, default: "all")
+  --no-bg          Text-only mode for HTML format (disables background raster rendering)
   -v, --version    Show version number
   -h, --help       Display this help message
 
 \x1b[1mEXAMPLES:\x1b[0m
-  $ paper-drift document.pdf
-  $ paper-drift paper.pdf output.md --format md
-  $ paper-drift paper.pdf output.txt --format text
-  $ paper-drift paper.pdf output.html --scale 2.5
-  $ paper-drift manual.pdf manual.html --pages 1-10 --no-bg
-
-\x1b[1mAGENT SKILL:\x1b[0m
-  $ paper-drift skill                 Install skill into agent workspace (.agent/skills)
-  $ paper-drift skill --claude        Install skill into Claude workspace (.claude/skills)
-  $ paper-drift skill --cursor        Install skill into Cursor rules (.cursor/rules)
-  $ paper-drift skill --global        Install skill globally to user home directory
-  $ paper-drift skill cat             Output raw SKILL.md to stdout
+  $ paper-drift paper.pdf --format image              # Convert all pages to high-res PNG images
+  $ paper-drift paper.pdf output.png --pages 1        # Convert page 1 to output.png
+  $ paper-drift paper.pdf images/ --format image      # Export pages into an images/ directory
+  $ paper-drift paper.pdf --format base64             # Export pages as Base64 JSON
+  $ paper-drift paper.pdf output.html --format html   # Export standalone HTML viewer
 `);
 }
 
 async function run() {
   const args = process.argv.slice(2);
-
-  // Handle agent skill subcommands
-  if (args[0] === 'skill' || args.includes('--install-skill')) {
-    if (args.includes('cat') || args.includes('print')) {
-      process.stdout.write(getSkillContent());
-      process.exit(0);
-    }
-
-    const isGlobal = args.includes('--global');
-    const isClaude = args.includes('--claude');
-    const isCursor = args.includes('--cursor');
-    const isAgent = args.includes('--agent') || args.includes('--antigravity');
-    let dest = null;
-    const destIdx = args.indexOf('--dest');
-    if (destIdx !== -1 && args[destIdx + 1]) {
-      dest = args[destIdx + 1];
-    }
-
-    try {
-      const installed = installSkill({
-        global: isGlobal,
-        claude: isClaude,
-        cursor: isCursor,
-        agent: isAgent,
-        dest
-      });
-
-      console.log('\n\x1b[1m\x1b[36mpaper-drift\x1b[0m \x1b[32mAgent Skill Installed Successfully!\x1b[0m\n');
-      for (const p of installed) {
-        console.log(`  \x1b[32m✔\x1b[0m ${path.relative(process.cwd(), p) || p}`);
-      }
-      console.log('\n\x1b[90mYour AI coding agent can now parse PDFs with zero multimodal token tax.\x1b[0m');
-      console.log('\x1b[90mAsk your agent: "Read this PDF" or "Extract Table 1 from paper.pdf"\x1b[0m\n');
-      process.exit(0);
-    } catch (err) {
-      console.error(`\x1b[31mError installing skill:\x1b[0m ${err.message}`);
-      process.exit(1);
-    }
-  }
 
   if (args.length === 0 || args.includes('-h') || args.includes('--help')) {
     printHelp();
@@ -111,7 +64,7 @@ async function run() {
   // Parse positional and flag arguments
   let inputFile = null;
   let outputFile = null;
-  let format = 'html';
+  let format = null;
   let scale = 2.0;
   let withBg = true;
   let pageRange = 'all';
@@ -119,7 +72,7 @@ async function run() {
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === '--format') {
-      format = (args[++i] || 'html').toLowerCase();
+      format = (args[++i] || 'image').toLowerCase();
     } else if (arg === '--scale') {
       scale = parseFloat(args[++i]) || 2.0;
     } else if (arg === '--no-bg') {
@@ -135,6 +88,20 @@ async function run() {
     }
   }
 
+  // Infer format from output file extension if not explicitly specified, otherwise default to image
+  if (!format) {
+    if (outputFile) {
+      const ext = path.extname(outputFile).toLowerCase();
+      if (ext === '.html') format = 'html';
+      else if (ext === '.png' || ext === '.jpg' || ext === '.jpeg') format = 'image';
+      else if (ext === '.json') format = 'json';
+      else if (ext === '.txt') format = 'text';
+      else format = 'image';
+    } else {
+      format = 'image';
+    }
+  }
+
   if (!inputFile) {
     console.error('\x1b[31mError: Missing required argument <input.pdf>\x1b[0m');
     printHelp();
@@ -147,61 +114,133 @@ async function run() {
     process.exit(1);
   }
 
-  const validFormats = ['html', 'md', 'markdown', 'text', 'json'];
+  const validFormats = ['image', 'png', 'img', 'base64', 'html', 'text', 'json'];
   if (!validFormats.includes(format)) {
-    console.error(`\x1b[31mError: Unsupported format "${format}". Supported: markdown (md) | html | text | json\x1b[0m`);
+    console.error(`\x1b[31mError: Unsupported format "${format}". Supported: image (png) | base64 | html | text | json\x1b[0m`);
     process.exit(1);
   }
 
-  const isMarkdown = format === 'md' || format === 'markdown';
-  const ext = isMarkdown ? 'md' : (format === 'text' ? 'txt' : (format === 'json' ? 'json' : 'html'));
-  if (!outputFile) {
-    const parsedPath = path.parse(resolvedInput);
-    outputFile = path.join(process.cwd(), `${parsedPath.name}.${ext}`);
-  } else {
-    outputFile = path.resolve(process.cwd(), outputFile);
-  }
+  const isImageMode = format === 'image' || format === 'png' || format === 'img';
+  const isBase64Mode = format === 'base64';
 
-  console.log(`\x1b[36m⚡ paper-drift\x1b[0m v${packageJson.version}`);
-  console.log(`📄 Input:   ${resolvedInput}`);
-  console.log(`🎯 Output:  ${outputFile} (Format: ${format.toUpperCase()})`);
-  console.log(`⚙️  Config:  Scale=${scale}x, Background=${withBg ? 'lossless' : 'disabled'}, Pages=${pageRange}`);
-  console.log('🔄 Running WebAssembly parser with spatial reading order decomposition...');
+  console.log(`\x1b[36mpaper-drift\x1b[0m v${packageJson.version}`);
+  console.log(`Input:   ${resolvedInput}`);
+  console.log(`Format:  ${format.toUpperCase()}`);
+  console.log(`Config:  Scale=${scale}x (DPI=${Math.round(scale * 72)}), Pages=${pageRange}`);
+  console.log('Running WebAssembly PDF rasterizer...');
 
   try {
-    let outputContent = '';
-    let durationMs = 0;
-    let pagesProcessed = 0;
-    let totalPages = 0;
-    let columnsOrTablesInfo = '';
+    const parsedInput = path.parse(resolvedInput);
 
-    if (isMarkdown) {
-      const result = await convertPdfToMarkdown(resolvedInput, {
-        pageRange,
+    if (isImageMode) {
+      const result = await convertPdfToImages(resolvedInput, {
+        scale,
+        pages: pageRange,
         onProgress: ({ current, total, pageNumber }) => {
-          process.stdout.write(`   ⏳ Processing page ${pageNumber} (${current}/${total})...\r`);
+          process.stdout.write(`Rendering page ${pageNumber} (${current}/${total})...\r`);
         }
       });
-      outputContent = result.markdown;
-      durationMs = result.durationMs;
-      pagesProcessed = result.pagesProcessed;
-      totalPages = result.totalPages;
-      columnsOrTablesInfo = result.pages.map(p => `p${p.pageNumber}:${p.tablesCount}tables`).join(', ');
+
+      const generatedFiles = [];
+      if (result.pages.length === 1) {
+        let destFile;
+        if (outputFile) {
+          destFile = path.resolve(process.cwd(), outputFile);
+          if (!destFile.toLowerCase().endsWith('.png')) destFile += '.png';
+        } else {
+          destFile = path.join(process.cwd(), `${parsedInput.name}.png`);
+        }
+        fs.writeFileSync(destFile, result.pages[0].buffer);
+        generatedFiles.push(destFile);
+      } else {
+        // Multi-page export
+        let outDir = process.cwd();
+        let namePrefix = parsedInput.name;
+
+        if (outputFile) {
+          const resolvedOut = path.resolve(process.cwd(), outputFile);
+          const parsedOut = path.parse(resolvedOut);
+          if (parsedOut.ext) {
+            outDir = parsedOut.dir;
+            namePrefix = parsedOut.name;
+          } else {
+            outDir = resolvedOut;
+            namePrefix = 'page';
+          }
+        }
+
+        if (!fs.existsSync(outDir)) {
+          fs.mkdirSync(outDir, { recursive: true });
+        }
+
+        for (const page of result.pages) {
+          const pageFile = path.join(outDir, `${namePrefix}-${page.pageNumber}.png`);
+          fs.writeFileSync(pageFile, page.buffer);
+          generatedFiles.push(pageFile);
+        }
+      }
+
+      console.log(`\n\x1b[32m[OK] Rendered ${result.pagesProcessed} page(s) in ${result.durationMs}ms\x1b[0m`);
+      for (const f of generatedFiles) {
+        const stats = fs.statSync(f);
+        const kb = (stats.size / 1024).toFixed(1);
+        console.log(`  - ${path.relative(process.cwd(), f) || f} (${kb} KB)`);
+      }
+      console.log(`Completed successfully.\n`);
+    } else if (isBase64Mode) {
+      const result = await convertPdfToImages(resolvedInput, {
+        scale,
+        pages: pageRange,
+        onProgress: ({ current, total, pageNumber }) => {
+          process.stdout.write(`Extracting base64 page ${pageNumber} (${current}/${total})...\r`);
+        }
+      });
+
+      let destFile = outputFile ? path.resolve(process.cwd(), outputFile) : path.join(process.cwd(), `${parsedInput.name}-base64.json`);
+      if (!destFile.endsWith('.json') && !destFile.endsWith('.txt')) {
+        destFile += '.json';
+      }
+
+      const outputJson = {
+        document: parsedInput.base,
+        scale,
+        totalPages: result.totalPages,
+        pagesProcessed: result.pagesProcessed,
+        pages: result.pages.map(p => ({
+          pageNumber: p.pageNumber,
+          width: p.width,
+          height: p.height,
+          dataUrl: p.dataUrl,
+          base64: p.base64
+        }))
+      };
+
+      fs.writeFileSync(destFile, JSON.stringify(outputJson, null, 2), 'utf-8');
+      const stats = fs.statSync(destFile);
+      const kb = (stats.size / 1024).toFixed(1);
+
+      console.log(`\n\x1b[32m[OK] Exported Base64 for ${result.pagesProcessed} page(s) in ${result.durationMs}ms\x1b[0m`);
+      console.log(`Output: ${destFile} (${kb} KB)`);
+      console.log(`File path: file://${destFile}\n`);
     } else {
+      // HTML, text, json format modes
+      let destFile = outputFile ? path.resolve(process.cwd(), outputFile) : null;
+      const ext = format === 'text' ? 'txt' : (format === 'json' ? 'json' : 'html');
+      if (!destFile) {
+        destFile = path.join(process.cwd(), `${parsedInput.name}.${ext}`);
+      }
+
       const result = await convertPdfToHtml(resolvedInput, {
         scale,
         withBg,
         pageRange,
         format,
         onProgress: ({ current, total, pageNumber }) => {
-          process.stdout.write(`   ⏳ Processing page ${pageNumber} (${current}/${total})...\r`);
+          process.stdout.write(`Processing page ${pageNumber} (${current}/${total})...\r`);
         }
       });
-      durationMs = result.durationMs;
-      pagesProcessed = result.pagesProcessed;
-      totalPages = result.totalPages;
-      columnsOrTablesInfo = result.pages.map(p => `p${p.pageNumber}:${p.columnsDetected}col`).join(', ');
 
+      let outputContent;
       if (format === 'text') {
         outputContent = result.text;
       } else if (format === 'json') {
@@ -209,17 +248,17 @@ async function run() {
       } else {
         outputContent = result.html;
       }
+
+      fs.writeFileSync(destFile, outputContent, 'utf-8');
+      const stats = fs.statSync(destFile);
+      const kb = (stats.size / 1024).toFixed(1);
+
+      console.log(`\n\x1b[32m[OK] Conversion complete in ${result.durationMs}ms\x1b[0m`);
+      console.log(`Converted ${result.pagesProcessed} of ${result.totalPages} pages (${kb} KB)`);
+      console.log(`File path: file://${destFile}\n`);
     }
-
-    fs.writeFileSync(outputFile, outputContent, 'utf-8');
-    const stats = fs.statSync(outputFile);
-    const sizeKb = (stats.size / 1024).toFixed(1);
-
-    console.log(`\n\x1b[32m✔ Conversion complete in ${durationMs}ms!\x1b[0m`);
-    console.log(`📊 Converted ${pagesProcessed} of ${totalPages} pages (${sizeKb} KB) [${columnsOrTablesInfo}]`);
-    console.log(`✨ Open your file: \x1b[4mfile://${outputFile}\x1b[0m\n`);
   } catch (err) {
-    console.error(`\n\x1b[31m❌ Conversion failed:\x1b[0m ${err.message}`);
+    console.error(`\n\x1b[31m[ERROR] Operation failed:\x1b[0m ${err.message}`);
     process.exit(1);
   }
 }

@@ -1,7 +1,7 @@
 /**
  * @file docs/app.js
- * @description Snappy interactions for the paper-drift developer website.
- * Manages 1-click command copying, active code tab switching, and SKILL.md clipboard exports.
+ * @description Snappy interactions for the paper-drift website.
+ * Manages 1-click command copying and active code tab switching.
  * Part of paper-drift - https://github.com/Sooriya04/Paper-Drift
  */
 
@@ -80,56 +80,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 1600);
       } catch (err) {
         console.error('Terminal snippet copy failed:', err);
-      }
-    });
-  }
-
-  // 4. Standalone Installation Commands Copy Button
-  const copyInstallBtn = document.getElementById('copyInstallBtn');
-  const copyInstallLabel = document.getElementById('copyInstallLabel');
-  if (copyInstallBtn) {
-    copyInstallBtn.addEventListener('click', async () => {
-      try {
-        const installCommands = document.getElementById('installCommands');
-        if (!installCommands) return;
-        await navigator.clipboard.writeText(installCommands.innerText.trim());
-
-        if (copyInstallLabel) copyInstallLabel.textContent = 'Copied!';
-        copyInstallBtn.style.color = 'var(--emerald)';
-        copyInstallBtn.style.borderColor = 'var(--emerald-hairline)';
-
-        setTimeout(() => {
-          if (copyInstallLabel) copyInstallLabel.textContent = 'Copy';
-          copyInstallBtn.style.color = '';
-          copyInstallBtn.style.borderColor = '';
-        }, 1600);
-      } catch (err) {
-        console.error('Copy install commands failed:', err);
-      }
-    });
-  }
-
-  // 5. Standalone Skill Copy Button (if present)
-  const copySkillBtn = document.getElementById('copySkillBtn');
-  const copySkillLabel = document.getElementById('copySkillLabel');
-  if (copySkillBtn) {
-    copySkillBtn.addEventListener('click', async () => {
-      try {
-        const skillCode = document.getElementById('skillCode');
-        if (!skillCode) return;
-        await navigator.clipboard.writeText(skillCode.innerText.trim());
-
-        if (copySkillLabel) copySkillLabel.textContent = 'Copied SKILL.md!';
-        copySkillBtn.style.color = 'var(--emerald)';
-        copySkillBtn.style.borderColor = 'var(--emerald-hairline)';
-
-        setTimeout(() => {
-          if (copySkillLabel) copySkillLabel.textContent = 'Copy SKILL.md';
-          copySkillBtn.style.color = '';
-          copySkillBtn.style.borderColor = '';
-        }, 1800);
-      } catch (err) {
-        console.error('Skill copy failed:', err);
       }
     });
   }

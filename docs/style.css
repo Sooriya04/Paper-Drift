@@ -454,6 +454,60 @@ body {
 }
 
 /* =========================================================
+   Architecture Pipeline Steps Grid
+   ========================================================= */
+.grid-steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+
+@media (max-width: 768px) {
+  .grid-steps {
+    grid-template-columns: 1fr;
+  }
+}
+
+.step-card {
+  background: var(--surface-1);
+  border: 1px solid var(--border-hairline);
+  box-shadow: var(--inset-bevel);
+  border-radius: var(--radius-frame);
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  transition: border-color 100ms ease-out;
+}
+
+.step-card:hover {
+  border-color: var(--border-focus);
+}
+
+.step-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  color: var(--emerald);
+  font-weight: 600;
+}
+
+.step-card h3 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.step-card p {
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* =========================================================
    Architecture Quad Grid
    ========================================================= */
 .grid-quad {

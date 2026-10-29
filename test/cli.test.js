@@ -9,7 +9,7 @@ import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { convertPdfToHtml, parsePageRange } from '../src/index.js';
+import { convertPdfToHtml, convertPdfToImages, parsePageRange } from '../src/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -87,24 +87,7 @@ try {
     }
   });
 
-  // 4. CLI agent skill installer test
-  runTest('CLI installs agent skill via skill subcommand', () => {
-    const customSkillPath = path.join(resultsOutputDir, 'test-skill.md');
-    execSync(`node bin/cli.js skill --dest "${customSkillPath}"`, { stdio: 'pipe' });
-    if (!fs.existsSync(customSkillPath)) throw new Error('Skill file was not written to target');
-    const skillContent = fs.readFileSync(customSkillPath, 'utf-8');
-    if (!skillContent.includes('name: paper-drift')) throw new Error('Invalid skill header in generated file');
-  });
-
-  // 5. CLI agent skill cat test
-  runTest('CLI outputs raw skill via skill cat', () => {
-    const catOutput = execSync('node bin/cli.js skill cat', { encoding: 'utf-8' });
-    if (!catOutput.startsWith('---') || !catOutput.includes('Agent Skill')) {
-      throw new Error('skill cat did not output expected markdown frontmatter');
-    }
-  });
-
-  // 6. CLI file conversion test
+  // 4. CLI file conversion test
   const cliOutputFile = path.join(resultsOutputDir, 'sample.html');
   runTest('CLI converts PDF to standalone HTML with background', () => {
     if (fs.existsSync(cliOutputFile)) fs.unlinkSync(cliOutputFile);
@@ -128,7 +111,40 @@ try {
     if (!failed) throw new Error('CLI should have failed with invalid format');
   });
 
-  // 5. Programmatic API with Buffer input
+  // 8. CLI image conversion test
+  const cliOutputImage = path.join(resultsOutputDir, 'sample.png');
+  runTest('CLI converts PDF to high-res PNG image via --format image', () => {
+    if (fs.existsSync(cliOutputImage)) fs.unlinkSync(cliOutputImage);
+    execSync(`node bin/cli.js "${samplePdfPath}" "${cliOutputImage}" --format image --scale 1.5`, { stdio: 'pipe' });
+
+    if (!fs.existsSync(cliOutputImage)) throw new Error('Output PNG was not created');
+    const stats = fs.statSync(cliOutputImage);
+    if (stats.size < 1000) throw new Error('Generated PNG file is too small');
+  });
+
+  // 9. CLI base64 export test
+  const cliOutputBase64 = path.join(resultsOutputDir, 'sample-base64.json');
+  runTest('CLI exports Base64 JSON via --format base64', () => {
+    if (fs.existsSync(cliOutputBase64)) fs.unlinkSync(cliOutputBase64);
+    execSync(`node bin/cli.js "${samplePdfPath}" "${cliOutputBase64}" --format base64`, { stdio: 'pipe' });
+
+    if (!fs.existsSync(cliOutputBase64)) throw new Error('Output Base64 JSON was not created');
+    const jsonContent = JSON.parse(fs.readFileSync(cliOutputBase64, 'utf-8'));
+    if (!jsonContent.pages || jsonContent.pages.length === 0) throw new Error('Base64 JSON missing pages array');
+    if (!jsonContent.pages[0].dataUrl.startsWith('data:image/png;base64,')) throw new Error('Invalid dataUrl format');
+  });
+
+  // 10. Programmatic convertPdfToImages API test
+  await runAsyncTest('Programmatic convertPdfToImages API returns PNG buffer and base64', async () => {
+    const result = await convertPdfToImages(samplePdfPath, { scale: 1.0 });
+    if (result.pagesProcessed !== 1) throw new Error(`Expected 1 page, got ${result.pagesProcessed}`);
+    const page = result.pages[0];
+    if (!Buffer.isBuffer(page.buffer)) throw new Error('page.buffer is not a Buffer');
+    if (!page.base64 || page.base64.length < 500) throw new Error('page.base64 is missing or invalid');
+    if (!page.dataUrl.startsWith('data:image/png;base64,')) throw new Error('page.dataUrl is invalid');
+  });
+
+  // 11. Programmatic API with Buffer input
   await runAsyncTest('Programmatic API converts Buffer input with text layer', async () => {
     const buffer = fs.readFileSync(samplePdfPath);
     const result = await convertPdfToHtml(buffer, {

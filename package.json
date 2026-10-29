@@ -1,6 +1,6 @@
 {
   "name": "paper-drift",
-  "version": "0.1.1",
+  "version": "0.1.3",
   "description": "Zero-Python, zero-Chromium WebAssembly document parser, HTML renderer, and Markdown engine with GFM tables and math",
   "type": "module",
   "main": "src/index.js",
@@ -14,7 +14,6 @@
   "files": [
     "src",
     "bin",
-    "skills",
     "README.md",
     "LICENSE"
   ],
@@ -27,7 +26,7 @@
   },
   "scripts": {
     "start": "node playground/server.js",
-    "test": "node test/cli.test.js && node test/spatial.test.js && node test/math.test.js && node test/tables.test.js && node test/markdown.test.js",
+    "test": "node test/cli.test.js && node test/spatial.test.js",
     "convert": "node bin/cli.js test/fixtures/sample.pdf output.html",
     "generate:sample": "node test/scripts/generate-sample.js",
     "benchmark": "node test/scripts/benchmark-papers.js run --limit 3 --pages 1-2",

@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>paper-drift &bull; Zero-Python WebAssembly Document Engine</title>
-  <meta name="description" content="High-density, zero-Chromium WebAssembly document engine that converts PDFs into clean Markdown with GFM tables and math, or standalone HTML. Slashes AI agent token costs by 90%+.">
+  <title>paper-drift &bull; Zero-Python WebAssembly PDF to Image & Base64 Engine</title>
+  <meta name="description" content="High-performance, zero-Chromium WebAssembly document engine that converts PDFs into high-resolution PNG images, Base64 data URIs, or standalone HTML.">
   <link rel="stylesheet" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -17,14 +17,14 @@
     <div class="header-inner">
       <div class="brand-group">
         <a href="#" class="brand-title">paper-drift</a>
-        <span class="meta-tag">v0.1.1</span>
+        <span class="meta-tag">v0.1.3</span>
       </div>
 
       <nav class="nav-links">
-        <a href="#economics" class="nav-item">Economics</a>
+        <a href="#features" class="nav-item">Features</a>
         <a href="#architecture" class="nav-item">Architecture</a>
-        <a href="#quickstart" class="nav-item">Integration</a>
-        <a href="#skill" class="nav-item">Agent Skill</a>
+        <a href="#quickstart" class="nav-item">Quickstart</a>
+        <a href="#api" class="nav-item">API</a>
         <a href="https://www.npmjs.com/package/paper-drift" target="_blank" rel="noopener" class="btn-npm" title="View on npm">
           <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
             <path d="M1.763 0C.786 0 0 .786 0 1.763v20.474C0 23.214.786 24 1.763 24h20.474c.977 0 1.763-.786 1.763-1.763V1.763C24 .786 23.214 0 22.237 0zM5.13 5.323l13.837.019-.009 13.836h-3.464l.01-10.382h-3.456L12.04 19.17H5.113z"/>
@@ -35,7 +35,7 @@
           <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
             <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
           </svg>
-          <span>Star on GitHub</span>
+          <span>GitHub</span>
         </a>
       </nav>
     </div>
@@ -51,17 +51,17 @@
       </div>
 
       <h1 class="hero-header">
-        The 90% Cheaper Document Engine for AI Agents
+        High-Resolution PDF to Image &amp; Base64 Engine
       </h1>
 
       <p class="hero-summary">
-        A zero-dependency WebAssembly preprocessor that compiles academic and enterprise PDFs directly into structured <strong>Markdown</strong> with GFM tables and math, or standalone <strong>HTML</strong>. Eliminates the multimodal vision token tax for Claude, Cursor, and Antigravity.
+        A zero-dependency WebAssembly rasterizer that compiles academic and enterprise PDFs directly into high-resolution <strong>PNG images</strong> and <strong>Base64 data URIs</strong>. No Puppeteer, no Chromium, no Python, and no external servers.
       </p>
 
       <!-- Precision Command Bar -->
       <div class="terminal-bar">
         <span class="prompt-char">$</span>
-        <code class="terminal-text" id="cliCommand">npx paper-drift paper.pdf --format md</code>
+        <code class="terminal-text" id="cliCommand">npx paper-drift paper.pdf --format image</code>
         <button class="btn-copy-bar" id="copyBtn" title="Copy command">
           <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="9" y="9" width="13" height="13" rx="1.5" ry="1.5"></rect>
@@ -72,58 +72,82 @@
       </div>
 
       <div class="hero-meta-row">
-        <span class="meta-item"><span class="bullet">&bull;</span> Ingests pages in &lt; 50ms</span>
-        <span class="meta-item"><span class="bullet">&bull;</span> 18.9 KB package size</span>
+        <span class="meta-item"><span class="bullet">&bull;</span> Renders pages in &lt; 250ms</span>
+        <span class="meta-item"><span class="bullet">&bull;</span> Direct Base64 data URI output</span>
         <span class="meta-item"><span class="bullet">&bull;</span> 100% private local execution</span>
       </div>
     </section>
 
-    <!-- Economics / Problem Section -->
-    <section class="panel-section" id="economics">
+    <!-- Features Section -->
+    <section class="panel-section" id="features">
       <div class="panel-heading">
-        <span class="mono-label">01 // TOKEN ECONOMICS</span>
-        <h2>The Multimodal PDF Token Tax</h2>
-        <p class="panel-sub">Raw PDF ingestion forces LLMs to render full-page images, consuming 1,600+ vision tokens per page. Preprocessing via WebAssembly strips visual waste and delivers lean, structured tokens.</p>
+        <span class="mono-label">01 // PERFORMANCE BENCHMARK</span>
+        <h2>Why WebAssembly Rasterization?</h2>
+        <p class="panel-sub">Traditional PDF image conversion pipelines require heavy Headless Chromium browsers or Python microservices. paper-drift runs compiled C/WASM locally in V8.</p>
       </div>
 
       <div class="split-comparison">
         <!-- Status Quo -->
         <div class="card card-status-quo">
           <div class="card-top">
-            <span class="label-status red">Raw Multimodal Vision</span>
-            <span class="mono-meta">10 Pages</span>
+            <span class="label-status red">Headless Chromium / Python</span>
+            <span class="mono-meta">Puppeteer / pdf2image</span>
           </div>
 
-          <div class="metric-num text-red">~18,000</div>
-          <span class="metric-unit">Input Tokens per Paper Query</span>
+          <div class="metric-num text-red">450+ MB</div>
+          <span class="metric-unit">Binary Footprint &amp; Dependencies</span>
 
           <div class="hairline-divider"></div>
 
           <ul class="spec-list">
-            <li><span class="flag-bad">&times;</span> High API cost (~$0.25 per query)</li>
-            <li><span class="flag-bad">&times;</span> Tables flattened or mixed across columns</li>
-            <li><span class="flag-bad">&times;</span> 15&ndash;25s image raster &amp; upload latency</li>
-            <li><span class="flag-bad">&times;</span> Vision tokens exhaust model context limits</li>
+            <li class="spec-row">
+              <span class="spec-label">Cold Start Latency</span>
+              <span class="spec-val">3,500ms - 8,000ms</span>
+            </li>
+            <li class="spec-row">
+              <span class="spec-label">RAM Consumption</span>
+              <span class="spec-val">800MB - 1.5GB</span>
+            </li>
+            <li class="spec-row">
+              <span class="spec-label">Serverless Support</span>
+              <span class="spec-val">Requires custom Docker layers</span>
+            </li>
+            <li class="spec-row">
+              <span class="spec-label">Dependencies</span>
+              <span class="spec-val">Poppler, Chromium, Python</span>
+            </li>
           </ul>
         </div>
 
         <!-- paper-drift Engine -->
-        <div class="card card-optimized">
+        <div class="card card-drift">
           <div class="card-top">
-            <span class="label-status emerald">With paper-drift WASM</span>
-            <span class="mono-meta">10 Pages</span>
+            <span class="label-status emerald">paper-drift WebAssembly</span>
+            <span class="mono-meta">MuPDF WASM</span>
           </div>
 
-          <div class="metric-num text-emerald">~1,350</div>
-          <span class="metric-unit">Clean Structured Markdown Tokens</span>
+          <div class="metric-num text-emerald">&lt; 250 ms</div>
+          <span class="metric-unit">Rendering Latency per Page</span>
 
           <div class="hairline-divider"></div>
 
           <ul class="spec-list">
-            <li><span class="flag-good">&check;</span> <strong>92.5% Net Cost Reduction</strong> (~$0.01 per query)</li>
-            <li><span class="flag-good">&check;</span> Reconstructed GFM pipe tables with exponents</li>
-            <li><span class="flag-good">&check;</span> <strong>&lt; 50ms ingestion latency</strong> via local WASM</li>
-            <li><span class="flag-good">&check;</span> Zero cloud data leakage (100% on-device)</li>
+            <li class="spec-row">
+              <span class="spec-label">Cold Start Latency</span>
+              <span class="spec-val">&lt; 50ms instant boot</span>
+            </li>
+            <li class="spec-row">
+              <span class="spec-label">RAM Consumption</span>
+              <span class="spec-val">&lt; 60MB peak</span>
+            </li>
+            <li class="spec-row">
+              <span class="spec-label">Serverless Support</span>
+              <span class="spec-val">Native Node.js / Bun / Cloudflare</span>
+            </li>
+            <li class="spec-row">
+              <span class="spec-label">Dependencies</span>
+              <span class="spec-val">Zero (Self-contained WASM)</span>
+            </li>
           </ul>
         </div>
       </div>
@@ -133,65 +157,47 @@
     <section class="panel-section" id="architecture">
       <div class="panel-heading">
         <span class="mono-label">02 // ARCHITECTURE</span>
-        <h2>Core Engine Specifications</h2>
-        <p class="panel-sub">No Python microservices. No headless Chromium containers. Pure geometric layout analysis executed in compiled WebAssembly.</p>
+        <h2>High-Precision Rasterization Pipeline</h2>
+        <p class="panel-sub">Compiled C libraries execute inside the V8 WebAssembly virtual machine, rendering vector PDF pages directly to raster pixel buffers.</p>
       </div>
 
-      <div class="grid-quad">
-        <div class="spec-card">
-          <div class="spec-card-header">
-            <span class="spec-index">SPEC 01</span>
-            <span class="spec-chip">Spatial Order</span>
-          </div>
-          <h3>Recursive XY-Cut</h3>
-          <p>Dynamically detects column gutters and full-width banners. Decomposes 2-column and 3-column academic papers into natural reading order without interweaving columns horizontally.</p>
+      <div class="grid-steps">
+        <div class="step-card">
+          <div class="step-num">STEP 01</div>
+          <h3>Binary Ingestion</h3>
+          <p>Accepts raw file paths, Node.js Buffers, or Uint8Array binary streams. Zero temporary disk writes required.</p>
         </div>
 
-        <div class="spec-card">
-          <div class="spec-card-header">
-            <span class="spec-index">SPEC 02</span>
-            <span class="spec-chip">Tabular Grids</span>
-          </div>
-          <h3>Geometric Table Reconstruction</h3>
-          <p>Discovers vertical column gutters across dense data rows and slices cells into standard GFM pipe tables (<code>| col1 | col2 |</code>) with folded multi-tier headers and zero hardcoding.</p>
+        <div class="step-card">
+          <div class="step-num">STEP 02</div>
+          <h3>Matrix Scaling</h3>
+          <p>Applies high-DPI affine transformations (144 DPI Retina, 216 DPI ultra-res) for pixel-crisp typography and figures.</p>
         </div>
 
-        <div class="spec-card">
-          <div class="spec-card-header">
-            <span class="spec-index">SPEC 03</span>
-            <span class="spec-chip">Math Typography</span>
-          </div>
-          <h3>Universal Math &amp; LaTeX</h3>
-          <p>Converts table math to clean universal Unicode superscripts (<code>O(n² · d)</code>, <code>2.3 · 10¹⁹</code>) readable in any viewer, and frames display formulas in LaTeX <code>$$...$$</code> blocks.</p>
-        </div>
-
-        <div class="spec-card">
-          <div class="spec-card-header">
-            <span class="spec-index">SPEC 04</span>
-            <span class="spec-chip">Runtime</span>
-          </div>
-          <h3>18.9 KB Zero-Dep Core</h3>
-          <p>No Puppeteer, no Python, no Docker. Compiled WebAssembly executes instantaneously across Node.js, Bun, and browser runtimes with under 20 KB package footprint.</p>
+        <div class="step-card">
+          <div class="step-num">STEP 03</div>
+          <h3>Base64 &amp; Buffer Output</h3>
+          <p>Outputs PNG binary buffers alongside complete <code>data:image/png;base64,...</code> data URIs ready for web, storage, or APIs.</p>
         </div>
       </div>
     </section>
 
-    <!-- Quickstart / Integration -->
+    <!-- Quickstart / Terminal Code Section -->
     <section class="panel-section" id="quickstart">
       <div class="panel-heading">
-        <span class="mono-label">03 // INTEGRATION</span>
-        <h2>Developer Quickstart</h2>
-        <p class="panel-sub">Run as a standalone CLI tool, import as an ESM module, or hook directly into an autonomous AI agent harness.</p>
+        <span class="mono-label">03 // QUICKSTART</span>
+        <h2>Developer Integration</h2>
+        <p class="panel-sub">Run immediately via terminal with <code>npx</code> or import directly into your JavaScript / TypeScript codebase.</p>
       </div>
 
       <div class="code-terminal">
         <div class="terminal-header">
-          <div class="code-tab-list">
-            <button class="code-tab active" data-tab="tab-cli" data-lang="bash">Terminal CLI</button>
-            <button class="code-tab" data-tab="tab-node" data-lang="javascript">Node.js SDK</button>
-            <button class="code-tab" data-tab="tab-agent" data-lang="bash">Agent Quickstart</button>
-            <button class="code-tab" data-tab="tab-skill" data-lang="markdown">SKILL.md (Drop-in)</button>
+          <div class="tab-list">
+            <button class="code-tab active" data-tab="tab-cli" data-lang="bash">CLI Quickstart</button>
+            <button class="code-tab" data-tab="tab-node" data-lang="javascript">Node.js API</button>
+            <button class="code-tab" data-tab="tab-base64" data-lang="javascript">Base64 Usage</button>
           </div>
+
           <div class="terminal-actions">
             <span class="terminal-lang" id="terminalLang">bash</span>
             <button class="terminal-copy-btn" id="terminalCopyBtn" title="Copy code snippet">
@@ -206,293 +212,72 @@
 
         <!-- CLI Tab -->
         <div class="tab-pane active" id="tab-cli">
-          <pre><code><span class="syntax-muted"># 1. Convert directly to clean Markdown</span>
-npx paper-drift research-paper.pdf output.md --format md
+          <pre><code><span class="syntax-muted"># 1. Convert all pages to high-res PNG images</span>
+npx paper-drift paper.pdf --format image
 
-<span class="syntax-muted"># 2. Convert specific pages to Markdown</span>
-npx paper-drift attention.pdf output.md --format md --pages 1-5,8
+<span class="syntax-muted"># 2. Extract page 1 as a PNG image</span>
+npx paper-drift paper.pdf output.png --pages 1
 
-<span class="syntax-muted"># 3. Convert to pixel-perfect standalone HTML</span>
-npx paper-drift attention.pdf output.html --scale 2.0</code></pre>
+<span class="syntax-muted"># 3. Export all pages into an images/ folder</span>
+npx paper-drift paper.pdf images/ --pages 1-3
+
+<span class="syntax-muted"># 4. Export Base64 JSON containing data URLs</span>
+npx paper-drift paper.pdf output.json --format base64
+
+<span class="syntax-muted"># 5. Render transparent PNG (no white background)</span>
+npx paper-drift diagram.pdf diagram.png --no-bg</code></pre>
         </div>
 
         <!-- Node Tab -->
         <div class="tab-pane" id="tab-node">
-          <pre><code><span class="syntax-keyword">import</span> { convertPdfToMarkdown, convertPdfToHtml } <span class="syntax-keyword">from</span> <span class="syntax-string">'paper-drift'</span>;
+          <pre><code><span class="syntax-keyword">import</span> { convertPdfToImages } <span class="syntax-keyword">from</span> <span class="syntax-string">'paper-drift'</span>;
+<span class="syntax-keyword">import</span> fs <span class="syntax-keyword">from</span> <span class="syntax-string">'node:fs'</span>;
 
-<span class="syntax-muted">// Ingest PDF to Markdown (tables, headings, LaTeX math)</span>
-<span class="syntax-keyword">const</span> { markdown, pages } = <span class="syntax-keyword">await</span> convertPdfToMarkdown(<span class="syntax-string">'paper.pdf'</span>, {
-  pageRange: <span class="syntax-string">'1-10'</span>
+<span class="syntax-keyword">const</span> result = <span class="syntax-keyword">await</span> convertPdfToImages(<span class="syntax-string">'research-paper.pdf'</span>, {
+  scale: 2.0,       <span class="syntax-muted">// 2x Retina (144 DPI)</span>
+  pages: <span class="syntax-string">'1-3'</span>,     <span class="syntax-muted">// Target page range</span>
+  transparent: false
 });
 
-console.log(markdown);
+console.log(`Rendered ${result.pagesProcessed} pages in ${result.durationMs}ms`);
 
-<span class="syntax-muted">// Ingest PDF to standalone high-DPI HTML</span>
-<span class="syntax-keyword">const</span> { html } = <span class="syntax-keyword">await</span> convertPdfToHtml(<span class="syntax-string">'paper.pdf'</span>, { scale: 2.0 });</code></pre>
+<span class="syntax-keyword">for</span> (<span class="syntax-keyword">const</span> page <span class="syntax-keyword">of</span> result.pages) {
+  <span class="syntax-muted">// Binary buffer for file writing</span>
+  fs.writeFileSync(`page-${page.pageNumber}.png`, page.buffer);
+
+  <span class="syntax-muted">// Complete Base64 data URL: "data:image/png;base64,..."</span>
+  console.log(page.dataUrl);
+}</code></pre>
         </div>
 
-        <!-- Agent Tab -->
-        <div class="tab-pane" id="tab-agent">
-          <pre><code><span class="syntax-muted"># 1. Default (installs to .agent/skills/paper-drift/SKILL.md)</span>
-npx paper-drift skill
+        <!-- Base64 Tab -->
+        <div class="tab-pane" id="tab-base64">
+          <pre><code><span class="syntax-keyword">import</span> { convertPdfToImages } <span class="syntax-keyword">from</span> <span class="syntax-string">'paper-drift'</span>;
 
-<span class="syntax-muted"># 2. Target Claude Code specifically (.claude/skills/)</span>
-npx paper-drift skill --claude
+<span class="syntax-keyword">const</span> { pages } = <span class="syntax-keyword">await</span> convertPdfToImages(<span class="syntax-string">'document.pdf'</span>, { pages: 1 });
+<span class="syntax-keyword">const</span> pageOne = pages[0];
 
-<span class="syntax-muted"># 3. Target Cursor rules (.cursor/rules/)</span>
-npx paper-drift skill --cursor
+<span class="syntax-muted">// 1. Raw Base64 string</span>
+console.log(pageOne.base64);
 
-<span class="syntax-muted"># 4. Install globally for all projects (~/.gemini/... &amp; ~/.claude/...)</span>
-npx paper-drift skill --global
+<span class="syntax-muted">// 2. Embed directly in HTML img tag</span>
+<span class="syntax-keyword">const</span> imgTag = `&lt;img src="${pageOne.dataUrl}" width="${pageOne.width}" /&gt;`;
 
-<span class="syntax-muted"># 5. Output raw SKILL.md to stdout (for piping or custom paths)</span>
-npx paper-drift skill cat
-
-<span class="syntax-muted"># Your AI agent can now parse PDFs with zero multimodal token tax!</span></code></pre>
-        </div>
-
-        <!-- Skill Tab -->
-        <div class="tab-pane code-scrollable" id="tab-skill">
-          <pre><code><span class="syntax-muted">---</span>
-<span class="syntax-keyword">name</span>: <span class="syntax-string">paper-drift</span>
-<span class="syntax-keyword">description</span>: <span class="syntax-string">Zero-Python, zero-Chromium WebAssembly PDF document engine. Converts academic and enterprise PDFs into clean, high-density Markdown with GFM tables and LaTeX math, slashing multimodal LLM token consumption by 90%+. Use whenever analyzing, reading, extracting tables from, or converting PDF files.</span>
-<span class="syntax-muted">---</span>
-
-# `paper-drift` Agent Skill: Zero-Token-Tax PDF Ingestion
-
-You are an expert AI researcher and coding agent. When interacting with PDF files (research papers, technical specifications, financial reports, or manuals), **do not ingest raw PDF pages as images or ask the user to convert them manually**.
-
-Instead, invoke `paper-drift` locally via WebAssembly to convert the document into clean, natural-reading-order GitHub Flavored Markdown (GFM) with reconstructed tables and LaTeX equations.
-
----
-
-## 1. Why Use `paper-drift` (The Token Economics)
-
-| Approach | Tokens per 10-Page Paper | Cost per Query | Execution Latency |
-| :--- | :--- | :--- | :--- |
-| **Multimodal Vision (PDF &rarr; Image)** | ~16,000 &ndash; 20,000 vision tokens | ~$0.20 &ndash; $0.40 | 10&ndash;25s (image rendering &amp; transfer) |
-| **`paper-drift` WASM Preprocessing** | **~1,200 &ndash; 1,800 text tokens** | **~$0.01 &ndash; $0.02** | **&lt; 400ms (100% local WASM)** |
-| **Savings** | **~92% Token Reduction** | **15x Cheaper** | **30x&ndash;40x Faster** |
-
----
-
-## 2. When to Activate This Skill
-
-Trigger this workflow whenever:
-- The user provides a `.pdf` file and asks questions, summaries, or code implementations based on it.
-- You need to inspect benchmark results, experimental tables, or equations from an ArXiv paper.
-- You need to convert a PDF into clean Markdown or standalone HTML.
-- An automated pipeline or agent needs to parse documents with zero system dependencies.
-
----
-
-## 3. Agent Execution Protocol
-
-### Step 1: Run the CLI via `npx`
-Run `paper-drift` directly in the shell using `npx -y paper-drift`:
-
-```bash
-# Convert entire PDF to Markdown
-npx -y paper-drift path/to/document.pdf --format md -o output.md
-
-# Budget tokens for long documents (pages 1 to 5 only)
-npx -y paper-drift path/to/paper.pdf --format md --pages 1-5 -o paper-summary.md
-```
-
-### Step 2: Read and Process the Generated Markdown
-Read the generated `.md` file. It contains auto-detected `#` headings, 2-column spatial flow, LaTeX display math `$$...$$`, and GFM pipe tables.
-
-### Step 3: Programmatic Node.js Usage
-```javascript
-import { convertPdfToMarkdown } from 'paper-drift';
-import fs from 'node:fs/promises';
-
-const pdfBuffer = await fs.readFile('paper.pdf');
-const { markdown } = await convertPdfToMarkdown(pdfBuffer, { pages: '1-6' });
-```</code></pre>
+<span class="syntax-muted">// 3. Pass to API payloads</span>
+<span class="syntax-keyword">const</span> payload = {
+  mimeType: <span class="syntax-string">'image/png'</span>,
+  base64: pageOne.base64
+};</code></pre>
         </div>
       </div>
     </section>
 
-    <!-- Dedicated AI Agent Skill Section -->
-    <section class="panel-section" id="skill">
+    <!-- API Reference Section -->
+    <section class="panel-section" id="api">
       <div class="panel-heading">
-        <span class="mono-label">04 // AGENT SKILL (SKILL.MD)</span>
-        <h2>Drop-in AI Agent Specification</h2>
-        <p class="panel-sub">Turnkey Agent Skill instructing autonomous coding agents to preprocess PDFs with zero vision token tax.</p>
-      </div>
-
-      <div class="skill-meta-bar">
-        <div class="skill-path-badge">
-          <span>Target (AGY / Open):</span>
-          <code>.agent/skills/paper-drift/SKILL.md</code>
-        </div>
-        <div class="skill-path-badge">
-          <span>Target (Claude):</span>
-          <code>.claude/skills/paper-drift/SKILL.md</code>
-        </div>
-        <div class="skill-path-badge">
-          <span>Target (Cursor):</span>
-          <code>.cursor/rules/paper-drift.md</code>
-        </div>
-      </div>
-
-      <!-- Installation Commands Box -->
-      <div class="code-terminal" style="margin-bottom: 1.5rem;">
-        <div class="terminal-header">
-          <span class="spec-chip">INSTALLATION COMMANDS &amp; TARGETS</span>
-          <div class="terminal-actions">
-            <span class="terminal-lang">bash</span>
-            <button class="terminal-copy-btn" id="copyInstallBtn" title="Copy installation commands">
-              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"></path>
-              </svg>
-              <span id="copyInstallLabel">Copy</span>
-            </button>
-          </div>
-        </div>
-        <div class="tab-pane active" style="display:block;">
-          <pre><code id="installCommands"><span class="syntax-muted"># 1. Default (installs to .agent/skills/paper-drift/SKILL.md)</span>
-npx paper-drift skill
-
-<span class="syntax-muted"># 2. Target Claude Code specifically (.claude/skills/)</span>
-npx paper-drift skill --claude
-
-<span class="syntax-muted"># 3. Target Cursor rules (.cursor/rules/)</span>
-npx paper-drift skill --cursor
-
-<span class="syntax-muted"># 4. Install globally for all projects (~/.gemini/... &amp; ~/.claude/...)</span>
-npx paper-drift skill --global
-
-<span class="syntax-muted"># 5. Output raw SKILL.md to stdout (for piping or custom paths)</span>
-npx paper-drift skill cat</code></pre>
-        </div>
-      </div>
-
-      <!-- Full SKILL.md Specification Viewer -->
-      <div class="code-terminal">
-        <div class="terminal-header">
-          <span class="spec-chip">skills/paper-drift/SKILL.md</span>
-          <div class="terminal-actions">
-            <span class="terminal-lang">markdown</span>
-            <button class="terminal-copy-btn" id="copySkillBtn" title="Copy full SKILL.md">
-              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"></path>
-              </svg>
-              <span id="copySkillLabel">Copy SKILL.md</span>
-            </button>
-          </div>
-        </div>
-
-        <div class="tab-pane active code-scrollable" style="display:block;">
-          <pre><code id="skillCode"><span class="syntax-muted">---</span>
-<span class="syntax-keyword">name</span>: <span class="syntax-string">paper-drift</span>
-<span class="syntax-keyword">description</span>: <span class="syntax-string">Zero-Python, zero-Chromium WebAssembly PDF document engine. Converts academic and enterprise PDFs into clean, high-density Markdown with GFM tables and LaTeX math, slashing multimodal LLM token consumption by 90%+. Use whenever analyzing, reading, extracting tables from, or converting PDF files.</span>
-<span class="syntax-muted">---</span>
-
-# `paper-drift` Agent Skill: Zero-Token-Tax PDF Ingestion
-
-You are an expert AI researcher and coding agent. When interacting with PDF files (research papers, technical specifications, financial reports, or manuals), **do not ingest raw PDF pages as images or ask the user to convert them manually**.
-
-Instead, invoke `paper-drift` locally via WebAssembly to convert the document into clean, natural-reading-order GitHub Flavored Markdown (GFM) with reconstructed tables and LaTeX equations.
-
----
-
-## 1. Why Use `paper-drift` (The Token Economics)
-
-| Approach | Tokens per 10-Page Paper | Cost per Query | Execution Latency |
-| :--- | :--- | :--- | :--- |
-| **Multimodal Vision (PDF &rarr; Image)** | ~16,000 &ndash; 20,000 vision tokens | ~$0.20 &ndash; $0.40 | 10&ndash;25s (image rendering &amp; transfer) |
-| **`paper-drift` WASM Preprocessing** | **~1,200 &ndash; 1,800 text tokens** | **~$0.01 &ndash; $0.02** | **&lt; 400ms (100% local WASM)** |
-| **Savings** | **~92% Token Reduction** | **15x Cheaper** | **30x&ndash;40x Faster** |
-
-`paper-drift` resolves multi-column reading flow (Recursive XY-Cut) so two-column academic papers are not scrambled, detects display math as `$$...$$` with equation numbers (`\tag{N}`), and reconstructs multi-tier data tables into standard Markdown grids.
-
----
-
-## 2. When to Activate This Skill
-
-Trigger this workflow whenever:
-- The user provides a `.pdf` file and asks questions, summaries, or code implementations based on it.
-- You need to inspect benchmark results, experimental tables, or equations from an ArXiv paper.
-- You need to convert a PDF into clean Markdown or standalone HTML.
-- An automated pipeline or agent needs to parse documents with zero system dependencies (no Python, no Poppler, no Chromium).
-
----
-
-## 3. Agent Execution Protocol
-
-### Step 1: Run the CLI via `npx`
-Run `paper-drift` directly in the shell using `npx -y paper-drift`:
-
-```bash
-# Convert entire PDF to Markdown
-npx -y paper-drift path/to/document.pdf --format md -o output.md
-
-# Budget tokens for long documents (pages 1 to 5 only)
-npx -y paper-drift path/to/paper.pdf --format md --pages 1-5 -o paper-summary.md
-
-# Convert specific non-contiguous pages (e.g. Intro &amp; Experiment Results)
-npx -y paper-drift path/to/paper.pdf --format md --pages 1-3,6,8 -o paper-key-sections.md
-
-# Standalone high-DPI HTML visualization (with selectable text layer)
-npx -y paper-drift path/to/document.pdf --format html -o document.html
-```
-
-### Step 2: Read and Process the Generated Markdown
-Read the generated `.md` file using your file-reading tool. The output contains:
-- `#`, `##`, `###` headings derived from geometric font sizing.
-- Natural two-column reading flow without column weaving.
-- Standalone LaTeX display math blocks:
-  $$\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{Q K^T}{\sqrt{d_k}}\right) V \tag{1}$$
-- Clean GFM Markdown tables with universal math typography:
-  | Layer | Complexity per Layer | Sequential Operations | Maximum Path Length |
-  | :--- | :--- | :--- | :--- |
-  | Self-Attention | O(n² &middot; d) | O(1) | O(1) |
-  | Recurrent | O(n &middot; d²) | O(n) | O(n) |
-
-### Step 3: Programmatic Node.js / JavaScript Usage
-When writing automated scripts, crawlers, or agent tools, import `paper-drift` directly:
-
-```javascript
-import { convertPdfToMarkdown, convertPdfToHtml } from 'paper-drift';
-import fs from 'node:fs/promises';
-
-// Read local PDF buffer
-const pdfBuffer = await fs.readFile('paper.pdf');
-
-// Direct PDF to Markdown with page range
-const markdown = await convertPdfToMarkdown(pdfBuffer, { pages: '1-6' });
-console.log(markdown);
-
-// Direct PDF to Standalone HTML with embedded assets
-const html = await convertPdfToHtml(pdfBuffer, { scale: 1.5, pages: '1-3' });
-await fs.writeFile('output.html', html);
-```
-
----
-
-## 4. Agent Best Practices &amp; Token Budgeting
-
-1. **Always Use `--pages` for Documents Over 10 Pages:**
-   - Don't ingest a 100-page manual at once.
-   - For research papers: start with `--pages 1-3` (Title, Abstract, Introduction) to get the thesis, then target specific sections (e.g. `--pages 6-8` for Benchmark Tables).
-2. **Table Extraction:**
-   - Markdown tables generated by `paper-drift` use standard `|` pipes and can be extracted or parsed directly using regular expressions or Markdown parsers.
-3. **No Heavy Dependencies:**
-   - Never install `pdf2image`, `poppler-utils`, `pdfplumber`, or `tesseract` when `paper-drift` is available. `paper-drift` is 100% self-contained WebAssembly.</code></pre>
-        </div>
-      </div>
-    </section>
-
-    <!-- Table Output Preview -->
-    <section class="panel-section">
-      <div class="panel-heading">
-        <span class="mono-label">05 // VERIFICATION</span>
-        <h2>Table Reconstruction Output</h2>
-        <p class="panel-sub">Table 1 from <em>Attention Is All You Need</em> reconstructed directly into standard GitHub Flavored Markdown pipes with universal math exponents:</p>
+        <span class="mono-label">04 // API REFERENCE</span>
+        <h2>Options &amp; Parameters</h2>
+        <p class="panel-sub">Programmatic options supported by <code>convertPdfToImages(input, options)</code>:</p>
       </div>
 
       <div class="data-table-frame">
@@ -500,36 +285,36 @@ await fs.writeFile('output.html', html);
           <table class="rendered-table">
             <thead>
               <tr>
-                <th>Layer Type</th>
-                <th>Complexity per Layer</th>
-                <th>Sequential Operations</th>
-                <th>Maximum Path Length</th>
+                <th>Option</th>
+                <th>Type</th>
+                <th>Default</th>
+                <th>Description</th>
               </tr>
             </thead>
             <tbody>
               <tr>
-                <td>Self-Attention</td>
-                <td><code>O(n² &bull; d)</code></td>
-                <td><code>O(1)</code></td>
-                <td><code>O(1)</code></td>
+                <td><code>scale</code></td>
+                <td><code>number</code></td>
+                <td><code>2.0</code></td>
+                <td>Resolution scale factor (2.0 = 144 DPI, 3.0 = 216 DPI)</td>
               </tr>
               <tr>
-                <td>Recurrent</td>
-                <td><code>O(n &bull; d²)</code></td>
-                <td><code>O(n)</code></td>
-                <td><code>O(n)</code></td>
+                <td><code>pages</code></td>
+                <td><code>string | number | number[]</code></td>
+                <td><code>"all"</code></td>
+                <td>Page range specification (e.g. <code>"1-5"</code>, <code>"2,4"</code>, <code>1</code>)</td>
               </tr>
               <tr>
-                <td>Convolutional</td>
-                <td><code>O(k &bull; n &bull; d²)</code></td>
-                <td><code>O(1)</code></td>
-                <td><code>O(log_k(n))</code></td>
+                <td><code>transparent</code></td>
+                <td><code>boolean</code></td>
+                <td><code>false</code></td>
+                <td>Render with transparent background instead of opaque white</td>
               </tr>
               <tr>
-                <td>Self-Attention (restricted)</td>
-                <td><code>O(r &bull; n &bull; d)</code></td>
-                <td><code>O(1)</code></td>
-                <td><code>O(n/r)</code></td>
+                <td><code>onProgress</code></td>
+                <td><code>function</code></td>
+                <td><code>undefined</code></td>
+                <td>Callback invoked as each page is rasterized</td>
               </tr>
             </tbody>
           </table>

@@ -1,41 +1,43 @@
 # paper-drift
 
-[![CI](https://github.com/Sooriya04/Paper-Drift/actions/workflows/ci.yml/badge.svg)](https://github.com/Sooriya04/Paper-Drift/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Node Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org)
 [![WASM Powered](https://img.shields.io/badge/engine-WebAssembly-purple.svg)](https://webassembly.org/)
 
-> **Zero-Python, zero-Chromium WebAssembly document parser, HTML renderer, and Markdown engine with GFM tables and math.**
+> **Zero-Python, zero-Chromium WebAssembly PDF rasterizer and Base64 engine.**
 
-Convert complex academic research papers and enterprise PDFs directly into clean, structured **Markdown** or standalone **HTML** with pixel-perfect visual fidelity—without Puppeteer, Python, Docker, or external servers. Slashes AI Agent token ingestion costs by 90%+.
-
----
-
-## ⚡ Why paper-drift?
-
-Most PDF conversion pipelines in JavaScript suffer from two major flaws:
-1. **The Heavyweight Trap**: Requiring Headless Chromium (Puppeteer / Playwright) or Python microservices (`unstructured`, `poppler`, `nougat`) that need 500MB+ Docker images, multi-second cold boots, and high cloud costs.
-2. **The "Text Soup" Trap**: Spatially naive parsers that dump unordered lines, break multi-column layouts, and butcher tabular grids.
-
-**`paper-drift` solves this natively:**
-* **Zero-Python & Zero-Chromium**: Runs compiled WebAssembly directly in any V8 runtime (Node.js, Bun, or modern browsers). Under 20 KB package footprint.
-* **Direct Markdown Engine**: Converts directly into GitHub Flavored Markdown (GFM) with auto-detected `#`, `##` headings, list markers, and clean math.
-* **Geometric Table Reconstruction**: Discovers column gutters and slices cells into standard pipe tables (`| col1 | col2 |`) with clean universal math exponents (`O(n² · d)`, `10¹⁹`).
-* **Multi-Column Spatial Ordering**: Resolves 2-column papers via Recursive XY-Cut without column interweaving.
-* **Dual-Layer HTML Mode**: High-DPI background raster rendering paired with a 1:1 selectable, searchable text layer.
-* **100% Private & Instant**: Ingests pages in under 50ms locally. Zero data leaves your machine.
+Convert complex academic research papers, technical specs, and enterprise PDFs directly into high-resolution PNG images and Base64 data URIs. No Puppeteer, no Chromium, no Python, no Poppler, and no external servers. 100% local WebAssembly execution.
 
 ---
 
-## 🚀 Quick Start (CLI)
+## Why paper-drift?
 
-### Run with `npx` (Zero installation required)
+Most PDF rendering pipelines in JavaScript rely on:
+1. **Headless Chromium (Puppeteer / Playwright)**: Requires a 400MB+ browser binary, slow cold starts, high memory overhead, and sandboxing nightmares.
+2. **Python microservices (`pdf2image`, `poppler-utils`)**: Needs system-level C++ binaries, external package managers, and Docker containers.
+
+**paper-drift provides a native WebAssembly alternative:**
+* **Zero System Dependencies**: Powered by compiled MuPDF WebAssembly. Runs natively in any modern Node.js, Bun, or serverless runtime.
+* **Direct Base64 & Data URL Generation**: Renders lossless page images directly into `data:image/png;base64,...` data URIs and raw Base64 strings.
+* **Lossless High-DPI Scaling**: Configurable scale factor (`scale=2.0` for 144 DPI Retina, `scale=3.0` for 216 DPI ultra-crisp renders).
+* **Transparent Background Support**: Render with opaque white background or transparent background (`--no-bg` / `transparent: true`).
+* **Fast Page-Range Extraction**: Render single pages, contiguous ranges (`1-5`), or non-contiguous lists (`1,3,7`).
+* **Standalone HTML Viewer**: Includes dual-layer HTML output with embedded background image and selectable text layer.
+
+---
+
+## Quick Start (CLI)
+
+### Run with `npx` (No installation needed)
 ```bash
-# Convert to Markdown (for Claude, LLMs, or AI Agents)
-npx paper-drift paper.pdf output.md --format md
+# Render all pages as high-resolution PNG images
+npx paper-drift paper.pdf --format image
 
-# Convert to Standalone HTML (for human viewing)
-npx paper-drift paper.pdf output.html
+# Render page 1 as a PNG image
+npx paper-drift paper.pdf output.png --pages 1
+
+# Export pages as Base64 JSON data
+npx paper-drift paper.pdf --format base64
 ```
 
 ### Install Globally
@@ -45,17 +47,23 @@ npm install -g paper-drift
 
 ### Common Commands
 ```bash
-# Convert to clean Markdown
-paper-drift research-paper.pdf paper.md --format md
+# Render all pages to high-res PNGs in current folder
+paper-drift research-paper.pdf --format image
 
-# Convert specific pages to Markdown
-paper-drift paper.pdf output.md --format md --pages 1-5,8
+# Render specific pages into a custom directory
+paper-drift research-paper.pdf images/ --pages 1-3
 
-# Convert to pixel-perfect HTML at 2.0x Retina scale
-paper-drift report.pdf output.html --scale 2.0
+# Export Base64 data URL array into a JSON file
+paper-drift report.pdf report-base64.json --format base64
 
-# Text-only HTML mode (skips background raster)
-paper-drift book.pdf book.html --no-bg
+# Render with 3.0x ultra-high DPI scaling
+paper-drift diagram.pdf diagram.png --scale 3.0 --pages 1
+
+# Render transparent PNG (no white background)
+paper-drift icon.pdf icon.png --no-bg
+
+# Export standalone HTML viewer
+paper-drift document.pdf document.html --format html
 ```
 
 ### CLI Options
@@ -63,39 +71,76 @@ paper-drift book.pdf book.html --no-bg
 | Flag | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `<input.pdf>` | `string` | *(required)* | Path to the source PDF file |
-| `[output]` | `string` | `<name>.<ext>` | Destination output file path |
-| `--format <fmt>` | `string` | `html` | Output format: `markdown` (`md`) \| `html` \| `text` \| `json` |
-| `--pages <range>` | `string` | `"all"` | Target page range (e.g. `1-10`, `2,4,6`) |
-| `--scale <num>` | `number` | `2.0` | DPI multiplier for background raster rendering in HTML mode |
-| `--no-bg` | `boolean` | `false` | Disables background rasterization (text-only HTML) |
-| `-v, --version` | `flag` | — | Display current version |
-| `-h, --help` | `flag` | — | Display CLI help menu |
+| `[output]` | `string` | `<name>.<ext>` | Destination file or directory path |
+| `--format <fmt>` | `string` | `image` | Output format: `image` (`png`) \| `base64` \| `html` \| `text` \| `json` |
+| `--pages <range>` | `string` | `"all"` | Target page range (e.g. `1-5`, `2,4,6`, `1`) |
+| `--scale <num>` | `number` | `2.0` | DPI resolution scale factor (2.0 = 144 DPI, 3.0 = 216 DPI) |
+| `--no-bg` | `boolean` | `false` | Renders with transparent background instead of opaque white |
+| `-v, --version` | `flag` | - | Display current version |
+| `-h, --help` | `flag` | - | Display CLI help menu |
 
 ---
 
-## 💻 Programmatic API (Node.js / Bun)
+## Programmatic API (Node.js / Bun)
 
 Install in your project:
 ```bash
 npm install paper-drift
 ```
 
-### Direct PDF to Markdown
+### Direct PDF to Images & Base64
 ```javascript
-import { convertPdfToMarkdown } from 'paper-drift';
+import { convertPdfToImages } from 'paper-drift';
+import fs from 'node:fs';
 
-const result = await convertPdfToMarkdown('research-paper.pdf', {
-  pageRange: '1-10'
+const result = await convertPdfToImages('isam.pdf', {
+  scale: 2.0,          // 2x Retina (144 DPI)
+  pages: '1-3',        // Page range: 'all', '1-5', '2,4', 1
+  transparent: false   // Set true for transparent background
 });
 
-console.log(`Converted ${result.pagesProcessed} pages in ${result.durationMs}ms`);
-console.log(result.markdown);
+console.log(`Rendered ${result.pagesProcessed} page(s) in ${result.durationMs}ms`);
+
+for (const page of result.pages) {
+  console.log(`Page ${page.pageNumber}: ${page.width}x${page.height}px`);
+
+  // Raw Base64 string (ideal for custom APIs and storage)
+  console.log(page.base64);
+
+  // Ready-to-use Data URL: "data:image/png;base64,iVBORw..."
+  console.log(page.dataUrl);
+
+  // Binary PNG Buffer (ready for fs.writeFileSync)
+  fs.writeFileSync(`page-${page.pageNumber}.png`, page.buffer);
+
+  // Clean plain text extracted from this page
+  console.log(page.text);
+}
 ```
 
-### PDF to Standalone HTML
+### Feeding Base64 to AI Vision Models
+The generated `dataUrl` or `base64` strings can be passed directly to multimodal vision models:
+
+```javascript
+import { convertPdfToImages } from 'paper-drift';
+
+const { pages } = await convertPdfToImages('paper.pdf', { pages: 1 });
+const pageOne = pages[0];
+
+// Pass pageOne.dataUrl or pageOne.base64 directly to your AI SDK:
+// e.g. Gemini 1.5, OpenAI GPT-4o, Anthropic Claude 3.5 Sonnet
+const imagePart = {
+  inlineData: {
+    data: pageOne.base64,
+    mimeType: 'image/png'
+  }
+};
+```
+
+### PDF to Standalone HTML Viewer
 ```javascript
 import { convertPdfToHtml } from 'paper-drift';
-import fs from 'fs';
+import fs from 'node:fs';
 
 const result = await convertPdfToHtml('document.pdf', {
   scale: 2.0,
@@ -108,100 +153,44 @@ fs.writeFileSync('output.html', result.html);
 ### Buffer Input Support
 Both functions accept raw `Buffer` or `Uint8Array` inputs:
 ```javascript
-import { convertPdfToMarkdown } from 'paper-drift';
+import { convertPdfToImages } from 'paper-drift';
+import fs from 'node:fs';
 
-const pdfBuffer = await fetch('https://example.com/paper.pdf').then(r => r.arrayBuffer());
-const { markdown } = await convertPdfToMarkdown(Buffer.from(pdfBuffer));
+const pdfBuffer = fs.readFileSync('document.pdf');
+const result = await convertPdfToImages(pdfBuffer, { scale: 1.5 });
 ```
 
 ---
 
-## 💸 AI Agent Token Savings
+## Agent Skill Installation
 
-When feeding 10-page academic papers into LLMs (Claude, GPT-4, Cursor, Antigravity):
-
-| Mode | Tokens Consumed | Cost / Ingestion | Reading Accuracy |
-| :--- | :--- | :--- | :--- |
-| **Multimodal Vision (Images)** | ~16,000 – 20,000 tokens | ~$0.15 – $0.40 | Heavy hallucinations on dense math |
-| **Naive OCR / PDF Text Dump** | ~8,000 tokens | ~$0.08 | Tables destroyed into loose lines |
-| **`paper-drift` Markdown** | **~1,200 – 1,800 tokens** | **~$0.01** | **Pixel-accurate reading order, GFM tables, math** |
-
-> **Net Savings:** Over **90% token reduction** and **12x faster ingestion**.
-
----
-
-## 🤖 Turnkey AI Agent Skill (Claude, Cursor, Antigravity)
-
-`paper-drift` is built from the ground up as a native **AI Agent Skill** to eliminate the **"Multimodal PDF Token Tax"**. 
-
-When an AI coding or research agent ingests raw PDFs as images, it burns ~1,500 to 2,000 vision tokens per page (crowding context windows and costing $0.50–$2.00 per query). By equipping your agent with the `paper-drift` skill, the agent pre-processes PDFs locally via WebAssembly into clean Markdown, GFM tables, and LaTeX equations in **< 400ms**—cutting token consumption by **90%+**.
-
-### 1-Click Skill Installation
-
-Install the canonical [`SKILL.md`](skills/paper-drift/SKILL.md) into any workspace with a single command:
+`paper-drift` can be installed directly into AI coding agent workspaces:
 
 ```bash
-# 1. Default: Auto-install to current workspace (.agent/skills/paper-drift/SKILL.md)
+# Install skill into current agent workspace (.agent/skills)
 npx paper-drift skill
 
-# 2. Target Claude Code workspace (.claude/skills/paper-drift/SKILL.md)
+# Install into Claude Code workspace (.claude/skills)
 npx paper-drift skill --claude
 
-# 3. Target Cursor workspace rules (.cursor/rules/paper-drift.md)
+# Install into Cursor rules (.cursor/rules)
 npx paper-drift skill --cursor
 
-# 4. Install globally for all projects (~/.gemini/... & ~/.claude/...)
-npx paper-drift skill --global
-
-# 5. Output raw SKILL.md to stdout (for piping or custom paths)
+# Output raw skill markdown to stdout
 npx paper-drift skill cat
 ```
 
-### How the Agent Uses It
-
-Once installed, your agent automatically activates the skill whenever you provide a PDF:
-
-```text
-User: "Summarize the experimental results from attention-is-all-you-need.pdf"
-
-Agent (Internal):
-  1. Detects paper-drift skill
-  2. Executes: npx -y paper-drift attention-is-all-you-need.pdf --format md --pages 6-8
-  3. Receives clean GFM Table 1 and BLEU score comparisons in < 250ms
-  4. Answers your query using 1,200 text tokens instead of 20,000 vision tokens!
-```
-
-- 📖 **Skill Specification:** [`skills/paper-drift/SKILL.md`](skills/paper-drift/SKILL.md)
-- 🌐 **Interactive Documentation:** [https://sooriya04.github.io/Paper-Drift/#skill](https://sooriya04.github.io/Paper-Drift/#skill)
-
 ---
 
-## 🌐 Interactive Web Playground
+## Testing
 
-`paper-drift` includes a local WebAssembly playground with live GFM table and KaTeX formula preview:
-
-1. Start the local server:
-   ```bash
-   npm start
-   ```
-2. Open your browser at **http://localhost:3000** and drag-and-drop any PDF.
-
----
-
-## 🧪 Testing & Benchmarks
-
-Run the complete test suite:
+Run the test suite:
 ```bash
 npm test
 ```
 
-Benchmark throughput and layout fidelity across landmark ArXiv papers:
-```bash
-npm run benchmark
-```
-
 ---
 
-## 📄 License
+## License
 
 Apache-2.0 License. See [LICENSE](LICENSE) for details.

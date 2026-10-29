@@ -70,8 +70,8 @@ export function recursiveXyCut(blockList) {
 
   for (let i = 1; i < intervals.length; i++) {
     const nextStart = intervals[i][0];
-    // Dynamic gutter threshold (at least 12pt whitespace separating text columns)
-    if (nextStart > currentEnd + 12) {
+    // Dynamic gutter threshold (at least 9.5pt whitespace separating text columns)
+    if (nextStart >= currentEnd + 9.5) {
       gutters.push({
         start: currentEnd,
         end: nextStart,

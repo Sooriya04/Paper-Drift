@@ -58,6 +58,105 @@ export function parsePageRange(range, totalPages) {
   return Array.from(indices).sort((a, b) => a - b);
 }
 
+/**
+ * Converts a PDF buffer or file path into high-resolution images and Base64 strings.
+ *
+ * @param {string|Buffer|Uint8Array} input - File path or binary buffer of the PDF.
+ * @param {Object} [options={}] - Conversion options.
+ * @param {number} [options.scale=2.0] - DPI scale factor (e.g. 2.0 = Retina 144 DPI, 3.0 = 216 DPI).
+ * @param {string|number[]} [options.pages='all'] - Target page specification (e.g. "1-3", "2,4", "all").
+ * @param {function} [options.onProgress] - Optional progress callback `({ current, total, pageNumber, totalPages }) => void`.
+ * @returns {Promise<{ pages: Array<Object>, totalPages: number, pagesProcessed: number, durationMs: number }>}
+ */
+export async function convertPdfToImages(input, options = {}) {
+  const startTime = Date.now();
+  const scale = typeof options.scale === 'number' ? options.scale : 2.0;
+  const pageRangeStr = options.pages !== undefined ? options.pages : (options.pageRange || 'all');
+
+  let pdfBuffer;
+  if (typeof input === 'string') {
+    if (!fs.existsSync(input)) {
+      throw new Error(`File not found: ${input}`);
+    }
+    pdfBuffer = fs.readFileSync(input);
+  } else if (Buffer.isBuffer(input) || input instanceof Uint8Array) {
+    pdfBuffer = input;
+  } else {
+    throw new TypeError('Input must be a valid file path string, Buffer, or Uint8Array.');
+  }
+
+  const doc = mupdf.Document.openDocument(pdfBuffer, 'application/pdf');
+  const totalPages = doc.countPages();
+  const targetIndices = parsePageRange(pageRangeStr, totalPages);
+
+  if (targetIndices.length === 0) {
+    throw new Error(`No matching pages found for page range: "${pageRangeStr}" (Document has ${totalPages} pages).`);
+  }
+
+  const pages = [];
+
+  for (let step = 0; step < targetIndices.length; step++) {
+    const pageIndex = targetIndices[step];
+    const pageNumber = pageIndex + 1;
+
+    if (typeof options.onProgress === 'function') {
+      options.onProgress({
+        current: step + 1,
+        total: targetIndices.length,
+        pageNumber,
+        totalPages
+      });
+    }
+
+    const page = doc.loadPage(pageIndex);
+    const bounds = page.getBounds();
+    const widthPt = bounds[2] - bounds[0];
+    const heightPt = bounds[3] - bounds[1];
+
+    const alpha = options.transparent === true || options.noBg === true || options.withBg === false;
+    const matrix = mupdf.Matrix.scale(scale, scale);
+    const pixmap = page.toPixmap(matrix, mupdf.ColorSpace.DeviceRGB, alpha, true);
+    const pngBuffer = Buffer.from(pixmap.asPNG());
+    const rawBase64 = pngBuffer.toString('base64');
+    const dataUrl = `data:image/png;base64,${rawBase64}`;
+
+    let pageText = '';
+    try {
+      const st = page.toStructuredText();
+      const stJson = JSON.parse(st.asJSON());
+      pageText = (stJson.blocks || [])
+        .filter(b => b.lines)
+        .flatMap(b => b.lines)
+        .map(l => l.text)
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    } catch {
+      // Ignore text extraction failure in image mode
+    }
+
+    pages.push({
+      pageNumber,
+      width: Math.round(widthPt * scale),
+      height: Math.round(heightPt * scale),
+      widthPt,
+      heightPt,
+      scale,
+      buffer: pngBuffer,
+      base64: rawBase64,
+      dataUrl,
+      text: pageText
+    });
+  }
+
+  return {
+    pages,
+    totalPages,
+    pagesProcessed: targetIndices.length,
+    durationMs: Date.now() - startTime
+  };
+}
+
 function escapeHtml(str) {
   return String(str)
     .replace(/&/g, '&amp;')
