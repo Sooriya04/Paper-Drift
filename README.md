@@ -118,6 +118,25 @@ for (const page of result.pages) {
 }
 ```
 
+### Memory-Efficient Streaming Generator (500+ Page Documents)
+For massive PDFs, books, and reports, avoid buffering all page renders into RAM. `streamPdfPages` yields each page sequentially as an async generator, keeping memory usage constant `O(1)`:
+
+```javascript
+import { streamPdfPages } from 'paper-drift';
+import fs from 'node:fs/promises';
+
+// Asynchronously stream pages one-by-one
+for await (const page of streamPdfPages('500-page-book.pdf', { scale: 2.0 })) {
+  console.log(`Processing page ${page.pageNumber} of ${page.totalPages}...`);
+
+  // Save directly to disk - buffer is garbage-collected immediately
+  await fs.writeFile(`output/page-${page.pageNumber}.png`, page.buffer);
+
+  // base64 and dataUrl are lazy getters, computed only on demand
+  // console.log(page.dataUrl);
+}
+```
+
 ### Feeding Base64 to AI Vision Models
 The generated `dataUrl` or `base64` strings can be passed directly to multimodal vision models:
 

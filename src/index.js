@@ -6,14 +6,15 @@
  * Part of paper-drift - https://github.com/Sooriya04/Paper-Drift
  */
 
-export { convertPdfToImages, convertPdfToHtml, parsePageRange } from './converter.js';
+export { convertPdfToImages, streamPdfPages, convertPdfToHtml, parsePageRange } from './converter.js';
 export { resolveReadingOrder, recursiveXyCut } from './spatial/reading-order.js';
 
-import { convertPdfToImages, convertPdfToHtml, parsePageRange } from './converter.js';
+import { convertPdfToImages, streamPdfPages, convertPdfToHtml, parsePageRange } from './converter.js';
 import { resolveReadingOrder, recursiveXyCut } from './spatial/reading-order.js';
 
 export default {
   convertPdfToImages,
+  streamPdfPages,
   convertPdfToHtml,
   parsePageRange,
   resolveReadingOrder,

@@ -17,7 +17,23 @@ export interface ImagePageResult {
   text: string;
 }
 
-export interface ConvertImagesOptions {
+export interface StreamPageResult {
+  pageNumber: number;
+  pageIndex: number;
+  totalPages: number;
+  totalMatchingPages: number;
+  width: number;
+  height: number;
+  widthPt: number;
+  heightPt: number;
+  scale: number;
+  buffer: Buffer;
+  readonly base64: string;
+  readonly dataUrl: string;
+  text: string;
+}
+
+export interface StreamImagesOptions {
   /** DPI scale factor (default: 2.0). */
   scale?: number;
   /** Whether to render with a transparent background instead of opaque white (default: false). */
@@ -28,9 +44,13 @@ export interface ConvertImagesOptions {
   pages?: string | number | number[];
   /** Legacy alias for `pages`. */
   pageRange?: string | number | number[];
+  /** Whether to extract plain text for the page (default: true). Set false for even faster rendering. */
+  extractText?: boolean;
   /** Optional progress callback. */
   onProgress?: (progress: { current: number; total: number; pageNumber: number; totalPages: number }) => void;
 }
+
+export interface ConvertImagesOptions extends StreamImagesOptions {}
 
 export interface ConvertImagesResult {
   pages: ImagePageResult[];
@@ -83,6 +103,15 @@ export function convertPdfToImages(
 ): Promise<ConvertImagesResult>;
 
 /**
+ * Asynchronously streams rendered PDF pages one by one as an async generator.
+ * Ideal for large documents (100+ pages) to keep memory footprint minimal and constant O(1).
+ */
+export function streamPdfPages(
+  input: string | Buffer | Uint8Array,
+  options?: StreamImagesOptions
+): AsyncGenerator<StreamPageResult, void, unknown>;
+
+/**
  * Converts a PDF buffer or file path into a standalone high-fidelity HTML document with selectable text overlay.
  */
 export function convertPdfToHtml(
@@ -110,6 +139,7 @@ export function resolveReadingOrder(
 
 declare const _default: {
   convertPdfToImages: typeof convertPdfToImages;
+  streamPdfPages: typeof streamPdfPages;
   convertPdfToHtml: typeof convertPdfToHtml;
   parsePageRange: typeof parsePageRange;
   resolveReadingOrder: typeof resolveReadingOrder;

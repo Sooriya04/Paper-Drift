@@ -9,7 +9,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { convertPdfToImages, convertPdfToHtml } from '../src/index.js';
+import { convertPdfToImages, streamPdfPages, convertPdfToHtml } from '../src/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -133,54 +133,53 @@ async function run() {
     const parsedInput = path.parse(resolvedInput);
 
     if (isImageMode) {
-      const result = await convertPdfToImages(resolvedInput, {
+      const startTime = Date.now();
+      const generatedFiles = [];
+      let pagesProcessed = 0;
+
+      let outDir = process.cwd();
+      let namePrefix = parsedInput.name;
+      let singleFileTarget = null;
+
+      if (outputFile) {
+        const resolvedOut = path.resolve(process.cwd(), outputFile);
+        const parsedOut = path.parse(resolvedOut);
+        if (parsedOut.ext) {
+          singleFileTarget = resolvedOut.toLowerCase().endsWith('.png') ? resolvedOut : `${resolvedOut}.png`;
+          outDir = parsedOut.dir;
+          namePrefix = parsedOut.name;
+        } else {
+          outDir = resolvedOut;
+          namePrefix = 'page';
+        }
+      }
+
+      if (!fs.existsSync(outDir)) {
+        fs.mkdirSync(outDir, { recursive: true });
+      }
+
+      for await (const page of streamPdfPages(resolvedInput, {
         scale,
         pages: pageRange,
         onProgress: ({ current, total, pageNumber }) => {
           process.stdout.write(`Rendering page ${pageNumber} (${current}/${total})...\r`);
         }
-      });
+      })) {
+        pagesProcessed++;
 
-      const generatedFiles = [];
-      if (result.pages.length === 1) {
         let destFile;
-        if (outputFile) {
-          destFile = path.resolve(process.cwd(), outputFile);
-          if (!destFile.toLowerCase().endsWith('.png')) destFile += '.png';
+        if (page.totalMatchingPages === 1) {
+          destFile = singleFileTarget || path.join(process.cwd(), `${parsedInput.name}.png`);
         } else {
-          destFile = path.join(process.cwd(), `${parsedInput.name}.png`);
+          destFile = path.join(outDir, `${namePrefix}-${page.pageNumber}.png`);
         }
-        fs.writeFileSync(destFile, result.pages[0].buffer);
+
+        fs.writeFileSync(destFile, page.buffer);
         generatedFiles.push(destFile);
-      } else {
-        // Multi-page export
-        let outDir = process.cwd();
-        let namePrefix = parsedInput.name;
-
-        if (outputFile) {
-          const resolvedOut = path.resolve(process.cwd(), outputFile);
-          const parsedOut = path.parse(resolvedOut);
-          if (parsedOut.ext) {
-            outDir = parsedOut.dir;
-            namePrefix = parsedOut.name;
-          } else {
-            outDir = resolvedOut;
-            namePrefix = 'page';
-          }
-        }
-
-        if (!fs.existsSync(outDir)) {
-          fs.mkdirSync(outDir, { recursive: true });
-        }
-
-        for (const page of result.pages) {
-          const pageFile = path.join(outDir, `${namePrefix}-${page.pageNumber}.png`);
-          fs.writeFileSync(pageFile, page.buffer);
-          generatedFiles.push(pageFile);
-        }
       }
 
-      console.log(`\n\x1b[32m[OK] Rendered ${result.pagesProcessed} page(s) in ${result.durationMs}ms\x1b[0m`);
+      const durationMs = Date.now() - startTime;
+      console.log(`\n\x1b[32m[OK] Rendered ${pagesProcessed} page(s) in ${durationMs}ms\x1b[0m`);
       for (const f of generatedFiles) {
         const stats = fs.statSync(f);
         const kb = (stats.size / 1024).toFixed(1);

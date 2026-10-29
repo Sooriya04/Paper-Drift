@@ -59,19 +59,22 @@ export function parsePageRange(range, totalPages) {
 }
 
 /**
- * Converts a PDF buffer or file path into high-resolution images and Base64 strings.
+ * Asynchronously streams rendered PDF pages one by one as an async generator.
+ * Ideal for large documents (100+ pages) to keep memory footprint minimal and constant O(1).
  *
  * @param {string|Buffer|Uint8Array} input - File path or binary buffer of the PDF.
  * @param {Object} [options={}] - Conversion options.
  * @param {number} [options.scale=2.0] - DPI scale factor (e.g. 2.0 = Retina 144 DPI, 3.0 = 216 DPI).
  * @param {string|number[]} [options.pages='all'] - Target page specification (e.g. "1-3", "2,4", "all").
+ * @param {boolean} [options.transparent=false] - Whether to render transparent background.
+ * @param {boolean} [options.extractText=true] - Whether to extract plain text for the page.
  * @param {function} [options.onProgress] - Optional progress callback `({ current, total, pageNumber, totalPages }) => void`.
- * @returns {Promise<{ pages: Array<Object>, totalPages: number, pagesProcessed: number, durationMs: number }>}
+ * @returns {AsyncGenerator<Object, void, unknown>}
  */
-export async function convertPdfToImages(input, options = {}) {
-  const startTime = Date.now();
+export async function* streamPdfPages(input, options = {}) {
   const scale = typeof options.scale === 'number' ? options.scale : 2.0;
   const pageRangeStr = options.pages !== undefined ? options.pages : (options.pageRange || 'all');
+  const extractText = options.extractText !== false;
 
   let pdfBuffer;
   if (typeof input === 'string') {
@@ -93,7 +96,8 @@ export async function convertPdfToImages(input, options = {}) {
     throw new Error(`No matching pages found for page range: "${pageRangeStr}" (Document has ${totalPages} pages).`);
   }
 
-  const pages = [];
+  const alpha = options.transparent === true || options.noBg === true || options.withBg === false;
+  const matrix = mupdf.Matrix.scale(scale, scale);
 
   for (let step = 0; step < targetIndices.length; step++) {
     const pageIndex = targetIndices[step];
@@ -113,46 +117,97 @@ export async function convertPdfToImages(input, options = {}) {
     const widthPt = bounds[2] - bounds[0];
     const heightPt = bounds[3] - bounds[1];
 
-    const alpha = options.transparent === true || options.noBg === true || options.withBg === false;
-    const matrix = mupdf.Matrix.scale(scale, scale);
     const pixmap = page.toPixmap(matrix, mupdf.ColorSpace.DeviceRGB, alpha, true);
     const pngBuffer = Buffer.from(pixmap.asPNG());
-    const rawBase64 = pngBuffer.toString('base64');
-    const dataUrl = `data:image/png;base64,${rawBase64}`;
-
-    let pageText = '';
     try {
-      const st = page.toStructuredText();
-      const stJson = JSON.parse(st.asJSON());
-      pageText = (stJson.blocks || [])
-        .filter(b => b.lines)
-        .flatMap(b => b.lines)
-        .map(l => l.text)
-        .join(' ')
-        .replace(/\s+/g, ' ')
-        .trim();
+      pixmap.clear();
     } catch {
-      // Ignore text extraction failure in image mode
+      // Ignore if pixmap clear is unsupported
     }
 
-    pages.push({
+    let pageText = '';
+    if (extractText) {
+      try {
+        const st = page.toStructuredText();
+        const stJson = JSON.parse(st.asJSON());
+        pageText = (stJson.blocks || [])
+          .filter(b => b.lines)
+          .flatMap(b => b.lines)
+          .map(l => l.text)
+          .join(' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+      } catch {
+        // Ignore text extraction failure in image mode
+      }
+    }
+
+    let _base64 = null;
+    let _dataUrl = null;
+
+    yield {
       pageNumber,
+      pageIndex,
+      totalPages,
+      totalMatchingPages: targetIndices.length,
       width: Math.round(widthPt * scale),
       height: Math.round(heightPt * scale),
       widthPt,
       heightPt,
       scale,
       buffer: pngBuffer,
-      base64: rawBase64,
-      dataUrl,
+      get base64() {
+        if (_base64 === null) {
+          _base64 = this.buffer.toString('base64');
+        }
+        return _base64;
+      },
+      get dataUrl() {
+        if (_dataUrl === null) {
+          _dataUrl = `data:image/png;base64,${this.base64}`;
+        }
+        return _dataUrl;
+      },
       text: pageText
+    };
+  }
+}
+
+/**
+ * Converts a PDF buffer or file path into high-resolution images and Base64 strings.
+ *
+ * @param {string|Buffer|Uint8Array} input - File path or binary buffer of the PDF.
+ * @param {Object} [options={}] - Conversion options.
+ * @param {number} [options.scale=2.0] - DPI scale factor (e.g. 2.0 = Retina 144 DPI, 3.0 = 216 DPI).
+ * @param {string|number[]} [options.pages='all'] - Target page specification (e.g. "1-3", "2,4", "all").
+ * @param {function} [options.onProgress] - Optional progress callback `({ current, total, pageNumber, totalPages }) => void`.
+ * @returns {Promise<{ pages: Array<Object>, totalPages: number, pagesProcessed: number, durationMs: number }>}
+ */
+export async function convertPdfToImages(input, options = {}) {
+  const startTime = Date.now();
+  const pages = [];
+  let totalPages = 0;
+
+  for await (const page of streamPdfPages(input, options)) {
+    totalPages = page.totalPages;
+    pages.push({
+      pageNumber: page.pageNumber,
+      width: page.width,
+      height: page.height,
+      widthPt: page.widthPt,
+      heightPt: page.heightPt,
+      scale: page.scale,
+      buffer: page.buffer,
+      base64: page.base64,
+      dataUrl: page.dataUrl,
+      text: page.text
     });
   }
 
   return {
     pages,
     totalPages,
-    pagesProcessed: targetIndices.length,
+    pagesProcessed: pages.length,
     durationMs: Date.now() - startTime
   };
 }

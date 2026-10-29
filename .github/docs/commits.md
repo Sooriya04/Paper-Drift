@@ -96,3 +96,20 @@
 - Fixed `options.pages` handling across Markdown and HTML converters to support numbers, arrays, and ranges.
 - Fixed table cell formatting to normalize internal newlines and preserve Markdown table row integrity.
 - Expanded `README.md` and `docs/index.html` with turnkey AI Agent Skill workflows and 1-click `npx` installer.
+
+### release: v0.1.3 - WebAssembly PDF to Image and Base64 rasterizer
+- Refocused core engine on high-performance WebAssembly PDF-to-image rasterization and direct Base64 generation.
+- Implemented high-DPI scaling factor (`2.0` = Retina 144 DPI, `3.0` = 216 DPI) and transparent background rendering (`--no-bg` / `transparent: true`).
+- Added Base64 data URL array export into JSON for direct ingestion into AI multimodal vision models (GPT-4o, Claude 3.5 Sonnet, Gemini).
+- Updated CLI with `--format image` and `--format base64` commands and fast page range extraction (`1-5`, `1,3,7`).
+
+### feat: implement memory-efficient streaming generator for massive pdfs
+- Implemented `streamPdfPages` async generator in `src/converter.js` yielding rendered pages sequentially with constant $O(1)$ memory usage.
+- Integrated `pixmap.clear()` after each page render to immediately release unmanaged MuPDF WebAssembly memory and prevent heap exhaustion.
+- Implemented lazy evaluation getters for `page.base64` and `page.dataUrl` so multi-megabyte string conversions only execute on demand.
+- Re-implemented `convertPdfToImages` cleanly on top of `streamPdfPages`, preserving 100% backward compatibility for all existing callers and tests.
+- Updated CLI `--format image` pipeline in `bin/cli.js` to stream-write pages directly to disk without buffering arrays of images in RAM.
+- Added TypeScript type definitions (`StreamPageResult`, `StreamImagesOptions`) in `src/index.d.ts` and exported `streamPdfPages` in `src/index.js`.
+- Created comprehensive automated test suite in `test/stream.test.js` covering sequential streaming, lazy getters, range filtering, and clean early termination via `break`.
+- Expanded `README.md` and `package.json` with streaming guide, updated descriptions, and integrated `test/stream.test.js` into `npm test`.
+
