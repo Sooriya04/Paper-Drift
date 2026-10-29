@@ -94,6 +94,27 @@ export interface ConvertHtmlResult {
   durationMs: number;
 }
 
+export interface ConvertMarkdownOptions {
+  /** Target page range (e.g. "1-5", "2,4,6", 1, or [1, 2, 3]). Defaults to "all". */
+  pages?: string | number | number[];
+  /** Legacy alias for `pages`. */
+  pageRange?: string | number | number[];
+  /** Whether to reconstruct vector tables into GFM pipe tables (default: true). */
+  tables?: boolean;
+  /** Whether to strip running headers and footers from page margins (default: true). */
+  stripRepeatedLines?: boolean;
+  /** Optional progress callback. */
+  onProgress?: (progress: { phase?: string; current: number; total: number; pageNumber: number; totalPages: number }) => void;
+}
+
+export interface ConvertMarkdownResult {
+  markdown: string;
+  totalPages: number;
+  pagesProcessed: number;
+  tablesCount: number;
+  durationMs: number;
+}
+
 /**
  * Converts a PDF buffer or file path into high-resolution images and Base64 strings.
  */
@@ -101,6 +122,14 @@ export function convertPdfToImages(
   input: string | Buffer | Uint8Array,
   options?: ConvertImagesOptions
 ): Promise<ConvertImagesResult>;
+
+/**
+ * Converts a PDF buffer or file path into publication-grade GitHub Flavored Markdown (GFM).
+ */
+export function convertPdfToMarkdown(
+  input: string | Buffer | Uint8Array,
+  options?: ConvertMarkdownOptions
+): Promise<ConvertMarkdownResult>;
 
 /**
  * Asynchronously streams rendered PDF pages one by one as an async generator.
@@ -141,6 +170,7 @@ declare const _default: {
   convertPdfToImages: typeof convertPdfToImages;
   streamPdfPages: typeof streamPdfPages;
   convertPdfToHtml: typeof convertPdfToHtml;
+  convertPdfToMarkdown: typeof convertPdfToMarkdown;
   parsePageRange: typeof parsePageRange;
   resolveReadingOrder: typeof resolveReadingOrder;
 };

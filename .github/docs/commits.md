@@ -113,3 +113,17 @@
 - Created comprehensive automated test suite in `test/stream.test.js` covering sequential streaming, lazy getters, range filtering, and clean early termination via `break`.
 - Expanded `README.md` and `package.json` with streaming guide, updated descriptions, and integrated `test/stream.test.js` into `npm test`.
 
+### feat: implement publication-grade pdf to markdown engine with vector tables and ast normalizer
+- Implemented low-level MuPDF vector stroke walker in `src/vectors/walker.js` extracting line bounding boxes, font metrics, and vector path geometry in a single pass.
+- Built ruling line classifier and margin furniture filter in `src/vectors/rules.js` suppressing recurring headers/footers in the 12% margin band while preserving content table rules.
+- Implemented path-compressed Disjoint-Set Union clustering and coordinate snapping (`snap = width * 0.004`) in `src/tables/disjoint-set.js`.
+- Built geometric table reconstruction in `src/tables/grid.js` supporting both full-grid tables and academic LaTeX Booktabs (horizontal-only rules) via column gutter projection.
+- Added normalized GFM pipe table serializer in `src/tables/pipe-renderer.js` with automatic numeric alignment inference (`:---`, `:---:`, `---:`).
+- Implemented Unicode sanitizer in `src/markdown/cleaner.js` transliterating Cyrillic/Greek homoglyphs and stripping dangerous invisible zero-width characters and bidi overrides.
+- Implemented statistical body font mode ratio calculator in `src/markdown/typography.js` determining dynamic heading levels (H1, H2, captions, footnotes) mathematically.
+- Integrated unified AST normalization pipeline in `src/markdown/normalizer.js` with `remark-parse`, `remark-gfm`, and `remark-stringify`.
+- Fixed multi-column reading order bleed in `src/markdown/converter.js` by unifying prose lines and table regions directly into `recursiveXyCut` without post-sorting.
+- Updated CLI (`bin/cli.js`) to support `--format markdown` / `--format md` and auto-inferred `.md` outputs.
+- Fixed broken export in `suite/index.js`, cleaned stale test artifacts, and expanded test suite across `test/vectors.test.js`, `test/tables.test.js`, and `test/markdown.test.js` (53 tests passing).
+
+

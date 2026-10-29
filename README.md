@@ -64,6 +64,9 @@ paper-drift icon.pdf icon.png --no-bg
 
 # Export standalone HTML viewer
 paper-drift document.pdf document.html --format html
+
+# Convert to publication-grade GFM Markdown with vector tables
+paper-drift research-paper.pdf paper.md --format markdown
 ```
 
 ### CLI Options
@@ -72,7 +75,7 @@ paper-drift document.pdf document.html --format html
 | :--- | :--- | :--- | :--- |
 | `<input.pdf>` | `string` | *(required)* | Path to the source PDF file |
 | `[output]` | `string` | `<name>.<ext>` | Destination file or directory path |
-| `--format <fmt>` | `string` | `image` | Output format: `image` (`png`) \| `base64` \| `html` \| `text` \| `json` |
+| `--format <fmt>` | `string` | `image` | Output format: `image` (`png`) \| `markdown` (`md`) \| `base64` \| `html` \| `text` \| `json` |
 | `--pages <range>` | `string` | `"all"` | Target page range (e.g. `1-5`, `2,4,6`, `1`) |
 | `--scale <num>` | `number` | `2.0` | DPI resolution scale factor (2.0 = 144 DPI, 3.0 = 216 DPI) |
 | `--no-bg` | `boolean` | `false` | Renders with transparent background instead of opaque white |
@@ -135,6 +138,23 @@ for await (const page of streamPdfPages('500-page-book.pdf', { scale: 2.0 })) {
   // base64 and dataUrl are lazy getters, computed only on demand
   // console.log(page.dataUrl);
 }
+```
+
+### Direct PDF to Publication-Grade Markdown
+Convert multi-column academic PDFs into clean GitHub Flavored Markdown with vector-extracted pipe tables, relative typography hierarchy, and automatic header/footer margin stripping:
+
+```javascript
+import { convertPdfToMarkdown } from 'paper-drift';
+import fs from 'node:fs/promises';
+
+const result = await convertPdfToMarkdown('research-paper.pdf', {
+  pages: '1-5',              // Page range: 'all', '1-5', 1
+  tables: true,              // Reconstruct vector tables into GFM pipe tables
+  stripRepeatedLines: true   // Strip running headers & footers
+});
+
+console.log(`Converted in ${result.durationMs}ms: ${result.tablesCount} tables detected`);
+await fs.writeFile('paper.md', result.markdown);
 ```
 
 ### Feeding Base64 to AI Vision Models

@@ -2,14 +2,14 @@
 /**
  * @file bin/cli.js
  * @description Command-line interface executable for paper-drift.
- * High-performance WebAssembly PDF to Image & Base64 rasterizer, HTML viewer, and spatial text extractor.
+ * High-performance WebAssembly PDF to Image & Base64 rasterizer, HTML viewer, GFM Markdown converter, and spatial text extractor.
  * Part of paper-drift - https://github.com/Sooriya04/Paper-Drift
  */
 
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { convertPdfToImages, streamPdfPages, convertPdfToHtml } from '../src/index.js';
+import { convertPdfToImages, streamPdfPages, convertPdfToHtml, convertPdfToMarkdown } from '../src/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -22,7 +22,7 @@ const packageJson = JSON.parse(
 function printHelp() {
   console.log(`
 \x1b[1m\x1b[36mpaper-drift\x1b[0m v${packageJson.version}
-High-performance, zero-Chromium WebAssembly PDF to Image (PNG / Base64) & layout engine.
+High-performance, zero-Chromium WebAssembly PDF to Image, Markdown (GFM), HTML & layout engine.
 
 \x1b[1mUSAGE:\x1b[0m
   $ paper-drift <input.pdf> [output] [options]
@@ -32,7 +32,7 @@ High-performance, zero-Chromium WebAssembly PDF to Image (PNG / Base64) & layout
   output           (Optional) Destination file or directory path
 
 \x1b[1mOPTIONS:\x1b[0m
-  --format <fmt>   Output format: image (png) | base64 | html | text | json (default: image)
+  --format <fmt>   Output format: image (png) | base64 | html | markdown (md) | text | json (default: image)
   --scale <num>    DPI resolution scale factor (default: 2.0 = Retina 144 DPI, 3.0 = 216 DPI)
   --pages <range>  Target pages to convert (e.g. "1-5", "2,4,6", 1, default: "all")
   --no-bg          Text-only mode for HTML format (disables background raster rendering)
@@ -40,11 +40,12 @@ High-performance, zero-Chromium WebAssembly PDF to Image (PNG / Base64) & layout
   -h, --help       Display this help message
 
 \x1b[1mEXAMPLES:\x1b[0m
-  $ paper-drift paper.pdf --format image              # Convert all pages to high-res PNG images
-  $ paper-drift paper.pdf output.png --pages 1        # Convert page 1 to output.png
-  $ paper-drift paper.pdf images/ --format image      # Export pages into an images/ directory
-  $ paper-drift paper.pdf --format base64             # Export pages as Base64 JSON
-  $ paper-drift paper.pdf output.html --format html   # Export standalone HTML viewer
+  $ paper-drift paper.pdf --format image                 # Convert all pages to high-res PNG images
+  $ paper-drift paper.pdf output.png --pages 1           # Convert page 1 to output.png
+  $ paper-drift paper.pdf images/ --format image         # Export pages into an images/ directory
+  $ paper-drift paper.pdf --format base64                # Export pages as Base64 JSON
+  $ paper-drift paper.pdf output.html --format html      # Export standalone HTML viewer
+  $ paper-drift paper.pdf output.md --format markdown    # Convert to publication-grade GFM Markdown
 `);
 }
 
@@ -93,6 +94,7 @@ async function run() {
     if (outputFile) {
       const ext = path.extname(outputFile).toLowerCase();
       if (ext === '.html') format = 'html';
+      else if (ext === '.md' || ext === '.markdown') format = 'markdown';
       else if (ext === '.png' || ext === '.jpg' || ext === '.jpeg') format = 'image';
       else if (ext === '.json') format = 'json';
       else if (ext === '.txt') format = 'text';
@@ -114,20 +116,21 @@ async function run() {
     process.exit(1);
   }
 
-  const validFormats = ['image', 'png', 'img', 'base64', 'html', 'text', 'json'];
+  const validFormats = ['image', 'png', 'img', 'base64', 'html', 'text', 'json', 'markdown', 'md'];
   if (!validFormats.includes(format)) {
-    console.error(`\x1b[31mError: Unsupported format "${format}". Supported: image (png) | base64 | html | text | json\x1b[0m`);
+    console.error(`\x1b[31mError: Unsupported format "${format}". Supported: image (png) | base64 | html | markdown (md) | text | json\x1b[0m`);
     process.exit(1);
   }
 
   const isImageMode = format === 'image' || format === 'png' || format === 'img';
   const isBase64Mode = format === 'base64';
+  const isMarkdownMode = format === 'markdown' || format === 'md';
 
   console.log(`\x1b[36mpaper-drift\x1b[0m v${packageJson.version}`);
   console.log(`Input:   ${resolvedInput}`);
   console.log(`Format:  ${format.toUpperCase()}`);
   console.log(`Config:  Scale=${scale}x (DPI=${Math.round(scale * 72)}), Pages=${pageRange}`);
-  console.log('Running WebAssembly PDF rasterizer...');
+  console.log('Running WebAssembly PDF engine...');
 
   try {
     const parsedInput = path.parse(resolvedInput);
@@ -219,6 +222,32 @@ async function run() {
       const kb = (stats.size / 1024).toFixed(1);
 
       console.log(`\n\x1b[32m[OK] Exported Base64 for ${result.pagesProcessed} page(s) in ${result.durationMs}ms\x1b[0m`);
+      console.log(`Output: ${destFile} (${kb} KB)`);
+      console.log(`File path: file://${destFile}\n`);
+    } else if (isMarkdownMode) {
+      let destFile = outputFile ? path.resolve(process.cwd(), outputFile) : path.join(process.cwd(), `${parsedInput.name}.md`);
+      if (!destFile.endsWith('.md') && !destFile.endsWith('.markdown')) {
+        destFile += '.md';
+      }
+
+      const destDir = path.dirname(destFile);
+      if (!fs.existsSync(destDir)) {
+        fs.mkdirSync(destDir, { recursive: true });
+      }
+
+      const result = await convertPdfToMarkdown(resolvedInput, {
+        pages: pageRange,
+        onProgress: ({ current, total, pageNumber }) => {
+          process.stdout.write(`Converting page ${pageNumber} (${current}/${total})...\r`);
+        }
+      });
+
+      fs.writeFileSync(destFile, result.markdown, 'utf-8');
+      const stats = fs.statSync(destFile);
+      const kb = (stats.size / 1024).toFixed(1);
+
+      console.log(`\n\x1b[32m[OK] Converted ${result.pagesProcessed} of ${result.totalPages} pages in ${result.durationMs}ms\x1b[0m`);
+      console.log(`Tables detected: ${result.tablesCount}`);
       console.log(`Output: ${destFile} (${kb} KB)`);
       console.log(`File path: file://${destFile}\n`);
     } else {
