@@ -148,6 +148,8 @@ export interface ConvertMarkdownOptions {
   tables?: boolean;
   /** Whether to strip running headers and footers from page margins (default: true). */
   stripRepeatedLines?: boolean;
+  /** Whether to weave interactive hyperlinks and citation anchors (default: true). */
+  links?: boolean;
   /** Whether to extract raster images and figures into disk files and embed links into markdown. */
   extractImages?: boolean | { dir?: string; linkPrefix?: string };
   /** DPI scale factor for rendered vector figures (default: 2.0). */
@@ -225,12 +227,52 @@ export function extractPdfImages(
   options?: ExtractImagesOptions
 ): Promise<ExtractImagesResult>;
 
+export interface ExtractedLink {
+  bbox: number[];
+  midY: number;
+  uri: string;
+  rawUri: string;
+  isExternal: boolean;
+  targetPage?: number | null;
+  targetY?: number | null;
+}
+
+/**
+ * Extracts external and internal links with coordinates from a MuPDF page.
+ */
+export function extractPageLinks(page: object, doc?: object | null): ExtractedLink[];
+
+/**
+ * Pre-scans document across pages to index unique internal citation and cross-reference destinations.
+ */
+export function buildDocumentDestinations(doc: object, pageIndices: number[]): Map<number, Array<{ id: string; name: string; y: number }>>;
+
+/**
+ * Weaves Markdown hyperlinks into a text line based on character spatial coordinates.
+ */
+export function applyLinksToLine(line: object, pageLinks: ExtractedLink[]): string;
+
+/**
+ * Finds destination anchors on a page that correspond to a line's coordinate.
+ */
+export function findDestinationAnchors(line: object, pageDestinations?: Array<{ id: string; y: number }>, claimedIds?: Set<string>): string;
+
+/**
+ * Normalizes an internal or external URI into a clean Markdown target anchor slug.
+ */
+export function formatDestinationSlug(rawUri: string): string;
+
 declare const _default: {
   convertPdfToImages: typeof convertPdfToImages;
   streamPdfPages: typeof streamPdfPages;
   convertPdfToHtml: typeof convertPdfToHtml;
   convertPdfToMarkdown: typeof convertPdfToMarkdown;
   extractPdfImages: typeof extractPdfImages;
+  extractPageLinks: typeof extractPageLinks;
+  buildDocumentDestinations: typeof buildDocumentDestinations;
+  applyLinksToLine: typeof applyLinksToLine;
+  findDestinationAnchors: typeof findDestinationAnchors;
+  formatDestinationSlug: typeof formatDestinationSlug;
   parsePageRange: typeof parsePageRange;
   resolveReadingOrder: typeof resolveReadingOrder;
 };

@@ -16,6 +16,12 @@ import { normalizeMarkdown } from './normalizer.js';
 import { parsePageRange } from '../converter.js';
 import { recursiveXyCut } from '../spatial/reading-order.js';
 import { extractPdfImages } from '../images/extractor.js';
+import {
+  extractPageLinks,
+  buildDocumentDestinations,
+  applyLinksToLine,
+  findDestinationAnchors
+} from '../links/extractor.js';
 
 /**
  * Converts a PDF buffer or file path into publication-grade GitHub Flavored Markdown (GFM).
@@ -26,6 +32,7 @@ import { extractPdfImages } from '../images/extractor.js';
  * @param {string|number|number[]} [options.pageRange='all'] - Legacy alias for `pages`.
  * @param {boolean} [options.tables=true] - Whether to reconstruct vector tables into GFM pipe tables.
  * @param {boolean} [options.stripRepeatedLines=true] - Whether to drop running headers/footers in margins.
+ * @param {boolean} [options.links=true] - Whether to weave interactive hyperlinks and citation anchors.
  * @param {boolean|Object} [options.extractImages=false] - Whether to extract raster images and figures into disk files.
  * @param {string} [options.extractImages.dir] - Directory to write image files into.
  * @param {string} [options.extractImages.linkPrefix] - Custom link prefix for markdown images.
@@ -38,6 +45,7 @@ export async function convertPdfToMarkdown(input, options = {}) {
   const pageRangeStr = options.pages !== undefined ? options.pages : (options.pageRange || 'all');
   const enableTables = options.tables !== false;
   const stripRepeatedLines = options.stripRepeatedLines !== false;
+  const enableLinks = options.links !== false;
   const extractImagesOption = options.extractImages;
   const shouldExtractImages = Boolean(extractImagesOption);
 
@@ -60,6 +68,9 @@ export async function convertPdfToMarkdown(input, options = {}) {
   if (targetIndices.length === 0) {
     throw new Error(`No matching pages found for page range: "${pageRangeStr}" (Document has ${totalPages} pages).`);
   }
+
+  // Pre-scan document to index internal destination anchors (citations, figures, sections)
+  const documentDestinations = enableLinks ? buildDocumentDestinations(doc, targetIndices) : new Map();
 
   // Optional image and figure extraction
   let imageExtractionResult = null;
@@ -113,6 +124,7 @@ export async function convertPdfToMarkdown(input, options = {}) {
     const height = bounds[3] - bounds[1];
 
     const { lines, vectors } = extractPageVectorsAndText(page);
+    const links = enableLinks ? extractPageLinks(page, doc) : [];
 
     const rules = [];
     for (const v of vectors) {
@@ -126,7 +138,8 @@ export async function convertPdfToMarkdown(input, options = {}) {
       width,
       height,
       lines,
-      rules
+      rules,
+      links
     });
   }
 
@@ -140,6 +153,7 @@ export async function convertPdfToMarkdown(input, options = {}) {
   const bodyMode = calculateBodyFontSizeMode(allLines);
 
   const documentMarkdownBlocks = [];
+  const claimedAnchorIds = new Set();
   let totalTablesCount = 0;
 
   // 3. Process each page: Extract tables, resolve reading flow, and apply typography
@@ -204,9 +218,27 @@ export async function convertPdfToMarkdown(input, options = {}) {
     let currentList = [];
     let lastLine = null;
 
+    function joinParagraphLines(lines) {
+      let result = '';
+      for (let j = 0; j < lines.length; j++) {
+        const lineText = lines[j];
+        if (j === 0) {
+          result = lineText;
+          continue;
+        }
+        // De-hyphenate if previous line ended with a hyphen and next line starts with lowercase
+        if (/(\p{L}+)-$/u.test(result) && /^\p{Ll}/u.test(lineText)) {
+          result = result.slice(0, -1) + lineText;
+        } else {
+          result += ' ' + lineText;
+        }
+      }
+      return result;
+    }
+
     function flushParagraph() {
       if (currentParagraph.length > 0) {
-        pageMarkdownParts.push(currentParagraph.join(' '));
+        pageMarkdownParts.push(joinParagraphLines(currentParagraph));
         currentParagraph = [];
       }
     }
@@ -227,18 +259,43 @@ export async function convertPdfToMarkdown(input, options = {}) {
       if (item.type === 'table') {
         flushAll();
         lastLine = null;
-        pageMarkdownParts.push(item.data.markdown);
+        const tableMatch = (item.data.markdown || '').match(/\bTable\s+(\d+)/i);
+        let tableAnchor = '';
+        if (tableMatch) {
+          const tId = `table-${tableMatch[1]}`;
+          if (!claimedAnchorIds.has(tId)) {
+            claimedAnchorIds.add(tId);
+            tableAnchor = `<a id="${tId}"></a>\n\n`;
+          }
+        }
+        pageMarkdownParts.push(tableAnchor + item.data.markdown);
       } else if (item.type === 'image') {
         flushAll();
         lastLine = null;
         const img = item.data;
+        let figAnchor = '';
+        if (img.caption) {
+          const figMatch = img.caption.match(/\b(?:Figure|Fig\.)\s+(\d+)/i);
+          if (figMatch) {
+            const fId = `figure-${figMatch[1]}`;
+            if (!claimedAnchorIds.has(fId)) {
+              claimedAnchorIds.add(fId);
+              figAnchor = `<a id="${fId}"></a>`;
+            }
+          }
+        }
         pageMarkdownParts.push(`![${img.alt}](${img.link})`);
         if (img.caption) {
-          pageMarkdownParts.push(`> **${img.caption}**`);
+          pageMarkdownParts.push(`> ${figAnchor}**${img.caption}**`);
+        } else if (figAnchor) {
+          pageMarkdownParts.push(figAnchor);
         }
       } else {
         const line = item.data;
-        const text = line.text.trim();
+        const pageDests = documentDestinations.get(pData.index) || [];
+        const anchorTag = enableLinks ? findDestinationAnchors(line, pageDests, claimedAnchorIds) : '';
+        const formattedText = enableLinks ? applyLinksToLine(line, pData.links) : line.text;
+        const text = (anchorTag + formattedText).trim();
         if (!text) continue;
 
         const role = classifyTypography(line, bodyMode, pData.height);
@@ -249,11 +306,29 @@ export async function convertPdfToMarkdown(input, options = {}) {
           lastLine = null;
         } else if (role === 'h1') {
           flushAll();
-          pageMarkdownParts.push(`## ${text}`);
+          let secAnchor = '';
+          const secMatch = line.text.trim().match(/^(\d+(?:\.\d+)*)\s+/);
+          if (secMatch) {
+            const secId = `section-${secMatch[1].replace(/\./g, '')}`;
+            if (!claimedAnchorIds.has(secId)) {
+              claimedAnchorIds.add(secId);
+              secAnchor = `<a id="${secId}"></a>`;
+            }
+          }
+          pageMarkdownParts.push(`## ${secAnchor}${text}`);
           lastLine = null;
         } else if (role === 'h2') {
           flushAll();
-          pageMarkdownParts.push(`### ${text}`);
+          let secAnchor = '';
+          const secMatch = line.text.trim().match(/^(\d+(?:\.\d+)*)\s+/);
+          if (secMatch) {
+            const secId = `subsection-${secMatch[1].replace(/\./g, '')}`;
+            if (!claimedAnchorIds.has(secId)) {
+              claimedAnchorIds.add(secId);
+              secAnchor = `<a id="${secId}"></a>`;
+            }
+          }
+          pageMarkdownParts.push(`### ${secAnchor}${text}`);
           lastLine = null;
         } else if (role === 'caption') {
           flushAll();

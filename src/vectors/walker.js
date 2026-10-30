@@ -42,6 +42,7 @@ export function extractPageVectorsAndText(page) {
           width: right - left,
           height: bottom - top,
           text: '',
+          chars: [],
           font: null,
           charCount: 0
         };
@@ -50,6 +51,9 @@ export function extractPageVectorsAndText(page) {
         if (currentLine) {
           currentLine.text += char;
           currentLine.charCount++;
+          const charX = Array.isArray(origin) ? origin[0] : 0;
+          const charY = Array.isArray(origin) ? origin[1] : 0;
+          currentLine.chars.push({ char, x: charX, y: charY, size: size || 0 });
           if (!currentLine.font && font) {
             const fontName = typeof font.getName === 'function' ? font.getName() : 'unknown';
             const isBold = typeof font.isBold === 'function' ? Boolean(font.isBold()) : false;

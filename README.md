@@ -158,6 +158,7 @@ const result = await convertPdfToMarkdown('research-paper.pdf', {
   pages: '1-5',              // Page range: 'all', '1-5', 1
   tables: true,              // Reconstruct vector tables into GFM pipe tables
   stripRepeatedLines: true,  // Strip running headers & footers
+  links: true,               // Weave clickable web URLs, DOIs & internal citation anchors
   extractImages: {           // Extract and embed images at exact reading positions
     dir: './assets',
     linkPrefix: 'assets'

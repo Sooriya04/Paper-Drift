@@ -140,5 +140,13 @@
 - Added TypeScript definitions in `src/index.d.ts` and barrel exports in `src/index.js` and `src/images/index.js`.
 - Authored comprehensive test suite in `test/images.test.js` validating raster utilities, mask compositing, vector figure cropping, Markdown spatial embedding, and CLI flags (100% passing).
 
-
+### feat: implement spatial hyperlink weaving, citation anchors, and de-hyphenation
+- Built hyperlink and cross-reference engine in `src/links/extractor.js` extracting external web URLs, emails, DOIs, and internal named destinations via `page.getLinks()`.
+- Implemented character-level spatial weaving in `applyLinksToLine`: matches word tokens against link bounding boxes, isolates sentence-ending punctuation, balances parenthesis/bracket delimiters, and formats clean Markdown links `[text](url)`.
+- Pre-scanned document across target pages via `buildDocumentDestinations` resolving target destination page indices and Y-coordinates using MuPDF's `doc.resolveLinkDestination(uri)`.
+- Implemented automatic HTML anchor tag insertion (`findDestinationAnchors`) mapping citations directly to their entries in the References section (`<a id="cite-..."></a>`), figures (`<a id="figure-N"></a>`), and tables (`<a id="table-N"></a>`).
+- Added smart paragraph de-hyphenation in `src/markdown/converter.js` stitching line-split words (e.g. `transfor-` + `mer` -> `transformer`) across line wraps while preserving genuine compound words.
+- Stored character origin coordinates in `src/vectors/walker.js` enabling precise character-level link tagging without layout distortion.
+- Added TypeScript definitions in `src/index.d.ts` and barrel exports in `src/index.js` and `src/links/index.js`.
+- Authored automated test suite in `test/links.test.js` covering slug normalization, page link extraction, destination mapping, link weaving, de-hyphenation, and end-to-end Markdown conversion (100% passing across 8 suites).
 
