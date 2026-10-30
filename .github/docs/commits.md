@@ -126,4 +126,19 @@
 - Updated CLI (`bin/cli.js`) to support `--format markdown` / `--format md` and auto-inferred `.md` outputs.
 - Fixed broken export in `suite/index.js`, cleaned stale test artifacts, and expanded test suite across `test/vectors.test.js`, `test/tables.test.js`, and `test/markdown.test.js` (53 tests passing).
 
+### feat: implement high-performance image & vector figure extraction engine
+- Built embedded raster image extractor in `src/images/raster.js` utilizing MuPDF's `preserve-images` structured text walker.
+- Implemented soft-mask alpha compositing combining RGB pixmaps and alpha masks into RGBA pixmaps with transparency preservation.
+- Added uniform color variance sampling (`isUniform`) and SHA-1 pixel hashing (`hashPixmap`) to automatically filter out solid backdrops and deduplicate repetitive cross-page watermarks/logos.
+- Added adaptive format selection (`encodePixmap` / `encodeImage`) defaulting to lossless PNG and falling back to JPEG when photographic compression yields >40% space savings.
+- Built vector figure & chart detector in `src/images/figures.js` clustering vector curves and bounding boxes with density analysis, ignoring thin table divider lines and page borders.
+- Implemented adjacent figure caption association (`findFigureTitleOrCaption`) matching "Figure N:" captions and claiming internal diagram text lines to prevent reading order bleed.
+- Added high-DPI sub-region rendering via `mupdf.DrawDevice` (`renderFigureRegion`) producing crisp PNG crops of vector diagrams.
+- Implemented orchestrator in `src/images/extractor.js` (`extractPdfImages`) sorting assets in reading order and writing numbered files (`p01-01.png`).
+- Integrated image extraction directly into `convertPdfToMarkdown` (`src/markdown/converter.js`) with spatial XY-Cut placement, figure caption callouts (`> **Figure N: ...**`), and claimed line deduplication.
+- Updated CLI (`bin/cli.js`) with `-i, --extract-images [dir]` for both standalone extraction and combined Markdown generation.
+- Added TypeScript definitions in `src/index.d.ts` and barrel exports in `src/index.js` and `src/images/index.js`.
+- Authored comprehensive test suite in `test/images.test.js` validating raster utilities, mask compositing, vector figure cropping, Markdown spatial embedding, and CLI flags (100% passing).
+
+
 

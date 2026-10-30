@@ -6,6 +6,7 @@
  */
 
 import fs from 'fs';
+import path from 'path';
 import mupdf from 'mupdf';
 import { extractPageVectorsAndText } from '../vectors/walker.js';
 import { rulesFromVector, filterContentRules } from '../vectors/rules.js';
@@ -14,6 +15,7 @@ import { calculateBodyFontSizeMode, classifyTypography } from './typography.js';
 import { normalizeMarkdown } from './normalizer.js';
 import { parsePageRange } from '../converter.js';
 import { recursiveXyCut } from '../spatial/reading-order.js';
+import { extractPdfImages } from '../images/extractor.js';
 
 /**
  * Converts a PDF buffer or file path into publication-grade GitHub Flavored Markdown (GFM).
@@ -24,14 +26,20 @@ import { recursiveXyCut } from '../spatial/reading-order.js';
  * @param {string|number|number[]} [options.pageRange='all'] - Legacy alias for `pages`.
  * @param {boolean} [options.tables=true] - Whether to reconstruct vector tables into GFM pipe tables.
  * @param {boolean} [options.stripRepeatedLines=true] - Whether to drop running headers/footers in margins.
+ * @param {boolean|Object} [options.extractImages=false] - Whether to extract raster images and figures into disk files.
+ * @param {string} [options.extractImages.dir] - Directory to write image files into.
+ * @param {string} [options.extractImages.linkPrefix] - Custom link prefix for markdown images.
+ * @param {number} [options.imageScale=2.0] - DPI scale factor for rendered vector figures.
  * @param {function} [options.onProgress] - Optional progress callback.
- * @returns {Promise<{ markdown: string, totalPages: number, pagesProcessed: number, tablesCount: number, durationMs: number }>}
+ * @returns {Promise<{ markdown: string, totalPages: number, pagesProcessed: number, tablesCount: number, imagesCount: number, assets: Array<Object>, durationMs: number }>}
  */
 export async function convertPdfToMarkdown(input, options = {}) {
   const startTime = Date.now();
   const pageRangeStr = options.pages !== undefined ? options.pages : (options.pageRange || 'all');
   const enableTables = options.tables !== false;
   const stripRepeatedLines = options.stripRepeatedLines !== false;
+  const extractImagesOption = options.extractImages;
+  const shouldExtractImages = Boolean(extractImagesOption);
 
   let pdfBuffer;
   if (typeof input === 'string') {
@@ -51,6 +59,36 @@ export async function convertPdfToMarkdown(input, options = {}) {
 
   if (targetIndices.length === 0) {
     throw new Error(`No matching pages found for page range: "${pageRangeStr}" (Document has ${totalPages} pages).`);
+  }
+
+  // Optional image and figure extraction
+  let imageExtractionResult = null;
+  if (shouldExtractImages) {
+    let imagesDir = null;
+    let linkPrefix = '';
+
+    if (typeof extractImagesOption === 'object' && extractImagesOption !== null) {
+      imagesDir = extractImagesOption.dir || null;
+      linkPrefix = extractImagesOption.linkPrefix !== undefined
+        ? extractImagesOption.linkPrefix
+        : (imagesDir ? path.basename(imagesDir) : 'assets');
+    } else if (extractImagesOption === true) {
+      if (typeof input === 'string') {
+        const parsedPath = path.parse(path.resolve(process.cwd(), input));
+        imagesDir = path.join(parsedPath.dir, `${parsedPath.name}_assets`);
+        linkPrefix = `${parsedPath.name}_assets`;
+      } else {
+        imagesDir = path.resolve(process.cwd(), 'document_assets');
+        linkPrefix = 'document_assets';
+      }
+    }
+
+    imageExtractionResult = await extractPdfImages(input, {
+      pages: pageRangeStr,
+      dir: imagesDir,
+      linkPrefix,
+      scale: options.imageScale || 2.0
+    });
   }
 
   // 1. First pass: Walk all target pages to collect text lines and vector strokes
@@ -116,13 +154,19 @@ export async function convertPdfToMarkdown(input, options = {}) {
       totalTablesCount += pageTables.length;
     }
 
-    // Set of lines claimed by tables so they are not duplicated in prose
-    const claimedLines = new Set(pageTables.flatMap(t => t.linesInside));
+    // Extracted images and figures for this page
+    const pageImages = (imageExtractionResult?.byPage.get(pData.pageNumber)) || [];
+
+    // Set of lines claimed by tables and figures so they are not duplicated in prose
+    const claimedLines = new Set([
+      ...pageTables.flatMap(t => t.linesInside),
+      ...pageImages.flatMap(img => img.insideLines || [])
+    ]);
 
     // Remaining prose lines
     const proseLines = pData.lines.filter(l => !claimedLines.has(l));
 
-    // Combine prose blocks and table regions into unified reading order blocks
+    // Combine prose blocks, table regions, and image/figure blocks into unified reading order blocks
     const blocksToOrder = [
       ...proseLines.map(l => ({
         bbox: { x: l.left, y: l.top, w: l.width, h: l.height },
@@ -138,6 +182,16 @@ export async function convertPdfToMarkdown(input, options = {}) {
         },
         type: 'table',
         data: t
+      })),
+      ...pageImages.map(img => ({
+        bbox: {
+          x: img.bbox[0],
+          y: img.bbox[1],
+          w: img.bbox[2] - img.bbox[0],
+          h: img.bbox[3] - img.bbox[1]
+        },
+        type: 'image',
+        data: img
       }))
     ];
 
@@ -174,6 +228,14 @@ export async function convertPdfToMarkdown(input, options = {}) {
         flushAll();
         lastLine = null;
         pageMarkdownParts.push(item.data.markdown);
+      } else if (item.type === 'image') {
+        flushAll();
+        lastLine = null;
+        const img = item.data;
+        pageMarkdownParts.push(`![${img.alt}](${img.link})`);
+        if (img.caption) {
+          pageMarkdownParts.push(`> **${img.caption}**`);
+        }
       } else {
         const line = item.data;
         const text = line.text.trim();
@@ -248,6 +310,8 @@ export async function convertPdfToMarkdown(input, options = {}) {
     totalPages,
     pagesProcessed: targetIndices.length,
     tablesCount: totalTablesCount,
+    imagesCount: imageExtractionResult ? imageExtractionResult.assets.length : 0,
+    assets: imageExtractionResult ? imageExtractionResult.assets : [],
     durationMs: Date.now() - startTime
   };
 }

@@ -26,7 +26,7 @@
   },
   "scripts": {
     "start": "node playground/server.js",
-    "test": "node test/cli.test.js && node test/spatial.test.js && node test/stream.test.js && node test/vectors.test.js && node test/tables.test.js && node test/markdown.test.js",
+    "test": "node test/cli.test.js && node test/spatial.test.js && node test/stream.test.js && node test/vectors.test.js && node test/tables.test.js && node test/markdown.test.js && node test/images.test.js",
     "convert": "node bin/cli.js test/fixtures/sample.pdf output.html",
     "generate:sample": "node test/scripts/generate-sample.js",
     "benchmark": "node test/scripts/benchmark-papers.js run --limit 3 --pages 1-2",

@@ -67,6 +67,12 @@ paper-drift document.pdf document.html --format html
 
 # Convert to publication-grade GFM Markdown with vector tables
 paper-drift research-paper.pdf paper.md --format markdown
+
+# Convert to Markdown with extracted images & vector figures embedded
+paper-drift research-paper.pdf paper.md -i
+
+# Extract all embedded raster images & vector diagrams directly
+paper-drift research-paper.pdf -i assets/
 ```
 
 ### CLI Options
@@ -75,7 +81,8 @@ paper-drift research-paper.pdf paper.md --format markdown
 | :--- | :--- | :--- | :--- |
 | `<input.pdf>` | `string` | *(required)* | Path to the source PDF file |
 | `[output]` | `string` | `<name>.<ext>` | Destination file or directory path |
-| `--format <fmt>` | `string` | `image` | Output format: `image` (`png`) \| `markdown` (`md`) \| `base64` \| `html` \| `text` \| `json` |
+| `--format <fmt>` | `string` | `image` | Output format: `image` (`png`) \| `markdown` (`md`) \| `base64` \| `html` \| `text` \| `json` \| `extract-images` |
+| `-i, --extract-images [dir]` | `string` | `none` | Extract embedded images & vector figures (optional directory) |
 | `--pages <range>` | `string` | `"all"` | Target page range (e.g. `1-5`, `2,4,6`, `1`) |
 | `--scale <num>` | `number` | `2.0` | DPI resolution scale factor (2.0 = 144 DPI, 3.0 = 216 DPI) |
 | `--no-bg` | `boolean` | `false` | Renders with transparent background instead of opaque white |
@@ -150,11 +157,33 @@ import fs from 'node:fs/promises';
 const result = await convertPdfToMarkdown('research-paper.pdf', {
   pages: '1-5',              // Page range: 'all', '1-5', 1
   tables: true,              // Reconstruct vector tables into GFM pipe tables
-  stripRepeatedLines: true   // Strip running headers & footers
+  stripRepeatedLines: true,  // Strip running headers & footers
+  extractImages: {           // Extract and embed images at exact reading positions
+    dir: './assets',
+    linkPrefix: 'assets'
+  }
 });
 
-console.log(`Converted in ${result.durationMs}ms: ${result.tablesCount} tables detected`);
+console.log(`Converted in ${result.durationMs}ms: ${result.tablesCount} tables, ${result.imagesCount} assets`);
 await fs.writeFile('paper.md', result.markdown);
+```
+
+### High-Performance Image & Vector Figure Extraction
+Extract embedded raster images (with alpha mask compositing, logo deduplication, and PNG/JPEG format selection) and vector diagrams/figures (via MuPDF `DrawDevice`):
+
+```javascript
+import { extractPdfImages } from 'paper-drift';
+
+const result = await extractPdfImages('research-paper.pdf', {
+  pages: 'all',
+  dir: './extracted_images',
+  scale: 2.0 // High-DPI crop scale for vector figures
+});
+
+console.log(`Extracted ${result.assets.length} assets (${result.totalImages} raster, ${result.totalFigures} vector figures)`);
+for (const asset of result.assets) {
+  console.log(`[P.${asset.pageNumber}] [${asset.type}] ${asset.filename} (${asset.sizeKb} KB)`);
+}
 ```
 
 ### Feeding Base64 to AI Vision Models

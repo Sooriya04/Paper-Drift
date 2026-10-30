@@ -94,6 +94,51 @@ export interface ConvertHtmlResult {
   durationMs: number;
 }
 
+export interface ExtractedAsset {
+  type: 'image' | 'figure';
+  pageNumber: number;
+  pageIndex: number;
+  bbox: number[];
+  filename: string;
+  filePath: string | null;
+  link: string;
+  alt: string;
+  caption: string | null;
+  width: number;
+  height: number;
+  bytes: Buffer;
+  sizeKb: number;
+}
+
+export interface ExtractImagesOptions {
+  /** Directory to write extracted image files into. */
+  dir?: string;
+  /** Custom link prefix for markdown images. */
+  linkPrefix?: string;
+  /** Target page range (e.g. "1-5", "2,4,6", 1, or [1, 2, 3]). Defaults to "all". */
+  pages?: string | number | number[];
+  /** Legacy alias for `pages`. */
+  pageRange?: string | number | number[];
+  /** Whether to extract embedded raster images (default: true). */
+  extractRaster?: boolean;
+  /** Whether to detect and crop vector diagrams (default: true). */
+  extractFigures?: boolean;
+  /** DPI scale factor for rendered vector figures (default: 2.0). */
+  scale?: number;
+  /** Optional progress callback. */
+  onProgress?: (progress: { phase?: string; current: number; total: number; pageNumber: number; totalPages: number }) => void;
+}
+
+export interface ExtractImagesResult {
+  byPage: Map<number, ExtractedAsset[]>;
+  assets: ExtractedAsset[];
+  totalImages: number;
+  totalFigures: number;
+  totalPages: number;
+  pagesProcessed: number;
+  durationMs: number;
+}
+
 export interface ConvertMarkdownOptions {
   /** Target page range (e.g. "1-5", "2,4,6", 1, or [1, 2, 3]). Defaults to "all". */
   pages?: string | number | number[];
@@ -103,6 +148,10 @@ export interface ConvertMarkdownOptions {
   tables?: boolean;
   /** Whether to strip running headers and footers from page margins (default: true). */
   stripRepeatedLines?: boolean;
+  /** Whether to extract raster images and figures into disk files and embed links into markdown. */
+  extractImages?: boolean | { dir?: string; linkPrefix?: string };
+  /** DPI scale factor for rendered vector figures (default: 2.0). */
+  imageScale?: number;
   /** Optional progress callback. */
   onProgress?: (progress: { phase?: string; current: number; total: number; pageNumber: number; totalPages: number }) => void;
 }
@@ -112,6 +161,8 @@ export interface ConvertMarkdownResult {
   totalPages: number;
   pagesProcessed: number;
   tablesCount: number;
+  imagesCount: number;
+  assets: ExtractedAsset[];
   durationMs: number;
 }
 
@@ -166,11 +217,20 @@ export function resolveReadingOrder(
   columnsDetected: number;
 };
 
+/**
+ * Extracts content images and drawn figures from a PDF document.
+ */
+export function extractPdfImages(
+  input: string | Buffer | Uint8Array,
+  options?: ExtractImagesOptions
+): Promise<ExtractImagesResult>;
+
 declare const _default: {
   convertPdfToImages: typeof convertPdfToImages;
   streamPdfPages: typeof streamPdfPages;
   convertPdfToHtml: typeof convertPdfToHtml;
   convertPdfToMarkdown: typeof convertPdfToMarkdown;
+  extractPdfImages: typeof extractPdfImages;
   parsePageRange: typeof parsePageRange;
   resolveReadingOrder: typeof resolveReadingOrder;
 };

@@ -9,7 +9,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { convertPdfToImages, streamPdfPages, convertPdfToHtml, convertPdfToMarkdown } from '../src/index.js';
+import { convertPdfToImages, streamPdfPages, convertPdfToHtml, convertPdfToMarkdown, extractPdfImages } from '../src/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -32,12 +32,13 @@ High-performance, zero-Chromium WebAssembly PDF to Image, Markdown (GFM), HTML &
   output           (Optional) Destination file or directory path
 
 \x1b[1mOPTIONS:\x1b[0m
-  --format <fmt>   Output format: image (png) | base64 | html | markdown (md) | text | json (default: image)
-  --scale <num>    DPI resolution scale factor (default: 2.0 = Retina 144 DPI, 3.0 = 216 DPI)
-  --pages <range>  Target pages to convert (e.g. "1-5", "2,4,6", 1, default: "all")
-  --no-bg          Text-only mode for HTML format (disables background raster rendering)
-  -v, --version    Show version number
-  -h, --help       Display this help message
+  --format <fmt>       Output format: image (png) | base64 | html | markdown (md) | text | json | extract-images (default: image)
+  -i, --extract-images [dir] Extract embedded raster images & vector figures (optional directory)
+  --scale <num>        DPI resolution scale factor (default: 2.0 = Retina 144 DPI, 3.0 = 216 DPI)
+  --pages <range>      Target pages to convert (e.g. "1-5", "2,4,6", 1, default: "all")
+  --no-bg              Text-only mode for HTML format (disables background raster rendering)
+  -v, --version        Show version number
+  -h, --help           Display this help message
 
 \x1b[1mEXAMPLES:\x1b[0m
   $ paper-drift paper.pdf --format image                 # Convert all pages to high-res PNG images
@@ -46,6 +47,8 @@ High-performance, zero-Chromium WebAssembly PDF to Image, Markdown (GFM), HTML &
   $ paper-drift paper.pdf --format base64                # Export pages as Base64 JSON
   $ paper-drift paper.pdf output.html --format html      # Export standalone HTML viewer
   $ paper-drift paper.pdf output.md --format markdown    # Convert to publication-grade GFM Markdown
+  $ paper-drift paper.pdf output.md -i                   # Markdown with embedded images & figures
+  $ paper-drift paper.pdf -i assets/                     # Extract all images & vector figures directly
 `);
 }
 
@@ -69,6 +72,7 @@ async function run() {
   let scale = 2.0;
   let withBg = true;
   let pageRange = 'all';
+  let extractImages = null;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -80,6 +84,14 @@ async function run() {
       withBg = false;
     } else if (arg === '--pages') {
       pageRange = args[++i] || 'all';
+    } else if (arg === '-i' || arg === '--extract-images') {
+      const next = args[i + 1];
+      if (next && !next.startsWith('-') && !next.toLowerCase().endsWith('.pdf') && !next.toLowerCase().endsWith('.md') && !next.toLowerCase().endsWith('.html') && !next.toLowerCase().endsWith('.json')) {
+        extractImages = next;
+        i++;
+      } else {
+        extractImages = true;
+      }
     } else if (!arg.startsWith('-')) {
       if (!inputFile) {
         inputFile = arg;
@@ -98,7 +110,10 @@ async function run() {
       else if (ext === '.png' || ext === '.jpg' || ext === '.jpeg') format = 'image';
       else if (ext === '.json') format = 'json';
       else if (ext === '.txt') format = 'text';
+      else if (extractImages) format = 'extract-images';
       else format = 'image';
+    } else if (extractImages) {
+      format = 'extract-images';
     } else {
       format = 'image';
     }
@@ -116,15 +131,16 @@ async function run() {
     process.exit(1);
   }
 
-  const validFormats = ['image', 'png', 'img', 'base64', 'html', 'text', 'json', 'markdown', 'md'];
+  const validFormats = ['image', 'png', 'img', 'base64', 'html', 'text', 'json', 'markdown', 'md', 'extract-images', 'images', 'assets'];
   if (!validFormats.includes(format)) {
-    console.error(`\x1b[31mError: Unsupported format "${format}". Supported: image (png) | base64 | html | markdown (md) | text | json\x1b[0m`);
+    console.error(`\x1b[31mError: Unsupported format "${format}". Supported: image (png) | base64 | html | markdown (md) | text | json | extract-images\x1b[0m`);
     process.exit(1);
   }
 
   const isImageMode = format === 'image' || format === 'png' || format === 'img';
   const isBase64Mode = format === 'base64';
   const isMarkdownMode = format === 'markdown' || format === 'md';
+  const isExtractImagesMode = format === 'extract-images' || format === 'images' || format === 'assets';
 
   console.log(`\x1b[36mpaper-drift\x1b[0m v${packageJson.version}`);
   console.log(`Input:   ${resolvedInput}`);
@@ -235,8 +251,27 @@ async function run() {
         fs.mkdirSync(destDir, { recursive: true });
       }
 
+      let extractImagesOption = false;
+      if (extractImages) {
+        let imagesDir;
+        let linkPrefix;
+        if (typeof extractImages === 'string') {
+          imagesDir = path.resolve(process.cwd(), extractImages);
+          linkPrefix = path.basename(imagesDir);
+        } else {
+          imagesDir = path.join(destDir, `${parsedInput.name}_assets`);
+          linkPrefix = `${parsedInput.name}_assets`;
+        }
+        extractImagesOption = {
+          dir: imagesDir,
+          linkPrefix,
+          scale
+        };
+      }
+
       const result = await convertPdfToMarkdown(resolvedInput, {
         pages: pageRange,
+        extractImages: extractImagesOption,
         onProgress: ({ current, total, pageNumber }) => {
           process.stdout.write(`Converting page ${pageNumber} (${current}/${total})...\r`);
         }
@@ -248,8 +283,47 @@ async function run() {
 
       console.log(`\n\x1b[32m[OK] Converted ${result.pagesProcessed} of ${result.totalPages} pages in ${result.durationMs}ms\x1b[0m`);
       console.log(`Tables detected: ${result.tablesCount}`);
+      if (result.imagesCount > 0) {
+        console.log(`Assets extracted: ${result.imagesCount}`);
+        for (const asset of result.assets) {
+          const assetKb = asset.sizeKb ? ` (${asset.sizeKb} KB)` : '';
+          const captionNote = asset.caption ? ` - "${asset.caption.slice(0, 45)}..."` : '';
+          console.log(`  - [P.${asset.pageNumber}] [${asset.type}] ${asset.filename || asset.link}${assetKb}${captionNote}`);
+        }
+      }
       console.log(`Output: ${destFile} (${kb} KB)`);
       console.log(`File path: file://${destFile}\n`);
+    } else if (isExtractImagesMode) {
+      const startTime = Date.now();
+      let targetDir;
+      if (typeof extractImages === 'string') {
+        targetDir = path.resolve(process.cwd(), extractImages);
+      } else if (outputFile) {
+        targetDir = path.resolve(process.cwd(), outputFile);
+      } else {
+        targetDir = path.join(process.cwd(), `${parsedInput.name}_extracted_images`);
+      }
+
+      const result = await extractPdfImages(resolvedInput, {
+        pages: pageRange,
+        dir: targetDir,
+        scale,
+        onProgress: ({ current, total, pageNumber }) => {
+          process.stdout.write(`Extracting images from page ${pageNumber} (${current}/${total})...\r`);
+        }
+      });
+
+      const durationMs = Date.now() - startTime;
+      console.log(`\n\x1b[32m[OK] Extracted ${result.assets.length} asset(s) in ${durationMs}ms\x1b[0m`);
+      console.log(`Raster images:   ${result.totalImages}`);
+      console.log(`Vector figures:  ${result.totalFigures}`);
+      console.log(`Directory:       ${targetDir}`);
+      for (const asset of result.assets) {
+        const assetKb = asset.sizeKb ? ` (${asset.sizeKb} KB)` : '';
+        const dim = asset.width && asset.height ? ` [${asset.width}x${asset.height}]` : '';
+        console.log(`  - [P.${asset.pageNumber}] [${asset.type}] ${asset.filename}${dim}${assetKb}`);
+      }
+      console.log(`Completed successfully.\n`);
     } else {
       // HTML, text, json format modes
       let destFile = outputFile ? path.resolve(process.cwd(), outputFile) : null;
