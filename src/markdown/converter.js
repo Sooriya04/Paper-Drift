@@ -287,16 +287,17 @@ export async function convertPdfToMarkdown(input, options = {}) {
         const img = item.data;
         let figAnchor = '';
         if (img.caption) {
-          const figMatch = img.caption.match(/\b(?:Figure|Fig\.)\s+(\d+)/i);
+          const figMatch = img.caption.match(/\b(?:Figure|Fig\.)\s+([A-Z]?\d+(?:[.-]\d+)*[a-z]?)/i);
           if (figMatch) {
-            const fId = `figure-${figMatch[1]}`;
+            const fId = `figure-${figMatch[1].replace(/[\.:%]/g, '-').toLowerCase()}`;
             if (!claimedAnchorIds.has(fId)) {
               claimedAnchorIds.add(fId);
               figAnchor = `<a id="${fId}"></a>`;
             }
           }
         }
-        pageMarkdownParts.push(`![${img.alt}](${img.link})`);
+        const safeLink = /\s/.test(img.link) ? `<${img.link}>` : img.link;
+        pageMarkdownParts.push(`![${img.alt}](${safeLink})`);
         if (img.caption) {
           pageMarkdownParts.push(`> ${figAnchor}**${img.caption}**`);
         } else if (figAnchor) {
@@ -344,16 +345,23 @@ export async function convertPdfToMarkdown(input, options = {}) {
           lastLine = null;
         } else if (role === 'caption') {
           flushAll();
-          let tableAnchor = '';
+          let captionAnchor = '';
           const tableMatch = text.match(/\bTable\s+([A-Z]?\d+(?:[.-]\d+)*[a-z]?)/i);
+          const figMatch = !tableMatch ? text.match(/\b(?:Figure|Fig\.)\s+([A-Z]?\d+(?:[.-]\d+)*[a-z]?)/i) : null;
           if (tableMatch) {
             const tId = `table-${tableMatch[1].replace(/[\.:%]/g, '-').toLowerCase()}`;
             if (!claimedAnchorIds.has(tId)) {
               claimedAnchorIds.add(tId);
-              tableAnchor = `<a id="${tId}"></a>`;
+              captionAnchor = `<a id="${tId}"></a>`;
+            }
+          } else if (figMatch) {
+            const fId = `figure-${figMatch[1].replace(/[\.:%]/g, '-').toLowerCase()}`;
+            if (!claimedAnchorIds.has(fId)) {
+              claimedAnchorIds.add(fId);
+              captionAnchor = `<a id="${fId}"></a>`;
             }
           }
-          pageMarkdownParts.push(`> ${tableAnchor}**${text}**`);
+          pageMarkdownParts.push(`> ${captionAnchor}**${text}**`);
           lastLine = null;
         } else if (role === 'footnote') {
           flushAll();

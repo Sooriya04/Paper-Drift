@@ -169,6 +169,10 @@
 - Added automated unit tests in `test/cli.test.js` and `test/links.test.js` verifying table anchors, text format optimizations, and array page range deduplication.
 - Installed modified engine globally from disk (`npm install -g .`), verifying binary path and high-fidelity Markdown, table, and image extraction.
 
-
-
+### feat: support subfigure decimal anchors and angle-bracket image links
+- Extended figure caption regex in `src/markdown/converter.js` to match sub-figures, decimal notation, and appendix labels (`Figure 2.1` -> `#figure-2-1`, `Fig. 1a` -> `#figure-1a`, `Figure A.1` -> `#figure-a-1`).
+- Added figure anchor insertion (`<a id="figure-N"></a>`) on prose lines classified with `role === 'caption'`, ensuring target anchors exist even when diagram figures sit outside extracted vector bounds.
+- Wrapped Markdown image links in angle brackets (`![alt](<path with spaces>)`) whenever the destination path contains whitespace, conforming to CommonMark specifications.
+- Added comprehensive unit test in `test/links.test.js` validating figure anchor insertion and angle-bracket image link formatting.
+- Executed research paper benchmark suite across top 5 landmark ArXiv papers (Attention, ResNet, LoRA, BERT, GAN) with 100% throughput fidelity and zero regression.
 

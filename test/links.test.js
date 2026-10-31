@@ -284,4 +284,27 @@ await runAsyncTest('convertPdfToMarkdown generates table anchors on table captio
   );
 });
 
+await runAsyncTest('convertPdfToMarkdown generates figure anchors and wraps image links with spaces', async () => {
+  const assetsWithSpacesDir = path.join(path.dirname(__filename), 'results/links-test/assets with spaces');
+  const result = await convertPdfToMarkdown(attentionPdf, {
+    pages: '1-4',
+    extractImages: true,
+    imagesDir: assetsWithSpacesDir
+  });
+
+  // Verify figure anchor generation
+  assert.ok(
+    result.markdown.includes('<a id="figure-1"></a>') || result.markdown.includes('<a id="figure-2"></a>'),
+    'Markdown should contain figure anchor <a id="figure-..."></a>'
+  );
+
+  // If image link was generated with space-bearing path, verify angle-bracket wrapping
+  if (result.markdown.includes('assets with spaces')) {
+    assert.ok(
+      result.markdown.includes('](<') && result.markdown.includes('>)'),
+      'Image links containing spaces should be enclosed in angle brackets'
+    );
+  }
+});
+
 console.log('\n\x1b[32mAll Hyperlink & Citation Anchor tests passed successfully!\x1b[0m\n');
