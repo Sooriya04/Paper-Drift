@@ -188,7 +188,7 @@ async function run() {
 
         let destFile;
         if (page.totalMatchingPages === 1) {
-          destFile = singleFileTarget || path.join(process.cwd(), `${parsedInput.name}.png`);
+          destFile = singleFileTarget || path.join(outDir, `${parsedInput.name}.png`);
         } else {
           destFile = path.join(outDir, `${namePrefix}-${page.pageNumber}.png`);
         }

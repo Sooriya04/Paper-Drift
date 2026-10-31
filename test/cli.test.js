@@ -157,6 +157,20 @@ try {
     if (!result.html.includes('pdf-text-layer')) throw new Error('Text layer missing from generated document');
   });
 
+  // 12. CLI exports single page to target directory
+  const cliDirTarget = path.join(resultsOutputDir, 'target-dir');
+  runTest('CLI places single matching page into specified destination directory', () => {
+    if (fs.existsSync(cliDirTarget)) fs.rmSync(cliDirTarget, { recursive: true, force: true });
+    execSync(`node bin/cli.js "${samplePdfPath}" "${cliDirTarget}" --pages 1 --format image`, { stdio: 'pipe' });
+
+    const expectedFile = path.join(cliDirTarget, 'sample.png');
+    if (!fs.existsSync(expectedFile)) throw new Error(`Expected image in target directory: ${expectedFile}`);
+    if (fs.existsSync(path.join(process.cwd(), 'sample.png'))) {
+      fs.unlinkSync(path.join(process.cwd(), 'sample.png'));
+      throw new Error('Image was erroneously placed in cwd instead of target directory');
+    }
+  });
+
   console.log('\n\x1b[32m✔ All tests completed successfully! Outputs preserved in test/results/cli-test/\x1b[0m\n');
 } finally {
   // Retain output results on disk per user request

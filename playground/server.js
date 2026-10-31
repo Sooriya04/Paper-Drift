@@ -32,9 +32,33 @@ const server = http.createServer((req, res) => {
 
   // API Endpoint: Direct PDF to Markdown conversion
   if (req.method === 'POST' && reqPath === '/api/convert-markdown') {
+    const MAX_UPLOAD_BYTES = 50 * 1024 * 1024; // 50 MB
+    const contentLength = parseInt(req.headers['content-length'], 10);
+    if (contentLength > MAX_UPLOAD_BYTES) {
+      res.writeHead(413, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: false, error: 'Payload too large. Maximum PDF size is 50MB.' }));
+    }
+
     const chunks = [];
-    req.on('data', chunk => chunks.push(chunk));
+    let receivedBytes = 0;
+    let aborted = false;
+
+    req.on('data', chunk => {
+      if (aborted) return;
+      receivedBytes += chunk.length;
+      if (receivedBytes > MAX_UPLOAD_BYTES) {
+        aborted = true;
+        chunks.length = 0;
+        res.writeHead(413, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Payload too large. Maximum PDF size is 50MB.' }));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+
     req.on('end', async () => {
+      if (aborted) return;
       try {
         const buffer = Buffer.concat(chunks);
         const pageRange = urlObj.searchParams.get('pages') || 'all';

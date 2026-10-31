@@ -257,4 +257,20 @@ await runAsyncTest('convertPdfToMarkdown outputs interactive citations for Atten
   );
 });
 
+await runAsyncTest('convertPdfToMarkdown generates hyphenated section and subsection anchor IDs', async () => {
+  const result = await convertPdfToMarkdown(resnetPdf, {
+    pages: '1-3'
+  });
+
+  // Section 3.1 should produce #subsection-3-1 anchor, not subsection-31
+  assert.ok(
+    result.markdown.includes('<a id="subsection-3-1"></a>'),
+    'Markdown should contain hyphenated anchor ID <a id="subsection-3-1"></a>'
+  );
+  assert.ok(
+    result.markdown.includes('<a id="subsection-3-2"></a>'),
+    'Markdown should contain hyphenated anchor ID <a id="subsection-3-2"></a>'
+  );
+});
+
 console.log('\n\x1b[32mAll Hyperlink & Citation Anchor tests passed successfully!\x1b[0m\n');

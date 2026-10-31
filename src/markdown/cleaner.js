@@ -69,12 +69,21 @@ const SPACE_LIKE_REGEX = /[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]/g;
 
 /**
  * Transliterates common homoglyphs into Latin ASCII counterparts.
+ * Avoids transliterating words that contain native Cyrillic or Greek characters.
  * @param {string} text
  * @returns {string}
  */
 export function transliterateHomoglyphs(text) {
   if (!text) return '';
-  return text.replace(HOMOGLYPH_REGEX, match => HOMOGLYPH_MAP[match] || match);
+  return text.replace(/\S+/g, word => {
+    for (const ch of word) {
+      const code = ch.charCodeAt(0);
+      if (((code >= 0x0400 && code <= 0x04FF) || (code >= 0x0370 && code <= 0x03FF)) && !HOMOGLYPH_MAP[ch]) {
+        return word;
+      }
+    }
+    return word.replace(HOMOGLYPH_REGEX, match => HOMOGLYPH_MAP[match] || match);
+  });
 }
 
 /**

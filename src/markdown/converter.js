@@ -307,9 +307,9 @@ export async function convertPdfToMarkdown(input, options = {}) {
         } else if (role === 'h1') {
           flushAll();
           let secAnchor = '';
-          const secMatch = line.text.trim().match(/^(\d+(?:\.\d+)*)\s+/);
+          const secMatch = line.text.trim().match(/^(\d+(?:\.\d+)*)\.?\s+/);
           if (secMatch) {
-            const secId = `section-${secMatch[1].replace(/\./g, '')}`;
+            const secId = `section-${secMatch[1].replace(/\./g, '-')}`;
             if (!claimedAnchorIds.has(secId)) {
               claimedAnchorIds.add(secId);
               secAnchor = `<a id="${secId}"></a>`;
@@ -320,9 +320,9 @@ export async function convertPdfToMarkdown(input, options = {}) {
         } else if (role === 'h2') {
           flushAll();
           let secAnchor = '';
-          const secMatch = line.text.trim().match(/^(\d+(?:\.\d+)*)\s+/);
+          const secMatch = line.text.trim().match(/^(\d+(?:\.\d+)*)\.?\s+/);
           if (secMatch) {
-            const secId = `subsection-${secMatch[1].replace(/\./g, '')}`;
+            const secId = `subsection-${secMatch[1].replace(/\./g, '-')}`;
             if (!claimedAnchorIds.has(secId)) {
               claimedAnchorIds.add(secId);
               secAnchor = `<a id="${secId}"></a>`;

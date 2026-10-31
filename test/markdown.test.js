@@ -115,6 +115,10 @@ runTest('cleanText strips invisible zero-width chars and bidi overrides while tr
   const cleaned = cleanText(dirty);
   assert.strictEqual(cleaned, 'Hello CWorld !');
 
+  // Native Cyrillic words must NOT be corrupted by homoglyph transliteration
+  assert.strictEqual(cleanText('Привет мир'), 'Привет мир');
+  assert.strictEqual(cleanText('Россия'), 'Россия');
+
   // Test options.transliterate = false preserves Cyrillic
   const preserved = cleanText('\u0421', { transliterate: false });
   assert.strictEqual(preserved, '\u0421');

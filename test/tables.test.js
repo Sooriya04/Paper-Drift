@@ -283,6 +283,38 @@ runTest('reconstructTables extracts full-grid tables with vertical and horizonta
   assertEqual(table.matrix[1][1], 'Val 2');
 });
 
+runTest('reconstructTables extracts full-grid tables with interior vertical rules only (no outer side borders)', () => {
+  // 3-column table with horizontal top/bottom rules and 2 vertical divider rules (no outer vertical rules)
+  const rules = [
+    { left: 100, top: 50, right: 400, bottom: 50 },
+    { left: 100, top: 150, right: 400, bottom: 150 },
+    { left: 200, top: 50, right: 200, bottom: 150 },
+    { left: 300, top: 50, right: 300, bottom: 150 }
+  ];
+
+  const lines = [
+    { left: 110, top: 60, right: 190, bottom: 70, text: 'Col A' },
+    { left: 210, top: 60, right: 290, bottom: 70, text: 'Col B' },
+    { left: 310, top: 60, right: 390, bottom: 70, text: 'Col C' },
+    { left: 110, top: 90, right: 190, bottom: 100, text: 'Val 1' },
+    { left: 210, top: 90, right: 290, bottom: 100, text: 'Val 2' },
+    { left: 310, top: 90, right: 390, bottom: 100, text: 'Val 3' }
+  ];
+
+  const tables = reconstructTables(rules, lines, 500, 700);
+  assertEqual(tables.length, 1, 'Must reconstruct 1 table');
+  const table = tables[0];
+
+  assertEqual(table.matrix.length, 2, '2 rows');
+  assertEqual(table.matrix[0].length, 3, 'Must preserve 3 columns');
+  assertEqual(table.matrix[0][0], 'Col A');
+  assertEqual(table.matrix[0][1], 'Col B');
+  assertEqual(table.matrix[0][2], 'Col C');
+  assertEqual(table.matrix[1][0], 'Val 1');
+  assertEqual(table.matrix[1][1], 'Val 2');
+  assertEqual(table.matrix[1][2], 'Val 3');
+});
+
 runTest('reconstructTables correctly assigns multi-word lines into column bounds', () => {
   // A table where each row is a single line spanning multiple columns
   const rules = [

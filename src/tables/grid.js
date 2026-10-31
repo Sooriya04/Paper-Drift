@@ -269,8 +269,8 @@ export function reconstructTables(rules, lines, pageWidth = 612, pageHeight = 79
       const groupHoriz = cluster.filter(isHorizontal);
       const groupVert = cluster.filter(r => !isHorizontal(r));
 
-      // A full-grid table candidate requires at least 2 horizontal rules and at least 2 vertical boundaries
-      if (groupHoriz.length >= 2 && groupVert.length >= 2) {
+      // A full-grid table candidate requires at least 2 horizontal rules and at least 1 vertical rule
+      if (groupHoriz.length >= 2 && groupVert.length >= 1) {
         groupHoriz.forEach(r => claimedRuleSet.add(r.orig));
         groupVert.forEach(r => claimedRuleSet.add(r.orig));
 
@@ -369,6 +369,9 @@ export function reconstructTables(rules, lines, pageWidth = 612, pageHeight = 79
 
     // Determine column boundaries
     let colBoundaries = candidate.colBoundaries;
+    if (colBoundaries && candidate.isFullGrid) {
+      colBoundaries = cluster1D([left, ...colBoundaries, right], snap * 2);
+    }
     if (!colBoundaries || colBoundaries.length < 2) {
       const words = linesInside.flatMap(getWordsFromLine);
       colBoundaries = projectColumnGutters(words, left, right, snap);

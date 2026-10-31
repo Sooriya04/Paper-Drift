@@ -150,3 +150,12 @@
 - Added TypeScript definitions in `src/index.d.ts` and barrel exports in `src/index.js` and `src/links/index.js`.
 - Authored automated test suite in `test/links.test.js` covering slug normalization, page link extraction, destination mapping, link weaving, de-hyphenation, and end-to-end Markdown conversion (100% passing across 8 suites).
 
+### fix: resolve table columns, heading anchors, CLI paths, homoglyphs, and upload limits
+- Fixed CLI single-page image export path in `bin/cli.js`: single-page outputs to a custom directory now write inside the specified folder instead of falling back to `process.cwd()`.
+- Fixed full-grid table column extraction in `src/tables/grid.js`: clustered outer bounds with vertical rules so tables with interior column dividers but no outer side borders preserve all columns rather than squashing into one.
+- Aligned section and subsection heading anchor slugs with `formatDestinationSlug` in `src/markdown/converter.js`: replaced dots with hyphens (`section-3-1`) and updated regex to match trailing-dot numbers (`3.1.`), fixing broken in-document links.
+- Fixed non-English Cyrillic and Greek text corruption in `src/markdown/cleaner.js`: updated `transliterateHomoglyphs` to check words for native Cyrillic/Greek characters, preserving valid foreign words while continuing to transliterate isolated homoglyph lookalikes in Latin text.
+- Protected development playground server in `playground/server.js`: added a 50MB payload limit check on `content-length` and streaming byte chunks for `/api/convert-markdown`, returning HTTP 413 to prevent memory exhaustion and server crashes.
+- Added comprehensive unit tests in `test/cli.test.js`, `test/tables.test.js`, `test/markdown.test.js`, and `test/links.test.js` validating all five fixes across the pipeline.
+
+
