@@ -257,7 +257,7 @@ async function run() {
         let linkPrefix;
         if (typeof extractImages === 'string') {
           imagesDir = path.resolve(process.cwd(), extractImages);
-          linkPrefix = path.basename(imagesDir);
+          linkPrefix = path.relative(destDir, imagesDir).replace(/\\/g, '/');
         } else {
           imagesDir = path.join(destDir, `${parsedInput.name}_assets`);
           linkPrefix = `${parsedInput.name}_assets`;

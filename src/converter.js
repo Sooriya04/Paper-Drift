@@ -8,7 +8,7 @@
 import mupdf from 'mupdf';
 import fs from 'fs';
 import path from 'path';
-import { buildHtmlDocument } from './utils/html-template.js';
+import { buildHtmlDocument, escapeHtml } from './utils/html-template.js';
 import { resolveReadingOrder } from './spatial/reading-order.js';
 
 /**
@@ -30,9 +30,11 @@ export function parsePageRange(range, totalPages) {
   }
 
   if (Array.isArray(range)) {
-    return range
-      .map(p => Number(p) - 1)
-      .filter(p => !isNaN(p) && p >= 0 && p < totalPages);
+    return Array.from(new Set(
+      range
+        .map(p => Number(p) - 1)
+        .filter(p => !isNaN(p) && p >= 0 && p < totalPages)
+    )).sort((a, b) => a - b);
   }
 
   const indices = new Set();
@@ -212,15 +214,6 @@ export async function convertPdfToImages(input, options = {}) {
   };
 }
 
-function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 /**
  * Converts a PDF buffer or file path into a standalone high-fidelity HTML document with spatial reading order.
  *
@@ -237,7 +230,7 @@ function escapeHtml(str) {
 export async function convertPdfToHtml(input, options = {}) {
   const startTime = Date.now();
   const scale = typeof options.scale === 'number' ? options.scale : 2.0;
-  const withBg = options.withBg !== false;
+  const withBg = options.withBg !== false && options.format !== 'text' && options.format !== 'json';
   const pageRangeStr = options.pages !== undefined ? options.pages : (options.pageRange || 'all');
 
   let pdfBuffer;
@@ -291,6 +284,9 @@ export async function convertPdfToHtml(input, options = {}) {
       const matrix = mupdf.Matrix.scale(scale, scale);
       const pixmap = page.toPixmap(matrix, mupdf.ColorSpace.DeviceRGB, false, true);
       const pngBase64 = Buffer.from(pixmap.asPNG()).toString('base64');
+      try {
+        pixmap.destroy();
+      } catch {}
       bgImgTag = `    <img src="data:image/png;base64,${pngBase64}" class="pdf-bg-layer" alt="Page ${pageNumber} Background" />\n`;
     }
 

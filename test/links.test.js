@@ -273,4 +273,15 @@ await runAsyncTest('convertPdfToMarkdown generates hyphenated section and subsec
   );
 });
 
+await runAsyncTest('convertPdfToMarkdown generates table anchors on table captions', async () => {
+  const result = await convertPdfToMarkdown(loraPdf, {
+    pages: '1-6'
+  });
+
+  assert.ok(
+    result.markdown.includes('<a id="table-1"></a>') || result.markdown.includes('<a id="table-2"></a>'),
+    'Markdown should generate table anchor matching caption (e.g. <a id="table-1"></a>)'
+  );
+});
+
 console.log('\n\x1b[32mAll Hyperlink & Citation Anchor tests passed successfully!\x1b[0m\n');

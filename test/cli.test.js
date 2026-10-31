@@ -69,6 +69,9 @@ try {
 
     const range5 = parsePageRange([1, 3], 5);
     if (JSON.stringify(range5) !== JSON.stringify([0, 2])) throw new Error(`Unexpected array range: ${JSON.stringify(range5)}`);
+
+    const range6 = parsePageRange([4, 2, 2, 1, 4], 5);
+    if (JSON.stringify(range6) !== JSON.stringify([0, 1, 3])) throw new Error(`Array range should be deduplicated and sorted: ${JSON.stringify(range6)}`);
   });
 
   // 2. CLI --help flag
@@ -168,6 +171,14 @@ try {
     if (fs.existsSync(path.join(process.cwd(), 'sample.png'))) {
       fs.unlinkSync(path.join(process.cwd(), 'sample.png'));
       throw new Error('Image was erroneously placed in cwd instead of target directory');
+    }
+  });
+
+  // 13. convertPdfToHtml with format text skips background rendering
+  await runAsyncTest('convertPdfToHtml with format: text skips background image generation', async () => {
+    const result = await convertPdfToHtml(samplePdfPath, { format: 'text' });
+    if (result.html.includes('class="pdf-bg-layer"')) {
+      throw new Error('Text format should not generate background image layers');
     }
   });
 

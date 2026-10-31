@@ -158,4 +158,17 @@
 - Protected development playground server in `playground/server.js`: added a 50MB payload limit check on `content-length` and streaming byte chunks for `/api/convert-markdown`, returning HTTP 413 to prevent memory exhaustion and server crashes.
 - Added comprehensive unit tests in `test/cli.test.js`, `test/tables.test.js`, `test/markdown.test.js`, and `test/links.test.js` validating all five fixes across the pipeline.
 
+### refactor: optimize pipeline, table anchors, image matching, and eliminate dead code
+- Reconstructed table anchor engine in `src/markdown/converter.js`: matches `Table N` captions and inserts `<a id="table-N"></a>` anchors, ensuring in-document citation links resolve to tables with high precision.
+- Skipped raster background pixmap generation in `src/converter.js` when `format === 'text'` or `format === 'json'`, speeding up text/JSON exports (44ms) and cutting unnecessary memory allocation.
+- Eliminated duplicate page reading passes in `src/markdown/converter.js` and `src/images/extractor.js`: preloaded page data, lines, and vectors are reused across image extraction and Markdown generation in a single pass.
+- Fixed relative Markdown image paths in `bin/cli.js`: uses `path.relative(destDir, imagesDir)` so image links remain valid regardless of destination directory nesting.
+- Deleted dead module `src/spatial/geometry.js` (110 lines) and unused barrel files `src/images/index.js` and `src/links/index.js` (34 lines).
+- Deduplicated `escapeHtml` implementation across `src/converter.js` and `src/utils/html-template.js`.
+- Fixed array input parsing in `parsePageRange` (`src/converter.js`): deduplicates and sorts array elements into unique 0-indexed page numbers.
+- Added automated unit tests in `test/cli.test.js` and `test/links.test.js` verifying table anchors, text format optimizations, and array page range deduplication.
+- Installed modified engine globally from disk (`npm install -g .`), verifying binary path and high-fidelity Markdown, table, and image extraction.
+
+
+
 

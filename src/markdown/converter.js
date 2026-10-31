@@ -16,6 +16,7 @@ import { normalizeMarkdown } from './normalizer.js';
 import { parsePageRange } from '../converter.js';
 import { recursiveXyCut } from '../spatial/reading-order.js';
 import { extractPdfImages } from '../images/extractor.js';
+import { readPageRasterImages } from '../images/raster.js';
 import {
   extractPageLinks,
   buildDocumentDestinations,
@@ -72,7 +73,58 @@ export async function convertPdfToMarkdown(input, options = {}) {
   // Pre-scan document to index internal destination anchors (citations, figures, sections)
   const documentDestinations = enableLinks ? buildDocumentDestinations(doc, targetIndices) : new Map();
 
-  // Optional image and figure extraction
+  // 1. First pass: Walk all target pages to collect text lines, vectors, and image candidates
+  const rawPagesData = [];
+  for (let step = 0; step < targetIndices.length; step++) {
+    const pageIndex = targetIndices[step];
+    const pageNumber = pageIndex + 1;
+
+    if (typeof options.onProgress === 'function') {
+      options.onProgress({
+        phase: 'reading',
+        current: step + 1,
+        total: targetIndices.length,
+        pageNumber,
+        totalPages
+      });
+    }
+
+    const page = doc.loadPage(pageIndex);
+    const bounds = page.getBounds();
+    const width = bounds[2] - bounds[0];
+    const height = bounds[3] - bounds[1];
+
+    const { lines, vectors } = extractPageVectorsAndText(page);
+    const links = enableLinks ? extractPageLinks(page, doc) : [];
+
+    const pageImages = shouldExtractImages ? readPageRasterImages(page, pageIndex) : [];
+    for (const img of pageImages) {
+      img.page = page;
+      img.bounds = bounds;
+    }
+
+    const rules = [];
+    for (const v of vectors) {
+      rules.push(...rulesFromVector(v));
+    }
+
+    rawPagesData.push({
+      page,
+      index: pageIndex,
+      pageIndex,
+      pageNumber,
+      bounds,
+      width,
+      height,
+      lines,
+      vectors,
+      rules,
+      links,
+      rasterImages: pageImages
+    });
+  }
+
+  // Optional image and figure extraction reusing preloaded page data
   let imageExtractionResult = null;
   if (shouldExtractImages) {
     let imagesDir = null;
@@ -98,48 +150,8 @@ export async function convertPdfToMarkdown(input, options = {}) {
       pages: pageRangeStr,
       dir: imagesDir,
       linkPrefix,
-      scale: options.imageScale || 2.0
-    });
-  }
-
-  // 1. First pass: Walk all target pages to collect text lines and vector strokes
-  const rawPagesData = [];
-  for (let step = 0; step < targetIndices.length; step++) {
-    const pageIndex = targetIndices[step];
-    const pageNumber = pageIndex + 1;
-
-    if (typeof options.onProgress === 'function') {
-      options.onProgress({
-        phase: 'reading',
-        current: step + 1,
-        total: targetIndices.length,
-        pageNumber,
-        totalPages
-      });
-    }
-
-    const page = doc.loadPage(pageIndex);
-    const bounds = page.getBounds();
-    const width = bounds[2] - bounds[0];
-    const height = bounds[3] - bounds[1];
-
-    const { lines, vectors } = extractPageVectorsAndText(page);
-    const links = enableLinks ? extractPageLinks(page, doc) : [];
-
-    const rules = [];
-    for (const v of vectors) {
-      rules.push(...rulesFromVector(v));
-    }
-
-    rawPagesData.push({
-      index: pageIndex,
-      pageNumber,
-      bounds,
-      width,
-      height,
-      lines,
-      rules,
-      links
+      scale: options.imageScale || 2.0,
+      pagesData: rawPagesData
     });
   }
 
@@ -259,10 +271,10 @@ export async function convertPdfToMarkdown(input, options = {}) {
       if (item.type === 'table') {
         flushAll();
         lastLine = null;
-        const tableMatch = (item.data.markdown || '').match(/\bTable\s+(\d+)/i);
+        const tableMatch = (item.data.markdown || '').match(/\bTable\s+([A-Z]?\d+(?:[.-]\d+)*[a-z]?)/i);
         let tableAnchor = '';
         if (tableMatch) {
-          const tId = `table-${tableMatch[1]}`;
+          const tId = `table-${tableMatch[1].replace(/[\.:%]/g, '-').toLowerCase()}`;
           if (!claimedAnchorIds.has(tId)) {
             claimedAnchorIds.add(tId);
             tableAnchor = `<a id="${tId}"></a>\n\n`;
@@ -332,7 +344,16 @@ export async function convertPdfToMarkdown(input, options = {}) {
           lastLine = null;
         } else if (role === 'caption') {
           flushAll();
-          pageMarkdownParts.push(`> **${text}**`);
+          let tableAnchor = '';
+          const tableMatch = text.match(/\bTable\s+([A-Z]?\d+(?:[.-]\d+)*[a-z]?)/i);
+          if (tableMatch) {
+            const tId = `table-${tableMatch[1].replace(/[\.:%]/g, '-').toLowerCase()}`;
+            if (!claimedAnchorIds.has(tId)) {
+              claimedAnchorIds.add(tId);
+              tableAnchor = `<a id="${tId}"></a>`;
+            }
+          }
+          pageMarkdownParts.push(`> ${tableAnchor}**${text}**`);
           lastLine = null;
         } else if (role === 'footnote') {
           flushAll();

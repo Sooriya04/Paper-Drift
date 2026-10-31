@@ -85,42 +85,50 @@ export async function extractPdfImages(input, options = {}) {
 
   // 1. First pass: Collect candidate raster images across all target pages
   const rawPlacements = [];
-  const pagesData = [];
+  const pagesData = options.pagesData || [];
 
-  for (let step = 0; step < targetIndices.length; step++) {
-    const pageIndex = targetIndices[step];
-    const pageNumber = pageIndex + 1;
+  if (options.pagesData) {
+    for (const p of pagesData) {
+      for (const img of p.rasterImages || []) {
+        rawPlacements.push(img);
+      }
+    }
+  } else {
+    for (let step = 0; step < targetIndices.length; step++) {
+      const pageIndex = targetIndices[step];
+      const pageNumber = pageIndex + 1;
 
-    if (typeof options.onProgress === 'function') {
-      options.onProgress({
-        phase: 'reading',
-        current: step + 1,
-        total: targetIndices.length,
+      if (typeof options.onProgress === 'function') {
+        options.onProgress({
+          phase: 'reading',
+          current: step + 1,
+          total: targetIndices.length,
+          pageNumber,
+          totalPages
+        });
+      }
+
+      const page = doc.loadPage(pageIndex);
+      const bounds = page.getBounds();
+      const { lines, vectors } = extractPageVectorsAndText(page);
+
+      const pageImages = extractRaster ? readPageRasterImages(page, pageIndex) : [];
+      for (const img of pageImages) {
+        img.page = page;
+        img.bounds = bounds;
+        rawPlacements.push(img);
+      }
+
+      pagesData.push({
+        page,
+        pageIndex,
         pageNumber,
-        totalPages
+        bounds,
+        lines,
+        vectors,
+        rasterImages: pageImages
       });
     }
-
-    const page = doc.loadPage(pageIndex);
-    const bounds = page.getBounds();
-    const { lines, vectors } = extractPageVectorsAndText(page);
-
-    const pageImages = extractRaster ? readPageRasterImages(page, pageIndex) : [];
-    for (const img of pageImages) {
-      img.page = page;
-      img.bounds = bounds;
-      rawPlacements.push(img);
-    }
-
-    pagesData.push({
-      page,
-      pageIndex,
-      pageNumber,
-      bounds,
-      lines,
-      vectors,
-      rasterImages: pageImages
-    });
   }
 
   // 2. Filter & Deduplicate raster images across pages (drops repetitive logos & watermarks)
