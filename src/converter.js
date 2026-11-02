@@ -91,85 +91,97 @@ export async function* streamPdfPages(input, options = {}) {
   }
 
   const doc = mupdf.Document.openDocument(pdfBuffer, 'application/pdf');
-  const totalPages = doc.countPages();
-  const targetIndices = parsePageRange(pageRangeStr, totalPages);
+  try {
+    const totalPages = doc.countPages();
+    const targetIndices = parsePageRange(pageRangeStr, totalPages);
 
-  if (targetIndices.length === 0) {
-    throw new Error(`No matching pages found for page range: "${pageRangeStr}" (Document has ${totalPages} pages).`);
-  }
-
-  const alpha = options.transparent === true || options.noBg === true || options.withBg === false;
-  const matrix = mupdf.Matrix.scale(scale, scale);
-
-  for (let step = 0; step < targetIndices.length; step++) {
-    const pageIndex = targetIndices[step];
-    const pageNumber = pageIndex + 1;
-
-    if (typeof options.onProgress === 'function') {
-      options.onProgress({
-        current: step + 1,
-        total: targetIndices.length,
-        pageNumber,
-        totalPages
-      });
+    if (targetIndices.length === 0) {
+      throw new Error(`No matching pages found for page range: "${pageRangeStr}" (Document has ${totalPages} pages).`);
     }
 
-    const page = doc.loadPage(pageIndex);
-    const bounds = page.getBounds();
-    const widthPt = bounds[2] - bounds[0];
-    const heightPt = bounds[3] - bounds[1];
+    const alpha = options.transparent === true || options.noBg === true || options.withBg === false;
+    const matrix = mupdf.Matrix.scale(scale, scale);
 
-    const pixmap = page.toPixmap(matrix, mupdf.ColorSpace.DeviceRGB, alpha, true);
-    const pngBuffer = Buffer.from(pixmap.asPNG());
-    try {
-      pixmap.destroy();
-    } catch {}
+    for (let step = 0; step < targetIndices.length; step++) {
+      const pageIndex = targetIndices[step];
+      const pageNumber = pageIndex + 1;
 
-    let pageText = '';
-    if (extractText) {
+      if (typeof options.onProgress === 'function') {
+        options.onProgress({
+          current: step + 1,
+          total: targetIndices.length,
+          pageNumber,
+          totalPages
+        });
+      }
+
+      const page = doc.loadPage(pageIndex);
       try {
-        const st = page.toStructuredText();
-        const stJson = JSON.parse(st.asJSON());
-        pageText = (stJson.blocks || [])
-          .filter(b => b.lines)
-          .flatMap(b => b.lines)
-          .map(l => l.text)
-          .join(' ')
-          .replace(/\s+/g, ' ')
-          .trim();
-      } catch {
-        // Ignore text extraction failure in image mode
+        const bounds = page.getBounds();
+        const widthPt = bounds[2] - bounds[0];
+        const heightPt = bounds[3] - bounds[1];
+
+        const pixmap = page.toPixmap(matrix, mupdf.ColorSpace.DeviceRGB, alpha, true);
+        const pngBuffer = Buffer.from(pixmap.asPNG());
+        try {
+          pixmap.destroy();
+        } catch {}
+
+        let pageText = '';
+        if (extractText) {
+          try {
+            const st = page.toStructuredText();
+            const stJson = JSON.parse(st.asJSON());
+            pageText = (stJson.blocks || [])
+              .filter(b => b.lines)
+              .flatMap(b => b.lines)
+              .map(l => l.text)
+              .join(' ')
+              .replace(/\s+/g, ' ')
+              .trim();
+          } catch {
+            // Ignore text extraction failure in image mode
+          }
+        }
+
+        let _base64 = null;
+        let _dataUrl = null;
+
+        yield {
+          pageNumber,
+          pageIndex,
+          totalPages,
+          totalMatchingPages: targetIndices.length,
+          width: Math.round(widthPt * scale),
+          height: Math.round(heightPt * scale),
+          widthPt,
+          heightPt,
+          scale,
+          buffer: pngBuffer,
+          get base64() {
+            if (_base64 === null) {
+              _base64 = this.buffer.toString('base64');
+            }
+            return _base64;
+          },
+          get dataUrl() {
+            if (_dataUrl === null) {
+              _dataUrl = `data:image/png;base64,${this.base64}`;
+            }
+            return _dataUrl;
+          },
+          text: pageText
+        };
+      } finally {
+        try {
+          page.destroy();
+        } catch {}
       }
     }
-
-    let _base64 = null;
-    let _dataUrl = null;
-
-    yield {
-      pageNumber,
-      pageIndex,
-      totalPages,
-      totalMatchingPages: targetIndices.length,
-      width: Math.round(widthPt * scale),
-      height: Math.round(heightPt * scale),
-      widthPt,
-      heightPt,
-      scale,
-      buffer: pngBuffer,
-      get base64() {
-        if (_base64 === null) {
-          _base64 = this.buffer.toString('base64');
-        }
-        return _base64;
-      },
-      get dataUrl() {
-        if (_dataUrl === null) {
-          _dataUrl = `data:image/png;base64,${this.base64}`;
-        }
-        return _dataUrl;
-      },
-      text: pageText
-    };
+  } finally {
+    try {
+      doc.destroy();
+    } catch {}
   }
 }
 
@@ -248,104 +260,116 @@ export async function convertPdfToHtml(input, options = {}) {
 
   // Load PDF via WebAssembly (MuPDF binary)
   const doc = mupdf.Document.openDocument(pdfBuffer, 'application/pdf');
-  const totalPages = doc.countPages();
-  const targetIndices = parsePageRange(pageRangeStr, totalPages);
+  try {
+    const totalPages = doc.countPages();
+    const targetIndices = parsePageRange(pageRangeStr, totalPages);
 
-  if (targetIndices.length === 0) {
-    throw new Error(`No matching pages found for page range: "${pageRangeStr}" (Document has ${totalPages} pages).`);
-  }
-
-  const pagesHtml = [];
-  const processedPages = [];
-  const documentTextBlocks = [];
-
-  for (let step = 0; step < targetIndices.length; step++) {
-    const pageIndex = targetIndices[step];
-    const pageNumber = pageIndex + 1;
-
-    if (typeof options.onProgress === 'function') {
-      options.onProgress({
-        current: step + 1,
-        total: targetIndices.length,
-        pageNumber,
-        totalPages
-      });
+    if (targetIndices.length === 0) {
+      throw new Error(`No matching pages found for page range: "${pageRangeStr}" (Document has ${totalPages} pages).`);
     }
 
-    const page = doc.loadPage(pageIndex);
-    const bounds = page.getBounds();
-    const widthPt = bounds[2] - bounds[0];
-    const heightPt = bounds[3] - bounds[1];
+    const pagesHtml = [];
+    const processedPages = [];
+    const documentTextBlocks = [];
 
-    let bgImgTag = '';
-    if (withBg) {
-      const matrix = mupdf.Matrix.scale(scale, scale);
-      const pixmap = page.toPixmap(matrix, mupdf.ColorSpace.DeviceRGB, false, true);
-      const pngBase64 = Buffer.from(pixmap.asPNG()).toString('base64');
-      try {
-        pixmap.destroy();
-      } catch {}
-      bgImgTag = `    <img src="data:image/png;base64,${pngBase64}" class="pdf-bg-layer" alt="Page ${pageNumber} Background" />\n`;
-    }
+    for (let step = 0; step < targetIndices.length; step++) {
+      const pageIndex = targetIndices[step];
+      const pageNumber = pageIndex + 1;
 
-    // Extract structured JSON and resolve spatial reading order
-    const structuredText = page.toStructuredText();
-    const pageJson = JSON.parse(structuredText.asJSON());
-    const spatialResult = resolveReadingOrder(pageJson, widthPt, heightPt);
-
-    // Build spatially ordered DOM text layer
-    let textLayerHtml = '';
-    for (const block of spatialResult.blocks) {
-      for (const line of (block.lines || [])) {
-        const fontSize = line.font?.size || line.bbox?.h || 12;
-        const fontFamily = line.font?.family ? `${line.font.family}, sans-serif` : 'sans-serif';
-        const fontWeight = line.font?.weight || 'normal';
-        const fontStyle = line.font?.style || 'normal';
-        const left = line.bbox?.x ?? line.x ?? 0;
-        const top = line.bbox?.y ?? (line.y - fontSize) ?? 0;
-        const height = line.bbox?.h ?? fontSize;
-
-        const escaped = escapeHtml(line.text || '');
-        textLayerHtml += `      <p class="pdf-line" style="position: absolute; left: ${left.toFixed(1)}pt; top: ${top.toFixed(1)}pt; font-size: ${fontSize.toFixed(1)}pt; font-family: ${fontFamily}; font-weight: ${fontWeight}; font-style: ${fontStyle}; height: ${height.toFixed(1)}pt; line-height: 1;">${escaped}</p>\n`;
+      if (typeof options.onProgress === 'function') {
+        options.onProgress({
+          current: step + 1,
+          total: targetIndices.length,
+          pageNumber,
+          totalPages
+        });
       }
-    }
 
-    const pageMarkup = `  <!-- Page ${pageNumber} -->
+      const page = doc.loadPage(pageIndex);
+      try {
+        const bounds = page.getBounds();
+        const widthPt = bounds[2] - bounds[0];
+        const heightPt = bounds[3] - bounds[1];
+
+        let bgImgTag = '';
+        if (withBg) {
+          const matrix = mupdf.Matrix.scale(scale, scale);
+          const pixmap = page.toPixmap(matrix, mupdf.ColorSpace.DeviceRGB, false, true);
+          const pngBase64 = Buffer.from(pixmap.asPNG()).toString('base64');
+          try {
+            pixmap.destroy();
+          } catch {}
+          bgImgTag = `    <img src="data:image/png;base64,${pngBase64}" class="pdf-bg-layer" alt="Page ${pageNumber} Background" />\n`;
+        }
+
+        // Extract structured JSON and resolve spatial reading order
+        const structuredText = page.toStructuredText();
+        const pageJson = JSON.parse(structuredText.asJSON());
+        const spatialResult = resolveReadingOrder(pageJson, widthPt, heightPt);
+
+        // Build spatially ordered DOM text layer
+        let textLayerHtml = '';
+        for (const block of spatialResult.blocks) {
+          for (const line of (block.lines || [])) {
+            const fontSize = line.font?.size || line.bbox?.h || 12;
+            const fontFamily = line.font?.family ? `${line.font.family}, sans-serif` : 'sans-serif';
+            const fontWeight = line.font?.weight || 'normal';
+            const fontStyle = line.font?.style || 'normal';
+            const left = line.bbox?.x ?? line.x ?? 0;
+            const top = line.bbox?.y ?? (line.y - fontSize) ?? 0;
+            const height = line.bbox?.h ?? fontSize;
+
+            const escaped = escapeHtml(line.text || '');
+            textLayerHtml += `      <p class="pdf-line" style="position: absolute; left: ${left.toFixed(1)}pt; top: ${top.toFixed(1)}pt; font-size: ${fontSize.toFixed(1)}pt; font-family: ${fontFamily}; font-weight: ${fontWeight}; font-style: ${fontStyle}; height: ${height.toFixed(1)}pt; line-height: 1;">${escaped}</p>\n`;
+          }
+        }
+
+        const pageMarkup = `  <!-- Page ${pageNumber} -->
   <article class="pdf-page" id="page-${pageNumber}" style="width: ${widthPt.toFixed(1)}pt; height: ${heightPt.toFixed(1)}pt;" data-page="${pageNumber}">
 ${bgImgTag}    <div class="pdf-text-layer">
 ${textLayerHtml}    </div>
   </article>`;
 
-    pagesHtml.push(pageMarkup);
+        pagesHtml.push(pageMarkup);
 
-    processedPages.push({
-      pageNumber,
-      width: widthPt,
-      height: heightPt,
-      columnsDetected: spatialResult.columnsDetected,
-      blocksCount: spatialResult.blocks.length,
-      text: spatialResult.text
+        processedPages.push({
+          pageNumber,
+          width: widthPt,
+          height: heightPt,
+          columnsDetected: spatialResult.columnsDetected,
+          blocksCount: spatialResult.blocks.length,
+          text: spatialResult.text
+        });
+
+        if (spatialResult.text) {
+          documentTextBlocks.push(spatialResult.text);
+        }
+      } finally {
+        try {
+          page.destroy();
+        } catch {}
+      }
+    }
+
+    const finalHtml = buildHtmlDocument({
+      title: docTitle,
+      pagesHtml,
+      options: { withBg }
     });
 
-    if (spatialResult.text) {
-      documentTextBlocks.push(spatialResult.text);
-    }
+    const fullText = documentTextBlocks.join('\n\n--- Page Break ---\n\n');
+
+    return {
+      html: finalHtml,
+      text: fullText,
+      pages: processedPages,
+      totalPages,
+      pagesProcessed: targetIndices.length,
+      durationMs: Date.now() - startTime
+    };
+  } finally {
+    try {
+      doc.destroy();
+    } catch {}
   }
-
-  const finalHtml = buildHtmlDocument({
-    title: docTitle,
-    pagesHtml,
-    options: { withBg }
-  });
-
-  const fullText = documentTextBlocks.join('\n\n--- Page Break ---\n\n');
-
-  return {
-    html: finalHtml,
-    text: fullText,
-    pages: processedPages,
-    totalPages,
-    pagesProcessed: targetIndices.length,
-    durationMs: Date.now() - startTime
-  };
 }
