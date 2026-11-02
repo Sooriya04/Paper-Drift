@@ -122,10 +122,8 @@ export async function* streamPdfPages(input, options = {}) {
     const pixmap = page.toPixmap(matrix, mupdf.ColorSpace.DeviceRGB, alpha, true);
     const pngBuffer = Buffer.from(pixmap.asPNG());
     try {
-      pixmap.clear();
-    } catch {
-      // Ignore if pixmap clear is unsupported
-    }
+      pixmap.destroy();
+    } catch {}
 
     let pageText = '';
     if (extractText) {
