@@ -115,7 +115,12 @@ const server = http.createServer((req, res) => {
       'Access-Control-Allow-Origin': '*'
     });
 
-    fs.createReadStream(filePath).pipe(res);
+    fs.createReadStream(filePath)
+      .on('error', () => {
+        if (!res.headersSent) res.writeHead(404);
+        res.end();
+      })
+      .pipe(res);
   });
 });
 
