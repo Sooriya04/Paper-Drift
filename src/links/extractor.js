@@ -122,34 +122,42 @@ export function buildDocumentDestinations(doc, pageIndices) {
       continue;
     }
 
-    const links = page.getLinks();
-    if (!Array.isArray(links)) continue;
+    try {
+      const links = page.getLinks();
+      if (!Array.isArray(links)) continue;
 
-    for (const link of links) {
-      if (!link || typeof link.getURI !== 'function') continue;
-      const rawUri = link.getURI();
-      if (!rawUri || !rawUri.startsWith('#nameddest=')) continue;
+      for (const link of links) {
+        if (!link || typeof link.getURI !== 'function') continue;
+        const rawUri = link.getURI();
+        if (!rawUri || !rawUri.startsWith('#nameddest=')) continue;
 
-      const slug = formatDestinationSlug(rawUri);
-      const id = slug.startsWith('#') ? slug.slice(1) : slug;
-      if (!id || seenIds.has(id)) continue;
+        const slug = formatDestinationSlug(rawUri);
+        const id = slug.startsWith('#') ? slug.slice(1) : slug;
+        if (!id || seenIds.has(id)) continue;
 
-      try {
-        const dest = doc.resolveLinkDestination(rawUri);
-        if (dest && typeof dest.page === 'number' && typeof dest.y === 'number' && !isNaN(dest.y)) {
-          seenIds.add(id);
-          const targetPage = dest.page;
-          if (!destinationsByPage.has(targetPage)) {
-            destinationsByPage.set(targetPage, []);
+        try {
+          const dest = doc.resolveLinkDestination(rawUri);
+          if (dest && typeof dest.page === 'number' && typeof dest.y === 'number' && !isNaN(dest.y)) {
+            seenIds.add(id);
+            const targetPage = dest.page;
+            if (!destinationsByPage.has(targetPage)) {
+              destinationsByPage.set(targetPage, []);
+            }
+            destinationsByPage.get(targetPage).push({
+              id,
+              name: rawUri.replace('#nameddest=', ''),
+              y: dest.y
+            });
           }
-          destinationsByPage.get(targetPage).push({
-            id,
-            name: rawUri.replace('#nameddest=', ''),
-            y: dest.y
-          });
+        } catch {
+          // Ignore unresolved destinations
         }
-      } catch {
-        // Ignore unresolved destinations
+      }
+    } finally {
+      if (page && typeof page.destroy === 'function') {
+        try {
+          page.destroy();
+        } catch {}
       }
     }
   }

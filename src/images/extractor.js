@@ -72,225 +72,250 @@ export async function extractPdfImages(input, options = {}) {
   }
 
   const doc = mupdf.Document.openDocument(pdfBuffer, 'application/pdf');
-  const totalPages = doc.countPages();
-  const targetIndices = parsePageRange(pageRangeStr, totalPages);
+  try {
+    const totalPages = doc.countPages();
+    const targetIndices = parsePageRange(pageRangeStr, totalPages);
 
-  if (targetIndices.length === 0) {
-    throw new Error(`No matching pages found for page range: "${pageRangeStr}" (Document has ${totalPages} pages).`);
-  }
-
-  if (targetDir && !fs.existsSync(targetDir)) {
-    fs.mkdirSync(targetDir, { recursive: true });
-  }
-
-  // 1. First pass: Collect candidate raster images across all target pages
-  const rawPlacements = [];
-  const pagesData = options.pagesData || [];
-
-  if (options.pagesData) {
-    for (const p of pagesData) {
-      for (const img of p.rasterImages || []) {
-        rawPlacements.push(img);
-      }
+    if (targetIndices.length === 0) {
+      throw new Error(`No matching pages found for page range: "${pageRangeStr}" (Document has ${totalPages} pages).`);
     }
-  } else {
-    for (let step = 0; step < targetIndices.length; step++) {
-      const pageIndex = targetIndices[step];
-      const pageNumber = pageIndex + 1;
 
-      if (typeof options.onProgress === 'function') {
-        options.onProgress({
-          phase: 'reading',
-          current: step + 1,
-          total: targetIndices.length,
-          pageNumber,
-          totalPages
-        });
-      }
-
-      const page = doc.loadPage(pageIndex);
-      const bounds = page.getBounds();
-      const { lines, vectors } = extractPageVectorsAndText(page);
-
-      const pageImages = extractRaster ? readPageRasterImages(page, pageIndex) : [];
-      for (const img of pageImages) {
-        img.page = page;
-        img.bounds = bounds;
-        rawPlacements.push(img);
-      }
-
-      pagesData.push({
-        page,
-        pageIndex,
-        pageNumber,
-        bounds,
-        lines,
-        vectors,
-        rasterImages: pageImages
-      });
+    if (targetDir && !fs.existsSync(targetDir)) {
+      fs.mkdirSync(targetDir, { recursive: true });
     }
-  }
 
-  // 2. Filter & Deduplicate raster images across pages (drops repetitive logos & watermarks)
-  const registry = new Map();
-  for (const placement of rawPlacements) {
-    const { image, bbox, bounds } = placement;
-    if (Math.min(image.getWidth(), image.getHeight()) < MIN_PIXELS) continue;
-    if (Math.min(bbox[2] - bbox[0], bbox[3] - bbox[1]) < MIN_POINTS) continue;
+    // 1. First pass: Collect candidate raster images across all target pages
+    const rawPlacements = [];
+    const pagesData = options.pagesData || [];
 
-    const rgbPix = toRgbPixmap(image);
     try {
-      const hash = hashPixmap(rgbPix);
-      if (!registry.has(hash)) {
-        registry.set(hash, {
-          pages: new Set(),
-          uniform: isUniform(rgbPix),
-          small: true
-        });
+      if (options.pagesData) {
+        for (const p of pagesData) {
+          for (const img of p.rasterImages || []) {
+            rawPlacements.push(img);
+          }
+        }
+      } else {
+        for (let step = 0; step < targetIndices.length; step++) {
+          const pageIndex = targetIndices[step];
+          const pageNumber = pageIndex + 1;
+
+          if (typeof options.onProgress === 'function') {
+            options.onProgress({
+              phase: 'reading',
+              current: step + 1,
+              total: targetIndices.length,
+              pageNumber,
+              totalPages
+            });
+          }
+
+          const page = doc.loadPage(pageIndex);
+          try {
+            const bounds = page.getBounds();
+            const { lines, vectors } = extractPageVectorsAndText(page);
+
+            const pageImages = extractRaster ? readPageRasterImages(page, pageIndex) : [];
+            for (const img of pageImages) {
+              img.page = page;
+              img.bounds = bounds;
+              rawPlacements.push(img);
+            }
+
+            pagesData.push({
+              page,
+              pageIndex,
+              pageNumber,
+              bounds,
+              lines,
+              vectors,
+              rasterImages: pageImages
+            });
+          } catch (err) {
+            try {
+              page.destroy();
+            } catch {}
+            throw err;
+          }
+        }
       }
-      placement.hash = hash;
-    } finally {
-      rgbPix.destroy();
-    }
 
-    const entry = registry.get(placement.hash);
-    entry.pages.add(placement.pageIndex);
-    const pageArea = (bounds[2] - bounds[0]) * (bounds[3] - bounds[1]);
-    const imgArea = (bbox[2] - bbox[0]) * (bbox[3] - bbox[1]);
-    entry.small = entry.small && imgArea < pageArea * SMALL_IMAGE_PAGE_SHARE;
-  }
+      // 2. Filter & Deduplicate raster images across pages (drops repetitive logos & watermarks)
+      const registry = new Map();
+      for (const placement of rawPlacements) {
+        const { image, bbox, bounds } = placement;
+        if (Math.min(image.getWidth(), image.getHeight()) < MIN_PIXELS) continue;
+        if (Math.min(bbox[2] - bbox[0], bbox[3] - bbox[1]) < MIN_POINTS) continue;
 
-  const validRasterPlacements = rawPlacements.filter(p => {
-    const entry = p.hash ? registry.get(p.hash) : null;
-    return entry &&
-           !entry.uniform &&
-           entry.pages.size <= MAX_REPEAT_PAGES &&
-           !(entry.small && entry.pages.size > 1);
-  });
+        const rgbPix = toRgbPixmap(image);
+        try {
+          const hash = hashPixmap(rgbPix);
+          if (!registry.has(hash)) {
+            registry.set(hash, {
+              pages: new Set(),
+              uniform: isUniform(rgbPix),
+              small: true
+            });
+          }
+          placement.hash = hash;
+        } finally {
+          rgbPix.destroy();
+        }
 
-  // Group valid raster placements by page
-  const validRasterByPage = new Map();
-  for (const p of validRasterPlacements) {
-    if (!validRasterByPage.has(p.pageIndex)) {
-      validRasterByPage.set(p.pageIndex, []);
-    }
-    validRasterByPage.get(p.pageIndex).push(p);
-  }
+        const entry = registry.get(placement.hash);
+        entry.pages.add(placement.pageIndex);
+        const pageArea = (bounds[2] - bounds[0]) * (bounds[3] - bounds[1]);
+        const imgArea = (bbox[2] - bbox[0]) * (bbox[3] - bbox[1]);
+        entry.small = entry.small && imgArea < pageArea * SMALL_IMAGE_PAGE_SHARE;
+      }
 
-  // 3. Detect and extract vector figures & raster images per page
-  const byPage = new Map();
-  const assets = [];
-  let totalImagesCount = 0;
-  let totalFiguresCount = 0;
-
-  for (const pData of pagesData) {
-    const pagePlacements = [];
-    const validRaster = validRasterByPage.get(pData.pageIndex) || [];
-
-    // Detect vector figures on this page
-    let detectedFigures = [];
-    if (extractFigures) {
-      detectedFigures = detectPageFigures({
-        bounds: pData.bounds,
-        lines: pData.lines,
-        vectors: pData.vectors,
-        contentImages: validRaster
+      const validRasterPlacements = rawPlacements.filter(p => {
+        const entry = p.hash ? registry.get(p.hash) : null;
+        return entry &&
+               !entry.uniform &&
+               entry.pages.size <= MAX_REPEAT_PAGES &&
+               !(entry.small && entry.pages.size > 1);
       });
-    }
 
-    // Exclude raster images that are entirely encompassed by detected vector figures
-    const standaloneRaster = validRaster.filter(r =>
-      !detectedFigures.some(f => boxOverlap(r.bbox, f.bbox))
-    );
-
-    // Process vector figures
-    let figureIndex = 0;
-    for (const fig of detectedFigures) {
-      figureIndex++;
-      totalFiguresCount++;
-
-      const rendered = renderFigureRegion(pData.page, fig.bbox, scale);
-      const name = `p${String(pData.pageNumber).padStart(2, '0')}-f${String(figureIndex).padStart(2, '0')}.${rendered.extension}`;
-      const filePath = targetDir ? path.join(targetDir, name) : null;
-      const link = linkPrefix ? `${linkPrefix.replace(/\/+$/, '')}/${name}` : name;
-
-      if (targetDir) {
-        fs.writeFileSync(filePath, rendered.bytes);
+      // Group valid raster placements by page
+      const validRasterByPage = new Map();
+      for (const p of validRasterPlacements) {
+        if (!validRasterByPage.has(p.pageIndex)) {
+          validRasterByPage.set(p.pageIndex, []);
+        }
+        validRasterByPage.get(p.pageIndex).push(p);
       }
 
-      const altText = fig.caption ? fig.caption : `Page ${pData.pageNumber} Figure ${figureIndex}`;
+      // 3. Detect and extract vector figures & raster images per page
+      const byPage = new Map();
+      const assets = [];
+      let totalImagesCount = 0;
+      let totalFiguresCount = 0;
 
-      const assetInfo = {
-        type: 'figure',
-        pageNumber: pData.pageNumber,
-        pageIndex: pData.pageIndex,
-        bbox: fig.bbox,
-        filename: name,
-        filePath,
-        link,
-        alt: altText,
-        caption: fig.caption || null,
-        width: rendered.width,
-        height: rendered.height,
-        bytes: rendered.bytes,
-        sizeKb: parseFloat((rendered.bytes.length / 1024).toFixed(1)),
-        insideLines: fig.insideLines || []
-      };
+      for (const pData of pagesData) {
+        const pagePlacements = [];
+        const validRaster = validRasterByPage.get(pData.pageIndex) || [];
 
-      assets.push(assetInfo);
-      pagePlacements.push(assetInfo);
-    }
+        // Detect vector figures on this page
+        let detectedFigures = [];
+        if (extractFigures) {
+          detectedFigures = detectPageFigures({
+            bounds: pData.bounds,
+            lines: pData.lines,
+            vectors: pData.vectors,
+            contentImages: validRaster
+          });
+        }
 
-    // Process standalone raster images
-    let imageIndex = 0;
-    for (const r of standaloneRaster) {
-      imageIndex++;
-      totalImagesCount++;
+        // Exclude raster images that are entirely encompassed by detected vector figures
+        const standaloneRaster = validRaster.filter(r =>
+          !detectedFigures.some(f => boxOverlap(r.bbox, f.bbox))
+        );
 
-      const encoded = encodeImage(r.image);
-      const name = `p${String(pData.pageNumber).padStart(2, '0')}-${String(imageIndex).padStart(2, '0')}.${encoded.extension}`;
-      const filePath = targetDir ? path.join(targetDir, name) : null;
-      const link = linkPrefix ? `${linkPrefix.replace(/\/+$/, '')}/${name}` : name;
+        // Process vector figures
+        let figureIndex = 0;
+        for (const fig of detectedFigures) {
+          figureIndex++;
+          totalFiguresCount++;
 
-      if (targetDir) {
-        fs.writeFileSync(filePath, encoded.bytes);
+          const rendered = renderFigureRegion(pData.page, fig.bbox, scale);
+          const name = `p${String(pData.pageNumber).padStart(2, '0')}-f${String(figureIndex).padStart(2, '0')}.${rendered.extension}`;
+          const filePath = targetDir ? path.join(targetDir, name) : null;
+          const link = linkPrefix ? `${linkPrefix.replace(/\/+$/, '')}/${name}` : name;
+
+          if (targetDir) {
+            fs.writeFileSync(filePath, rendered.bytes);
+          }
+
+          const altText = fig.caption ? fig.caption : `Page ${pData.pageNumber} Figure ${figureIndex}`;
+
+          const assetInfo = {
+            type: 'figure',
+            pageNumber: pData.pageNumber,
+            pageIndex: pData.pageIndex,
+            bbox: fig.bbox,
+            filename: name,
+            filePath,
+            link,
+            alt: altText,
+            caption: fig.caption || null,
+            width: rendered.width,
+            height: rendered.height,
+            bytes: rendered.bytes,
+            sizeKb: parseFloat((rendered.bytes.length / 1024).toFixed(1)),
+            insideLines: fig.insideLines || []
+          };
+
+          assets.push(assetInfo);
+          pagePlacements.push(assetInfo);
+        }
+
+        // Process standalone raster images
+        let imageIndex = 0;
+        for (const r of standaloneRaster) {
+          imageIndex++;
+          totalImagesCount++;
+
+          const encoded = encodeImage(r.image);
+          const name = `p${String(pData.pageNumber).padStart(2, '0')}-${String(imageIndex).padStart(2, '0')}.${encoded.extension}`;
+          const filePath = targetDir ? path.join(targetDir, name) : null;
+          const link = linkPrefix ? `${linkPrefix.replace(/\/+$/, '')}/${name}` : name;
+
+          if (targetDir) {
+            fs.writeFileSync(filePath, encoded.bytes);
+          }
+
+          const altText = `Page ${pData.pageNumber} Image ${imageIndex}`;
+
+          const assetInfo = {
+            type: 'image',
+            pageNumber: pData.pageNumber,
+            pageIndex: pData.pageIndex,
+            bbox: r.bbox,
+            filename: name,
+            filePath,
+            link,
+            alt: altText,
+            caption: null,
+            width: encoded.width,
+            height: encoded.height,
+            bytes: encoded.bytes,
+            sizeKb: parseFloat((encoded.bytes.length / 1024).toFixed(1)),
+            insideLines: []
+          };
+
+          assets.push(assetInfo);
+          pagePlacements.push(assetInfo);
+        }
+
+        // Sort page placements in top-to-bottom reading order
+        pagePlacements.sort((a, b) => a.bbox[1] - b.bbox[1] || a.bbox[0] - b.bbox[0]);
+        byPage.set(pData.pageNumber, pagePlacements);
       }
 
-      const altText = `Page ${pData.pageNumber} Image ${imageIndex}`;
-
-      const assetInfo = {
-        type: 'image',
-        pageNumber: pData.pageNumber,
-        pageIndex: pData.pageIndex,
-        bbox: r.bbox,
-        filename: name,
-        filePath,
-        link,
-        alt: altText,
-        caption: null,
-        width: encoded.width,
-        height: encoded.height,
-        bytes: encoded.bytes,
-        sizeKb: parseFloat((encoded.bytes.length / 1024).toFixed(1)),
-        insideLines: []
+      return {
+        byPage,
+        assets,
+        totalImages: totalImagesCount,
+        totalFigures: totalFiguresCount,
+        totalPages,
+        pagesProcessed: targetIndices.length,
+        durationMs: Date.now() - startTime
       };
-
-      assets.push(assetInfo);
-      pagePlacements.push(assetInfo);
+    } finally {
+      if (!options.pagesData) {
+        for (const pData of pagesData) {
+          if (pData.page && typeof pData.page.destroy === 'function') {
+            try {
+              pData.page.destroy();
+            } catch {}
+          }
+        }
+      }
     }
-
-    // Sort page placements in top-to-bottom reading order
-    pagePlacements.sort((a, b) => a.bbox[1] - b.bbox[1] || a.bbox[0] - b.bbox[0]);
-    byPage.set(pData.pageNumber, pagePlacements);
+  } finally {
+    try {
+      doc.destroy();
+    } catch {}
   }
-
-  return {
-    byPage,
-    assets,
-    totalImages: totalImagesCount,
-    totalFigures: totalFiguresCount,
-    totalPages,
-    pagesProcessed: targetIndices.length,
-    durationMs: Date.now() - startTime
-  };
 }

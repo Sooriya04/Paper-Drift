@@ -63,359 +63,382 @@ export async function convertPdfToMarkdown(input, options = {}) {
   }
 
   const doc = mupdf.Document.openDocument(pdfBuffer, 'application/pdf');
-  const totalPages = doc.countPages();
-  const targetIndices = parsePageRange(pageRangeStr, totalPages);
+  try {
+    const totalPages = doc.countPages();
+    const targetIndices = parsePageRange(pageRangeStr, totalPages);
 
-  if (targetIndices.length === 0) {
-    throw new Error(`No matching pages found for page range: "${pageRangeStr}" (Document has ${totalPages} pages).`);
-  }
-
-  // Pre-scan document to index internal destination anchors (citations, figures, sections)
-  const documentDestinations = enableLinks ? buildDocumentDestinations(doc, targetIndices) : new Map();
-
-  // 1. First pass: Walk all target pages to collect text lines, vectors, and image candidates
-  const rawPagesData = [];
-  for (let step = 0; step < targetIndices.length; step++) {
-    const pageIndex = targetIndices[step];
-    const pageNumber = pageIndex + 1;
-
-    if (typeof options.onProgress === 'function') {
-      options.onProgress({
-        phase: 'reading',
-        current: step + 1,
-        total: targetIndices.length,
-        pageNumber,
-        totalPages
-      });
+    if (targetIndices.length === 0) {
+      throw new Error(`No matching pages found for page range: "${pageRangeStr}" (Document has ${totalPages} pages).`);
     }
 
-    const page = doc.loadPage(pageIndex);
-    const bounds = page.getBounds();
-    const width = bounds[2] - bounds[0];
-    const height = bounds[3] - bounds[1];
+    // Pre-scan document to index internal destination anchors (citations, figures, sections)
+    const documentDestinations = enableLinks ? buildDocumentDestinations(doc, targetIndices) : new Map();
 
-    const { lines, vectors } = extractPageVectorsAndText(page);
-    const links = enableLinks ? extractPageLinks(page, doc) : [];
+    // 1. First pass: Walk all target pages to collect text lines, vectors, and image candidates
+    const rawPagesData = [];
+    try {
+      for (let step = 0; step < targetIndices.length; step++) {
+        const pageIndex = targetIndices[step];
+        const pageNumber = pageIndex + 1;
 
-    const pageImages = shouldExtractImages ? readPageRasterImages(page, pageIndex) : [];
-    for (const img of pageImages) {
-      img.page = page;
-      img.bounds = bounds;
-    }
-
-    const rules = [];
-    for (const v of vectors) {
-      rules.push(...rulesFromVector(v));
-    }
-
-    rawPagesData.push({
-      page,
-      index: pageIndex,
-      pageIndex,
-      pageNumber,
-      bounds,
-      width,
-      height,
-      lines,
-      vectors,
-      rules,
-      links,
-      rasterImages: pageImages
-    });
-  }
-
-  // Optional image and figure extraction reusing preloaded page data
-  let imageExtractionResult = null;
-  if (shouldExtractImages) {
-    let imagesDir = null;
-    let linkPrefix = '';
-
-    if (typeof extractImagesOption === 'object' && extractImagesOption !== null) {
-      imagesDir = extractImagesOption.dir || null;
-      linkPrefix = extractImagesOption.linkPrefix !== undefined
-        ? extractImagesOption.linkPrefix
-        : (imagesDir ? path.basename(imagesDir) : 'assets');
-    } else if (extractImagesOption === true) {
-      if (typeof input === 'string') {
-        const parsedPath = path.parse(path.resolve(process.cwd(), input));
-        imagesDir = path.join(parsedPath.dir, `${parsedPath.name}_assets`);
-        linkPrefix = `${parsedPath.name}_assets`;
-      } else {
-        imagesDir = path.resolve(process.cwd(), 'document_assets');
-        linkPrefix = 'document_assets';
-      }
-    }
-
-    imageExtractionResult = await extractPdfImages(input, {
-      pages: pageRangeStr,
-      dir: imagesDir,
-      linkPrefix,
-      scale: options.imageScale || 2.0,
-      pagesData: rawPagesData
-    });
-  }
-
-  // 2. Filter out recurring margin rules (running headers / footers)
-  const contentRulesByPage = stripRepeatedLines
-    ? filterContentRules(rawPagesData)
-    : new Map(rawPagesData.map(p => [p.index, p.rules]));
-
-  // Calculate global body font mode across all lines in the document
-  const allLines = rawPagesData.flatMap(p => p.lines);
-  const bodyMode = calculateBodyFontSizeMode(allLines);
-
-  const documentMarkdownBlocks = [];
-  const claimedAnchorIds = new Set();
-  let totalTablesCount = 0;
-
-  // 3. Process each page: Extract tables, resolve reading flow, and apply typography
-  for (let i = 0; i < rawPagesData.length; i++) {
-    const pData = rawPagesData[i];
-    const validRules = contentRulesByPage.get(pData.index) || [];
-
-    // Extract tables
-    let pageTables = [];
-    if (enableTables) {
-      pageTables = reconstructTables(validRules, pData.lines, pData.width, pData.height);
-      totalTablesCount += pageTables.length;
-    }
-
-    // Extracted images and figures for this page
-    const pageImages = (imageExtractionResult?.byPage.get(pData.pageNumber)) || [];
-
-    // Set of lines claimed by tables and figures so they are not duplicated in prose
-    const claimedLines = new Set([
-      ...pageTables.flatMap(t => t.linesInside),
-      ...pageImages.flatMap(img => img.insideLines || [])
-    ]);
-
-    // Remaining prose lines
-    const proseLines = pData.lines.filter(l => !claimedLines.has(l));
-
-    // Combine prose blocks, table regions, and image/figure blocks into unified reading order blocks
-    const blocksToOrder = [
-      ...proseLines.map(l => ({
-        bbox: { x: l.left, y: l.top, w: l.width, h: l.height },
-        type: 'line',
-        data: l
-      })),
-      ...pageTables.map(t => ({
-        bbox: {
-          x: t.bbox[0],
-          y: t.bbox[1],
-          w: t.bbox[2] - t.bbox[0],
-          h: t.bbox[3] - t.bbox[1]
-        },
-        type: 'table',
-        data: t
-      })),
-      ...pageImages.map(img => ({
-        bbox: {
-          x: img.bbox[0],
-          y: img.bbox[1],
-          w: img.bbox[2] - img.bbox[0],
-          h: img.bbox[3] - img.bbox[1]
-        },
-        type: 'image',
-        data: img
-      }))
-    ];
-
-    // Spatially order all items preserving multi-column reading flow
-    const contentItems = recursiveXyCut(blocksToOrder, 0, 0, pData.width, pData.height);
-
-    // Build markdown for this page
-    const pageMarkdownParts = [];
-    let currentParagraph = [];
-    let currentList = [];
-    let lastLine = null;
-
-    function joinParagraphLines(lines) {
-      let result = '';
-      for (let j = 0; j < lines.length; j++) {
-        const lineText = lines[j];
-        if (j === 0) {
-          result = lineText;
-          continue;
+        if (typeof options.onProgress === 'function') {
+          options.onProgress({
+            phase: 'reading',
+            current: step + 1,
+            total: targetIndices.length,
+            pageNumber,
+            totalPages
+          });
         }
-        // De-hyphenate if previous line ended with a hyphen and next line starts with lowercase
-        if (/(\p{L}+)-$/u.test(result) && /^\p{Ll}/u.test(lineText)) {
-          result = result.slice(0, -1) + lineText;
-        } else {
-          result += ' ' + lineText;
+
+        const page = doc.loadPage(pageIndex);
+        try {
+          const bounds = page.getBounds();
+          const width = bounds[2] - bounds[0];
+          const height = bounds[3] - bounds[1];
+
+          const { lines, vectors } = extractPageVectorsAndText(page);
+          const links = enableLinks ? extractPageLinks(page, doc) : [];
+
+          const pageImages = shouldExtractImages ? readPageRasterImages(page, pageIndex) : [];
+          for (const img of pageImages) {
+            img.page = page;
+            img.bounds = bounds;
+          }
+
+          const rules = [];
+          for (const v of vectors) {
+            rules.push(...rulesFromVector(v));
+          }
+
+          rawPagesData.push({
+            page,
+            index: pageIndex,
+            pageIndex,
+            pageNumber,
+            bounds,
+            width,
+            height,
+            lines,
+            vectors,
+            rules,
+            links,
+            rasterImages: pageImages
+          });
+        } catch (err) {
+          try {
+            page.destroy();
+          } catch {}
+          throw err;
         }
       }
-      return result;
-    }
 
-    function flushParagraph() {
-      if (currentParagraph.length > 0) {
-        pageMarkdownParts.push(joinParagraphLines(currentParagraph));
-        currentParagraph = [];
-      }
-    }
+      // Optional image and figure extraction reusing preloaded page data
+      let imageExtractionResult = null;
+      if (shouldExtractImages) {
+        let imagesDir = null;
+        let linkPrefix = '';
 
-    function flushList() {
-      if (currentList.length > 0) {
-        pageMarkdownParts.push(currentList.join('\n'));
-        currentList = [];
-      }
-    }
-
-    function flushAll() {
-      flushParagraph();
-      flushList();
-    }
-
-    for (const item of contentItems) {
-      if (item.type === 'table') {
-        flushAll();
-        lastLine = null;
-        const tableMatch = (item.data.markdown || '').match(/\bTable\s+([A-Z]?\d+(?:[.-]\d+)*[a-z]?)/i);
-        let tableAnchor = '';
-        if (tableMatch) {
-          const tId = `table-${tableMatch[1].replace(/[\.:%]/g, '-').toLowerCase()}`;
-          if (!claimedAnchorIds.has(tId)) {
-            claimedAnchorIds.add(tId);
-            tableAnchor = `<a id="${tId}"></a>\n\n`;
-          }
-        }
-        pageMarkdownParts.push(tableAnchor + item.data.markdown);
-      } else if (item.type === 'image') {
-        flushAll();
-        lastLine = null;
-        const img = item.data;
-        let figAnchor = '';
-        if (img.caption) {
-          const figMatch = img.caption.match(/\b(?:Figure|Fig\.)\s+([A-Z]?\d+(?:[.-]\d+)*[a-z]?)/i);
-          if (figMatch) {
-            const fId = `figure-${figMatch[1].replace(/[\.:%]/g, '-').toLowerCase()}`;
-            if (!claimedAnchorIds.has(fId)) {
-              claimedAnchorIds.add(fId);
-              figAnchor = `<a id="${fId}"></a>`;
-            }
-          }
-        }
-        const safeLink = /\s/.test(img.link) ? `<${img.link}>` : img.link;
-        pageMarkdownParts.push(`![${img.alt}](${safeLink})`);
-        if (img.caption) {
-          pageMarkdownParts.push(`> ${figAnchor}**${img.caption}**`);
-        } else if (figAnchor) {
-          pageMarkdownParts.push(figAnchor);
-        }
-      } else {
-        const line = item.data;
-        const pageDests = documentDestinations.get(pData.index) || [];
-        const anchorTag = enableLinks ? findDestinationAnchors(line, pageDests, claimedAnchorIds) : '';
-        const formattedText = enableLinks ? applyLinksToLine(line, pData.links) : line.text;
-        const text = (anchorTag + formattedText).trim();
-        if (!text) continue;
-
-        const role = classifyTypography(line, bodyMode, pData.height);
-
-        if (role === 'title') {
-          flushAll();
-          pageMarkdownParts.push(`# ${text}`);
-          lastLine = null;
-        } else if (role === 'h1') {
-          flushAll();
-          let secAnchor = '';
-          const secMatch = line.text.trim().match(/^(\d+(?:\.\d+)*)\.?\s+/);
-          if (secMatch) {
-            const secId = `section-${secMatch[1].replace(/\./g, '-')}`;
-            if (!claimedAnchorIds.has(secId)) {
-              claimedAnchorIds.add(secId);
-              secAnchor = `<a id="${secId}"></a>`;
-            }
-          }
-          pageMarkdownParts.push(`## ${secAnchor}${text}`);
-          lastLine = null;
-        } else if (role === 'h2') {
-          flushAll();
-          let secAnchor = '';
-          const secMatch = line.text.trim().match(/^(\d+(?:\.\d+)*)\.?\s+/);
-          if (secMatch) {
-            const secId = `subsection-${secMatch[1].replace(/\./g, '-')}`;
-            if (!claimedAnchorIds.has(secId)) {
-              claimedAnchorIds.add(secId);
-              secAnchor = `<a id="${secId}"></a>`;
-            }
-          }
-          pageMarkdownParts.push(`### ${secAnchor}${text}`);
-          lastLine = null;
-        } else if (role === 'caption') {
-          flushAll();
-          let captionAnchor = '';
-          const tableMatch = text.match(/\bTable\s+([A-Z]?\d+(?:[.-]\d+)*[a-z]?)/i);
-          const figMatch = !tableMatch ? text.match(/\b(?:Figure|Fig\.)\s+([A-Z]?\d+(?:[.-]\d+)*[a-z]?)/i) : null;
-          if (tableMatch) {
-            const tId = `table-${tableMatch[1].replace(/[\.:%]/g, '-').toLowerCase()}`;
-            if (!claimedAnchorIds.has(tId)) {
-              claimedAnchorIds.add(tId);
-              captionAnchor = `<a id="${tId}"></a>`;
-            }
-          } else if (figMatch) {
-            const fId = `figure-${figMatch[1].replace(/[\.:%]/g, '-').toLowerCase()}`;
-            if (!claimedAnchorIds.has(fId)) {
-              claimedAnchorIds.add(fId);
-              captionAnchor = `<a id="${fId}"></a>`;
-            }
-          }
-          pageMarkdownParts.push(`> ${captionAnchor}**${text}**`);
-          lastLine = null;
-        } else if (role === 'footnote') {
-          flushAll();
-          pageMarkdownParts.push(`*${text}*`);
-          lastLine = null;
-        } else {
-          // Standard body line or list item
-          const isListItem = /^[-*•]\s+/.test(text) || /^\d+\.\s+/.test(text);
-
-          if (isListItem) {
-            flushParagraph();
-            const normalizedItem = text.replace(/^[•*]\s+/, '- ');
-            currentList.push(normalizedItem);
-            lastLine = null;
+        if (typeof extractImagesOption === 'object' && extractImagesOption !== null) {
+          imagesDir = extractImagesOption.dir || null;
+          linkPrefix = extractImagesOption.linkPrefix !== undefined
+            ? extractImagesOption.linkPrefix
+            : (imagesDir ? path.basename(imagesDir) : 'assets');
+        } else if (extractImagesOption === true) {
+          if (typeof input === 'string') {
+            const parsedPath = path.parse(path.resolve(process.cwd(), input));
+            imagesDir = path.join(parsedPath.dir, `${parsedPath.name}_assets`);
+            linkPrefix = `${parsedPath.name}_assets`;
           } else {
-            flushList();
-
-            // Check if vertical gap, preceding colon, or column switch indicates a paragraph break
-            const lineBottom = lastLine ? (lastLine.bottom || (lastLine.top + lastLine.height)) : null;
-            const lineGap = (lastLine && lineBottom !== null) ? (line.top - lineBottom) : 0;
-            const isSignificantGap = lastLine && lineGap > Math.max(6, bodyMode * 0.5);
-            const prevEndedWithColon = lastLine && (lastLine.text || '').trim().endsWith(':');
-            const isColumnSwitch = lastLine && (line.top < lastLine.top - 10 || Math.abs(line.left - lastLine.left) > pData.width * 0.25);
-
-            if (isSignificantGap || prevEndedWithColon || isColumnSwitch) {
-              flushParagraph();
-            }
-
-            currentParagraph.push(text);
-            lastLine = line;
+            imagesDir = path.resolve(process.cwd(), 'document_assets');
+            linkPrefix = 'document_assets';
           }
+        }
+
+        imageExtractionResult = await extractPdfImages(input, {
+          pages: pageRangeStr,
+          dir: imagesDir,
+          linkPrefix,
+          scale: options.imageScale || 2.0,
+          pagesData: rawPagesData
+        });
+      }
+
+      // 2. Filter out recurring margin rules (running headers / footers)
+      const contentRulesByPage = stripRepeatedLines
+        ? filterContentRules(rawPagesData)
+        : new Map(rawPagesData.map(p => [p.index, p.rules]));
+
+      // Calculate global body font mode across all lines in the document
+      const allLines = rawPagesData.flatMap(p => p.lines);
+      const bodyMode = calculateBodyFontSizeMode(allLines);
+
+      const documentMarkdownBlocks = [];
+      const claimedAnchorIds = new Set();
+      let totalTablesCount = 0;
+
+      // 3. Process each page: Extract tables, resolve reading flow, and apply typography
+      for (let i = 0; i < rawPagesData.length; i++) {
+        const pData = rawPagesData[i];
+        const validRules = contentRulesByPage.get(pData.index) || [];
+
+        // Extract tables
+        let pageTables = [];
+        if (enableTables) {
+          pageTables = reconstructTables(validRules, pData.lines, pData.width, pData.height);
+          totalTablesCount += pageTables.length;
+        }
+
+        // Extracted images and figures for this page
+        const pageImages = (imageExtractionResult?.byPage.get(pData.pageNumber)) || [];
+
+        // Set of lines claimed by tables and figures so they are not duplicated in prose
+        const claimedLines = new Set([
+          ...pageTables.flatMap(t => t.linesInside),
+          ...pageImages.flatMap(img => img.insideLines || [])
+        ]);
+
+        // Remaining prose lines
+        const proseLines = pData.lines.filter(l => !claimedLines.has(l));
+
+        // Combine prose blocks, table regions, and image/figure blocks into unified reading order blocks
+        const blocksToOrder = [
+          ...proseLines.map(l => ({
+            bbox: { x: l.left, y: l.top, w: l.width, h: l.height },
+            type: 'line',
+            data: l
+          })),
+          ...pageTables.map(t => ({
+            bbox: {
+              x: t.bbox[0],
+              y: t.bbox[1],
+              w: t.bbox[2] - t.bbox[0],
+              h: t.bbox[3] - t.bbox[1]
+            },
+            type: 'table',
+            data: t
+          })),
+          ...pageImages.map(img => ({
+            bbox: {
+              x: img.bbox[0],
+              y: img.bbox[1],
+              w: img.bbox[2] - img.bbox[0],
+              h: img.bbox[3] - img.bbox[1]
+            },
+            type: 'image',
+            data: img
+          }))
+        ];
+
+        // Spatially order all items preserving multi-column reading flow
+        const contentItems = recursiveXyCut(blocksToOrder, 0, 0, pData.width, pData.height);
+
+        // Build markdown for this page
+        const pageMarkdownParts = [];
+        let currentParagraph = [];
+        let currentList = [];
+        let lastLine = null;
+
+        function joinParagraphLines(lines) {
+          let result = '';
+          for (let j = 0; j < lines.length; j++) {
+            const lineText = lines[j];
+            if (j === 0) {
+              result = lineText;
+              continue;
+            }
+            // De-hyphenate if previous line ended with a hyphen and next line starts with lowercase
+            if (/(\p{L}+)-$/u.test(result) && /^\p{Ll}/u.test(lineText)) {
+              result = result.slice(0, -1) + lineText;
+            } else {
+              result += ' ' + lineText;
+            }
+          }
+          return result;
+        }
+
+        function flushParagraph() {
+          if (currentParagraph.length > 0) {
+            pageMarkdownParts.push(joinParagraphLines(currentParagraph));
+            currentParagraph = [];
+          }
+        }
+
+        function flushList() {
+          if (currentList.length > 0) {
+            pageMarkdownParts.push(currentList.join('\n'));
+            currentList = [];
+          }
+        }
+
+        function flushAll() {
+          flushParagraph();
+          flushList();
+        }
+
+        for (const item of contentItems) {
+          if (item.type === 'table') {
+            flushAll();
+            lastLine = null;
+            const tableMatch = (item.data.markdown || '').match(/\bTable\s+([A-Z]?\d+(?:[.-]\d+)*[a-z]?)/i);
+            let tableAnchor = '';
+            if (tableMatch) {
+              const tId = `table-${tableMatch[1].replace(/[\.:%]/g, '-').toLowerCase()}`;
+              if (!claimedAnchorIds.has(tId)) {
+                claimedAnchorIds.add(tId);
+                tableAnchor = `<a id="${tId}"></a>\n\n`;
+              }
+            }
+            pageMarkdownParts.push(tableAnchor + item.data.markdown);
+          } else if (item.type === 'image') {
+            flushAll();
+            lastLine = null;
+            const img = item.data;
+            let figAnchor = '';
+            if (img.caption) {
+              const figMatch = img.caption.match(/\b(?:Figure|Fig\.)\s+([A-Z]?\d+(?:[.-]\d+)*[a-z]?)/i);
+              if (figMatch) {
+                const fId = `figure-${figMatch[1].replace(/[\.:%]/g, '-').toLowerCase()}`;
+                if (!claimedAnchorIds.has(fId)) {
+                  claimedAnchorIds.add(fId);
+                  figAnchor = `<a id="${fId}"></a>`;
+                }
+              }
+            }
+            const safeLink = /\s/.test(img.link) ? `<${img.link}>` : img.link;
+            pageMarkdownParts.push(`![${img.alt}](${safeLink})`);
+            if (img.caption) {
+              pageMarkdownParts.push(`> ${figAnchor}**${img.caption}**`);
+            } else if (figAnchor) {
+              pageMarkdownParts.push(figAnchor);
+            }
+          } else {
+            const line = item.data;
+            const pageDests = documentDestinations.get(pData.index) || [];
+            const anchorTag = enableLinks ? findDestinationAnchors(line, pageDests, claimedAnchorIds) : '';
+            const formattedText = enableLinks ? applyLinksToLine(line, pData.links) : line.text;
+            const text = (anchorTag + formattedText).trim();
+            if (!text) continue;
+
+            const role = classifyTypography(line, bodyMode, pData.height);
+
+            if (role === 'title') {
+              flushAll();
+              pageMarkdownParts.push(`# ${text}`);
+              lastLine = null;
+            } else if (role === 'h1') {
+              flushAll();
+              let secAnchor = '';
+              const secMatch = line.text.trim().match(/^(\d+(?:\.\d+)*)\.?\s+/);
+              if (secMatch) {
+                const secId = `section-${secMatch[1].replace(/\./g, '-')}`;
+                if (!claimedAnchorIds.has(secId)) {
+                  claimedAnchorIds.add(secId);
+                  secAnchor = `<a id="${secId}"></a>`;
+                }
+              }
+              pageMarkdownParts.push(`## ${secAnchor}${text}`);
+              lastLine = null;
+            } else if (role === 'h2') {
+              flushAll();
+              let secAnchor = '';
+              const secMatch = line.text.trim().match(/^(\d+(?:\.\d+)*)\.?\s+/);
+              if (secMatch) {
+                const secId = `subsection-${secMatch[1].replace(/\./g, '-')}`;
+                if (!claimedAnchorIds.has(secId)) {
+                  claimedAnchorIds.add(secId);
+                  secAnchor = `<a id="${secId}"></a>`;
+                }
+              }
+              pageMarkdownParts.push(`### ${secAnchor}${text}`);
+              lastLine = null;
+            } else if (role === 'caption') {
+              flushAll();
+              let captionAnchor = '';
+              const tableMatch = text.match(/\bTable\s+([A-Z]?\d+(?:[.-]\d+)*[a-z]?)/i);
+              const figMatch = !tableMatch ? text.match(/\b(?:Figure|Fig\.)\s+([A-Z]?\d+(?:[.-]\d+)*[a-z]?)/i) : null;
+              if (tableMatch) {
+                const tId = `table-${tableMatch[1].replace(/[\.:%]/g, '-').toLowerCase()}`;
+                if (!claimedAnchorIds.has(tId)) {
+                  claimedAnchorIds.add(tId);
+                  captionAnchor = `<a id="${tId}"></a>`;
+                }
+              } else if (figMatch) {
+                const fId = `figure-${figMatch[1].replace(/[\.:%]/g, '-').toLowerCase()}`;
+                if (!claimedAnchorIds.has(fId)) {
+                  claimedAnchorIds.add(fId);
+                  captionAnchor = `<a id="${fId}"></a>`;
+                }
+              }
+              pageMarkdownParts.push(`> ${captionAnchor}**${text}**`);
+              lastLine = null;
+            } else if (role === 'footnote') {
+              flushAll();
+              pageMarkdownParts.push(`*${text}*`);
+              lastLine = null;
+            } else {
+              // Standard body line or list item
+              const isListItem = /^[-*•]\s+/.test(text) || /^\d+\.\s+/.test(text);
+
+              if (isListItem) {
+                flushParagraph();
+                const normalizedItem = text.replace(/^[•*]\s+/, '- ');
+                currentList.push(normalizedItem);
+                lastLine = null;
+              } else {
+                flushList();
+
+                // Check if vertical gap, preceding colon, or column switch indicates a paragraph break
+                const lineBottom = lastLine ? (lastLine.bottom || (lastLine.top + lastLine.height)) : null;
+                const lineGap = (lastLine && lineBottom !== null) ? (line.top - lineBottom) : 0;
+                const isSignificantGap = lastLine && lineGap > Math.max(6, bodyMode * 0.5);
+                const prevEndedWithColon = lastLine && (lastLine.text || '').trim().endsWith(':');
+                const isColumnSwitch = lastLine && (line.top < lastLine.top - 10 || Math.abs(line.left - lastLine.left) > pData.width * 0.25);
+
+                if (isSignificantGap || prevEndedWithColon || isColumnSwitch) {
+                  flushParagraph();
+                }
+
+                currentParagraph.push(text);
+                lastLine = line;
+              }
+            }
+          }
+        }
+
+        flushAll();
+
+        if (pageMarkdownParts.length > 0) {
+          documentMarkdownBlocks.push(pageMarkdownParts.join('\n\n'));
+        }
+      }
+
+      const rawDocumentMarkdown = documentMarkdownBlocks.join('\n\n');
+
+      // 4. Normalize through Unified / Remark AST
+      const normalizedMarkdown = await normalizeMarkdown(rawDocumentMarkdown);
+
+      return {
+        markdown: normalizedMarkdown,
+        totalPages,
+        pagesProcessed: targetIndices.length,
+        tablesCount: totalTablesCount,
+        imagesCount: imageExtractionResult ? imageExtractionResult.assets.length : 0,
+        assets: imageExtractionResult ? imageExtractionResult.assets : [],
+        durationMs: Date.now() - startTime
+      };
+    } finally {
+      for (const pData of rawPagesData) {
+        if (pData.page && typeof pData.page.destroy === 'function') {
+          try {
+            pData.page.destroy();
+          } catch {}
         }
       }
     }
-
-    flushAll();
-
-    if (pageMarkdownParts.length > 0) {
-      documentMarkdownBlocks.push(pageMarkdownParts.join('\n\n'));
-    }
+  } finally {
+    try {
+      doc.destroy();
+    } catch {}
   }
-
-  const rawDocumentMarkdown = documentMarkdownBlocks.join('\n\n');
-
-  // 4. Normalize through Unified / Remark AST
-  const normalizedMarkdown = await normalizeMarkdown(rawDocumentMarkdown);
-
-  return {
-    markdown: normalizedMarkdown,
-    totalPages,
-    pagesProcessed: targetIndices.length,
-    tablesCount: totalTablesCount,
-    imagesCount: imageExtractionResult ? imageExtractionResult.assets.length : 0,
-    assets: imageExtractionResult ? imageExtractionResult.assets : [],
-    durationMs: Date.now() - startTime
-  };
 }
