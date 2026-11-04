@@ -64,8 +64,9 @@ export function classifyTypography(line, bodyMode, pageHeight = 792) {
     return 'title';
   }
 
-  // Major Section: ratio >= 1.25x bodyMode and <= 16 words
-  if (ratio >= 1.25 && wordCount <= 16) {
+  // Major Section: ratio >= 1.18x bodyMode (or bold with ratio >= 1.15x) and <= 16 words
+  const isMajorRatio = ratio >= 1.18 || (line.font?.isBold && ratio >= 1.15);
+  if (isMajorRatio && wordCount <= 16) {
     return 'h1';
   }
 

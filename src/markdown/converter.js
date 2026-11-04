@@ -342,7 +342,8 @@ export async function convertPdfToMarkdown(input, options = {}) {
               let secAnchor = '';
               const secMatch = line.text.trim().match(/^(\d+(?:\.\d+)*)\.?\s+/);
               if (secMatch) {
-                const secId = `subsection-${secMatch[1].replace(/\./g, '-')}`;
+                const prefix = secMatch[1].includes('.') ? 'subsection' : 'section';
+                const secId = `${prefix}-${secMatch[1].replace(/\./g, '-')}`;
                 if (!claimedAnchorIds.has(secId)) {
                   claimedAnchorIds.add(secId);
                   secAnchor = `<a id="${secId}"></a>`;

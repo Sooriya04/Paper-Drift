@@ -161,9 +161,12 @@ runTest('classifyTypography categorizes headings, captions, footnotes, and body 
   };
   assert.notStrictEqual(classifyTypography(longTitleLine, bodyMode, pageHeight), 'title');
 
-  // H1: ratio >= 1.25 && wordCount <= 16
+  // H1: ratio >= 1.25 && wordCount <= 16, or academic 12pt bold with ratio >= 1.15
   const h1Line = { text: '1. Introduction and Prior Works', font: { size: 13 } };
   assert.strictEqual(classifyTypography(h1Line, bodyMode, pageHeight), 'h1');
+
+  const academicH1Line = { text: 'Introduction', font: { size: 12, isBold: true } };
+  assert.strictEqual(classifyTypography(academicH1Line, bodyMode, pageHeight), 'h1');
 
   // H2: ratio >= 1.05 && matches SECTION_NUMBER_REGEX && wordCount <= 14
   const h2Line = { text: '1.1 System Architecture Overview', font: { size: 11 } };

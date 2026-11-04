@@ -173,5 +173,35 @@ export function extractPageVectorsAndText(page) {
     }
   }
 
-  return { lines, vectors };
+  // Post-process lines: merge contiguous spans sharing same baseline Y, font size, and style
+  // (e.g., LaTeX section numbers "1" and section titles "Introduction" emitted in separate boxes)
+  const mergedLines = [];
+  for (const line of lines) {
+    const last = mergedLines[mergedLines.length - 1];
+    if (last) {
+      const sameBaseline = Math.abs(last.top - line.top) <= 2.5 && Math.abs(last.bottom - line.bottom) <= 2.5;
+      const horizontalGap = line.left - last.right;
+      const sameFontSize = Math.abs((last.font?.size || 0) - (line.font?.size || 0)) <= 1.0;
+      const sameStyle = last.font?.isBold === line.font?.isBold && last.font?.isItalic === line.font?.isItalic;
+
+      if (sameBaseline && sameFontSize && sameStyle && horizontalGap >= -1 && horizontalGap < 20) {
+        last.right = Math.max(last.right, line.right);
+        last.top = Math.min(last.top, line.top);
+        last.bottom = Math.max(last.bottom, line.bottom);
+        last.width = last.right - last.left;
+        last.height = last.bottom - last.top;
+        last.bbox = [last.left, last.top, last.right, last.bottom];
+        const sep = horizontalGap > 1 ? ' ' : '';
+        last.text = `${last.text}${sep}${line.text}`;
+        last.charCount += line.charCount;
+        if (Array.isArray(line.chars) && Array.isArray(last.chars)) {
+          last.chars.push(...line.chars);
+        }
+        continue;
+      }
+    }
+    mergedLines.push(line);
+  }
+
+  return { lines: mergedLines, vectors };
 }

@@ -182,4 +182,11 @@
 - Handled HTTP `OPTIONS` preflight requests for `/api/convert-markdown` in `playground/server.js`, returning `204 No Content` with appropriate CORS headers (`Access-Control-Allow-Origin`, `Access-Control-Allow-Methods`, `Access-Control-Allow-Headers`) to support cross-origin frontend integrations.
 - Fixed directory-targeted multi-page image exports in `bin/cli.js`: uses `parsedInput.name` as prefix fallback instead of static `'page'`, preventing batch exports from overwriting pages across different documents.
 
+### fix: academic heading detection, section anchor slugs, baseline line merging, and entrypoint deduplication
+- Adjusted `classifyTypography` in `src/markdown/typography.js` to lower `h1` ratio threshold to 1.18 (or bold headers with ratio >= 1.15), correctly detecting standard 12pt academic section headings against 10pt body text.
+- Fixed heading anchor slugs in `src/markdown/converter.js`: top-level sections now generate `section-${id}` anchors (e.g. `<a id="section-1"></a>`) instead of defaulting to `subsection-` prefix when no sub-numbers are present.
+- Implemented contiguous horizontal span merging in `src/vectors/walker.js`: joins adjacent text boxes on identical baselines with matching font size and style when separated by word spacing (< 20pt), preserving LaTeX section numbers and titles emitted across separate boxes.
+- Deduplicated entry point declarations in `src/index.js`: eliminated repeated `export ... from` and `import ... from` statements, exporting named and default exports from single imports.
+
+
 
