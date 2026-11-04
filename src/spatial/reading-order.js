@@ -29,11 +29,15 @@ export function recursiveXyCut(blockList) {
   const fullWidth = maxX - minX;
   const midX = (minX + maxX) / 2;
 
-  // A block spans across columns if it covers > 65% of the content width and crosses the center
+  // A block spans across columns if it covers > 55% of the content width and crosses the center,
+  // or crosses the center while being horizontally centered (e.g. short titles, author affiliations, centered captions)
   const isSpanning = (b) => {
-    return b.bbox.w > fullWidth * 0.65 &&
-           b.bbox.x < midX - 15 &&
-           (b.bbox.x + b.bbox.w) > midX + 15;
+    const crossesCenter = b.bbox.x < midX - 10 && (b.bbox.x + b.bbox.w) > midX + 10;
+    if (!crossesCenter) return false;
+    const isWide = b.bbox.w > fullWidth * 0.55;
+    const bMidX = b.bbox.x + b.bbox.w / 2;
+    const isCentered = Math.abs(bMidX - midX) < fullWidth * 0.15;
+    return isWide || isCentered;
   };
 
   const hasSpanningBlocks = blockList.some(isSpanning);
