@@ -182,6 +182,17 @@
 - Handled HTTP `OPTIONS` preflight requests for `/api/convert-markdown` in `playground/server.js`, returning `204 No Content` with appropriate CORS headers (`Access-Control-Allow-Origin`, `Access-Control-Allow-Methods`, `Access-Control-Allow-Headers`) to support cross-origin frontend integrations.
 - Fixed directory-targeted multi-page image exports in `bin/cli.js`: uses `parsedInput.name` as prefix fallback instead of static `'page'`, preventing batch exports from overwriting pages across different documents.
 
+### release: v0.1.4 - memory leak fixes, academic headings, api docs, and cors preflight
+- Bumped package version to `0.1.4`.
+- Eliminated WebAssembly page handle accumulation in `convertPdfToMarkdown` and `extractPdfImages` by freeing page handles per pass.
+- Added HTTP `OPTIONS` CORS preflight support on `/api/convert-markdown` returning 204 No Content.
+- Fixed directory-targeted image exports in `bin/cli.js` falling back to input document name instead of static `'page'`.
+- Adjusted `classifyTypography` heading threshold to 1.18 to capture standard 12pt academic section headers.
+- Fixed section anchor slugs dynamically separating `section-${id}` and `subsection-${id}`.
+- Added contiguous horizontal baseline span merging in `extractPageVectorsAndText` for LaTeX split numbers and headings.
+- Deduplicated library entry point declarations in `src/index.js`.
+- Authored comprehensive documentation in `docs/api/`: `sdk.md`, `cli.md`, and `server.md`.
+
 ### fix: academic heading detection, section anchor slugs, baseline line merging, and entrypoint deduplication
 - Adjusted `classifyTypography` in `src/markdown/typography.js` to lower `h1` ratio threshold to 1.18 (or bold headers with ratio >= 1.15), correctly detecting standard 12pt academic section headings against 10pt body text.
 - Fixed heading anchor slugs in `src/markdown/converter.js`: top-level sections now generate `section-${id}` anchors (e.g. `<a id="section-1"></a>`) instead of defaulting to `subsection-` prefix when no sub-numbers are present.

@@ -1,6 +1,6 @@
 {
   "name": "paper-drift",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Zero-Python, zero-Chromium WebAssembly PDF engine: high-res rasterizer, streaming processor, and publication-grade GFM Markdown converter",
   "type": "module",
   "main": "src/index.js",
