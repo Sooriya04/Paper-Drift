@@ -176,3 +176,10 @@
 - Added comprehensive unit test in `test/links.test.js` validating figure anchor insertion and angle-bracket image link formatting.
 - Executed research paper benchmark suite across top 5 landmark ArXiv papers (Attention, ResNet, LoRA, BERT, GAN) with 100% throughput fidelity and zero regression.
 
+### fix: free wasm page memory per pass, support cors preflight, and preserve cli export filenames
+- Eliminated multi-page WebAssembly memory accumulation in `src/markdown/converter.js`: frees loaded `page` instances via `page.destroy()` immediately within the first-pass loop rather than retaining all page handles simultaneously in `rawPagesData`.
+- Updated `src/images/extractor.js` to render vector figures using on-demand page handles that are cleanly destroyed after rendering, bounding memory usage on multi-page papers.
+- Handled HTTP `OPTIONS` preflight requests for `/api/convert-markdown` in `playground/server.js`, returning `204 No Content` with appropriate CORS headers (`Access-Control-Allow-Origin`, `Access-Control-Allow-Methods`, `Access-Control-Allow-Headers`) to support cross-origin frontend integrations.
+- Fixed directory-targeted multi-page image exports in `bin/cli.js`: uses `parsedInput.name` as prefix fallback instead of static `'page'`, preventing batch exports from overwriting pages across different documents.
+
+

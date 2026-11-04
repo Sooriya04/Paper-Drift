@@ -214,40 +214,57 @@ export async function extractPdfImages(input, options = {}) {
 
         // Process vector figures
         let figureIndex = 0;
-        for (const fig of detectedFigures) {
-          figureIndex++;
-          totalFiguresCount++;
+        let pageHandle = pData.page || null;
+        const ownsPageHandle = !pageHandle;
+        if (!pageHandle && detectedFigures.length > 0) {
+          try {
+            pageHandle = doc.loadPage(pData.pageIndex);
+          } catch {}
+        }
 
-          const rendered = renderFigureRegion(pData.page, fig.bbox, scale);
-          const name = `p${String(pData.pageNumber).padStart(2, '0')}-f${String(figureIndex).padStart(2, '0')}.${rendered.extension}`;
-          const filePath = targetDir ? path.join(targetDir, name) : null;
-          const link = linkPrefix ? `${linkPrefix.replace(/\/+$/, '')}/${name}` : name;
+        try {
+          for (const fig of detectedFigures) {
+            figureIndex++;
+            totalFiguresCount++;
 
-          if (targetDir) {
-            fs.writeFileSync(filePath, rendered.bytes);
+            if (!pageHandle) continue;
+            const rendered = renderFigureRegion(pageHandle, fig.bbox, scale);
+            const name = `p${String(pData.pageNumber).padStart(2, '0')}-f${String(figureIndex).padStart(2, '0')}.${rendered.extension}`;
+            const filePath = targetDir ? path.join(targetDir, name) : null;
+            const link = linkPrefix ? `${linkPrefix.replace(/\/+$/, '')}/${name}` : name;
+
+            if (targetDir) {
+              fs.writeFileSync(filePath, rendered.bytes);
+            }
+
+            const altText = fig.caption ? fig.caption : `Page ${pData.pageNumber} Figure ${figureIndex}`;
+
+            const assetInfo = {
+              type: 'figure',
+              pageNumber: pData.pageNumber,
+              pageIndex: pData.pageIndex,
+              bbox: fig.bbox,
+              filename: name,
+              filePath,
+              link,
+              alt: altText,
+              caption: fig.caption || null,
+              width: rendered.width,
+              height: rendered.height,
+              bytes: rendered.bytes,
+              sizeKb: parseFloat((rendered.bytes.length / 1024).toFixed(1)),
+              insideLines: fig.insideLines || []
+            };
+
+            assets.push(assetInfo);
+            pagePlacements.push(assetInfo);
           }
-
-          const altText = fig.caption ? fig.caption : `Page ${pData.pageNumber} Figure ${figureIndex}`;
-
-          const assetInfo = {
-            type: 'figure',
-            pageNumber: pData.pageNumber,
-            pageIndex: pData.pageIndex,
-            bbox: fig.bbox,
-            filename: name,
-            filePath,
-            link,
-            alt: altText,
-            caption: fig.caption || null,
-            width: rendered.width,
-            height: rendered.height,
-            bytes: rendered.bytes,
-            sizeKb: parseFloat((rendered.bytes.length / 1024).toFixed(1)),
-            insideLines: fig.insideLines || []
-          };
-
-          assets.push(assetInfo);
-          pagePlacements.push(assetInfo);
+        } finally {
+          if (ownsPageHandle && pageHandle && typeof pageHandle.destroy === 'function') {
+            try {
+              pageHandle.destroy();
+            } catch {}
+          }
         }
 
         // Process standalone raster images

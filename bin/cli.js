@@ -169,7 +169,7 @@ async function run() {
           namePrefix = parsedOut.name;
         } else {
           outDir = resolvedOut;
-          namePrefix = 'page';
+          namePrefix = parsedInput.name;
         }
       }
 

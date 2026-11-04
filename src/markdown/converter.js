@@ -112,7 +112,6 @@ export async function convertPdfToMarkdown(input, options = {}) {
           }
 
           rawPagesData.push({
-            page,
             index: pageIndex,
             pageIndex,
             pageNumber,
@@ -125,11 +124,10 @@ export async function convertPdfToMarkdown(input, options = {}) {
             links,
             rasterImages: pageImages
           });
-        } catch (err) {
+        } finally {
           try {
             page.destroy();
           } catch {}
-          throw err;
         }
       }
 
@@ -428,13 +426,7 @@ export async function convertPdfToMarkdown(input, options = {}) {
         durationMs: Date.now() - startTime
       };
     } finally {
-      for (const pData of rawPagesData) {
-        if (pData.page && typeof pData.page.destroy === 'function') {
-          try {
-            pData.page.destroy();
-          } catch {}
-        }
-      }
+      // Pages are destroyed immediately during pass 1
     }
   } finally {
     try {

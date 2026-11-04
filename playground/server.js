@@ -31,8 +31,18 @@ const server = http.createServer((req, res) => {
   let reqPath = urlObj.pathname;
 
   // API Endpoint: Direct PDF to Markdown conversion
-  if (req.method === 'POST' && reqPath === '/api/convert-markdown') {
-    const MAX_UPLOAD_BYTES = 50 * 1024 * 1024; // 50 MB
+  if (reqPath === '/api/convert-markdown') {
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204, {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type'
+      });
+      return res.end();
+    }
+
+    if (req.method === 'POST') {
+      const MAX_UPLOAD_BYTES = 50 * 1024 * 1024; // 50 MB
     const contentLength = parseInt(req.headers['content-length'], 10);
     if (contentLength > MAX_UPLOAD_BYTES) {
       res.writeHead(413, { 'Content-Type': 'application/json' });
@@ -89,6 +99,7 @@ const server = http.createServer((req, res) => {
     });
     return;
   }
+}
 
   // Static files
   if (reqPath === '/') reqPath = '/index.html';
