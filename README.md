@@ -251,6 +251,16 @@ npx paper-drift skill cat
 
 ---
 
+## Documentation & API Guides
+
+Comprehensive reference documentation is available in the [`docs/api/`](docs/api/) directory:
+
+- 📘 **[JavaScript / TypeScript SDK Reference](docs/api/sdk.md)**: Full parameter and return type reference for `convertPdfToMarkdown`, `streamPdfPages`, `convertPdfToImages`, `convertPdfToHtml`, and `extractPdfImages`.
+- 💻 **[CLI Reference](docs/api/cli.md)**: Command syntax, flags (`--format`, `-i`, `--pages`, `--scale`), and output examples.
+- 🌐 **[HTTP REST API Reference](docs/api/server.md)**: Local development server, `/api/convert-markdown` endpoint, cURL examples, and CORS specs.
+
+---
+
 ## Testing
 
 Run the test suite:
