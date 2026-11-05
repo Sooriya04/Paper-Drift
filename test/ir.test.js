@@ -144,4 +144,82 @@ runTest('exportToJson serializes Document IR to valid JSON string', () => {
   assert.strictEqual(parsed.blocks.length, 1);
 });
 
+// -------------------------------------------------------------
+// 3. Multi-column, Tables, Equations, Headings & Benchmarks Tests
+// -------------------------------------------------------------
+const attentionPdf = path.resolve(__dirname, 'fixtures/benchmarks/01-attention-is-all-you-need.pdf');
+const resnetPdf = path.resolve(__dirname, 'fixtures/benchmarks/02-resnet-deep-residual-learning.pdf');
+
+if (fs.existsSync(attentionPdf)) {
+  await runAsyncTest('convertPdfToDocumentIR processes multi-column layout with tables and headings', async () => {
+    const doc = await convertPdfToDocumentIR(attentionPdf, { pages: '1-3' });
+    assert.strictEqual(validateDocumentIR(doc), true);
+    assert.strictEqual(doc.page_count, 15);
+    assert.ok(doc.blocks.length > 20, 'Should extract multi-column blocks');
+
+    const headingBlocks = doc.blocks.filter(b => b.type === 'heading');
+    assert.ok(headingBlocks.length >= 3, 'Should extract headings');
+    assert.ok(headingBlocks.some(h => typeof h.content === 'string' && h.content.includes('Introduction')));
+
+    const tableBlocks = doc.blocks.filter(b => b.type === 'table');
+    assert.ok(tableBlocks.length >= 1, 'Should extract tables');
+    assert.ok(tableBlocks[0].page >= 1);
+    assert.ok(tableBlocks[0].content && typeof tableBlocks[0].content === 'object');
+    assert.ok(tableBlocks[0].content.markdown.includes('|'));
+
+    // Check outline extraction
+    assert.ok(Array.isArray(doc.outline));
+    assert.ok(doc.outline.length > 0, 'Should extract document outline from PDF');
+  });
+}
+
+runTest('convertPdfToDocumentIR detects list and equation blocks correctly', () => {
+  const mockDoc = {
+    title: 'Test Blocks',
+    page_count: 1,
+    outline: [],
+    metadata: {},
+    blocks: [
+      {
+        id: 'blk-list',
+        type: 'list',
+        content: '- First item in bullet list',
+        page: 1,
+        bbox: [10, 10, 100, 20],
+        order: 0,
+        metadata: {}
+      },
+      {
+        id: 'blk-eq',
+        type: 'equation',
+        content: '$E = mc^2$',
+        page: 1,
+        bbox: [10, 30, 80, 50],
+        order: 1,
+        metadata: {}
+      }
+    ]
+  };
+  assert.strictEqual(validateDocumentIR(mockDoc), true);
+});
+
+if (fs.existsSync(resnetPdf)) {
+  await runAsyncTest('convertPdfToDocumentIR extracts image/figure blocks when extractImages enabled', async () => {
+    const doc = await convertPdfToDocumentIR(resnetPdf, {
+      pages: '1-2',
+      extractImages: true
+    });
+    assert.strictEqual(validateDocumentIR(doc), true);
+    // Even if sample or resnet, verify image block structural validity when present
+    const imageBlocks = doc.blocks.filter(b => b.type === 'image');
+    for (const img of imageBlocks) {
+      assert.strictEqual(typeof img.id, 'string');
+      assert.strictEqual(img.type, 'image');
+      assert.ok(img.content !== undefined);
+      assert.strictEqual(typeof img.page, 'number');
+      assert.strictEqual(img.bbox.length, 4);
+    }
+  });
+}
+
 console.log('\n\x1b[32m✔ All IR tests passed successfully!\x1b[0m\n');

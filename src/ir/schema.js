@@ -259,11 +259,27 @@ export async function convertPdfToDocumentIR(input, options = {}) {
       }
     }
 
+    let docAuthor = null;
+    try {
+      const metaAuthor = doc.getMetaData('info:Author');
+      if (metaAuthor && typeof metaAuthor === 'string') {
+        docAuthor = metaAuthor.trim();
+      }
+    } catch {}
+
+    let docOutline = [];
+    try {
+      const rawOutline = doc.loadOutline();
+      if (Array.isArray(rawOutline)) {
+        docOutline = rawOutline;
+      }
+    } catch {}
+
     return {
       title: docTitle,
-      author: null,
+      author: docAuthor,
       page_count: totalPages,
-      outline: [],
+      outline: docOutline,
       metadata: {
         generator: 'paper-drift',
         scale: options.scale || 2.0,

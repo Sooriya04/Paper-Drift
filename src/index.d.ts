@@ -168,37 +168,8 @@ export interface ConvertMarkdownResult {
   durationMs: number;
 }
 
-export type BlockType = 'heading' | 'paragraph' | 'table' | 'image' | 'equation' | 'caption' | 'footnote' | 'list';
-
-export interface DocumentBlock {
-  id: string;
-  type: BlockType;
-  content: string | object;
-  page: number;
-  bbox: number[];
-  order: number;
-  metadata: Record<string, any>;
-}
-
-export interface DocumentIR {
-  title: string;
-  author?: string | null;
-  page_count: number;
-  outline: Array<object>;
-  metadata: Record<string, any>;
-  blocks: DocumentBlock[];
-}
-
-export interface ConvertDocumentIROptions {
-  pages?: string | number | number[];
-  pageRange?: string | number | number[];
-  tables?: boolean;
-  stripRepeatedLines?: boolean;
-  links?: boolean;
-  extractImages?: boolean;
-  title?: string;
-  scale?: number;
-}
+import { BlockType, DocumentBlock, DocumentOutlineItem, DocumentIR, ConvertDocumentIROptions } from './ir/types.js';
+export * from './ir/types.js';
 
 /**
  * Converts a PDF buffer or file path into high-resolution images and Base64 strings.
