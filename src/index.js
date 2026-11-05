@@ -13,6 +13,13 @@ import { extractPdfImages } from './images/extractor.js';
 import { extractPageLinks, buildDocumentDestinations, applyLinksToLine, findDestinationAnchors, formatDestinationSlug } from './links/extractor.js';
 import { resolveReadingOrder, recursiveXyCut } from './spatial/reading-order.js';
 import { convertPdfToDocumentIR, validateDocumentIR, exportToJson } from './ir/schema.js';
+import {
+  cleanLigatures,
+  repairHyphenation,
+  normalizeWhitespace,
+  filterRunningHeadersFooters,
+  normalizePageText
+} from './normalization/text.js';
 
 export {
   convertPdfToImages,
@@ -30,7 +37,12 @@ export {
   recursiveXyCut,
   convertPdfToDocumentIR,
   validateDocumentIR,
-  exportToJson
+  exportToJson,
+  cleanLigatures,
+  repairHyphenation,
+  normalizeWhitespace,
+  filterRunningHeadersFooters,
+  normalizePageText
 };
 
 export default {
@@ -49,5 +61,10 @@ export default {
   recursiveXyCut,
   convertPdfToDocumentIR,
   validateDocumentIR,
-  exportToJson
+  exportToJson,
+  cleanLigatures,
+  repairHyphenation,
+  normalizeWhitespace,
+  filterRunningHeadersFooters,
+  normalizePageText
 };

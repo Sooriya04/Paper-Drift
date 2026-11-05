@@ -282,6 +282,34 @@ export function findDestinationAnchors(line: object, pageDestinations?: Array<{ 
  */
 export function formatDestinationSlug(rawUri: string): string;
 
+/**
+ * Replaces standard PDF typographic ligatures and normalizes smart quotes.
+ */
+export function cleanLigatures(text: string): string;
+
+/**
+ * Repairs words split across line breaks by hyphens while preserving legitimate compounds and markdown bullet items.
+ */
+export function repairHyphenation(text: string): string;
+
+/**
+ * Normalizes horizontal and vertical whitespace.
+ */
+export function normalizeWhitespace(text: string): string;
+
+/**
+ * Detects and filters recurring running headers and footers across pages.
+ */
+export function filterRunningHeadersFooters<T extends { page: number; content: string }>(
+  pages: T[],
+  options?: { strip?: boolean }
+): T[];
+
+/**
+ * Composes ligature cleanup, hyphenation repair, and whitespace normalization.
+ */
+export function normalizePageText(rawText: string, options?: object): string;
+
 declare const _default: {
   convertPdfToImages: typeof convertPdfToImages;
   streamPdfPages: typeof streamPdfPages;
@@ -298,6 +326,11 @@ declare const _default: {
   convertPdfToDocumentIR: typeof convertPdfToDocumentIR;
   validateDocumentIR: typeof validateDocumentIR;
   exportToJson: typeof exportToJson;
+  cleanLigatures: typeof cleanLigatures;
+  repairHyphenation: typeof repairHyphenation;
+  normalizeWhitespace: typeof normalizeWhitespace;
+  filterRunningHeadersFooters: typeof filterRunningHeadersFooters;
+  normalizePageText: typeof normalizePageText;
 };
 
 export default _default;

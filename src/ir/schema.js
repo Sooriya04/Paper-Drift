@@ -19,6 +19,7 @@ import {
   extractPageLinks,
   applyLinksToLine
 } from '../links/extractor.js';
+import { normalizePageText, filterRunningHeadersFooters } from '../normalization/text.js';
 
 /**
  * Validates a document IR object against the minimal page-based schema.
@@ -248,18 +249,25 @@ export async function convertPdfToDocumentIR(input, options = {}) {
         }
       }
 
+      const rawPageContent = pageTextParts.join('\n');
+      const normalizedContent = options.normalize !== false ? normalizePageText(rawPageContent) : rawPageContent;
+
       pages.push({
         page: pData.pageNumber,
-        content: pageTextParts.join('\n')
+        content: normalizedContent
       });
     }
+
+    const finalPages = (options.stripHeadersFooters !== false && pages.length > 1)
+      ? filterRunningHeadersFooters(pages)
+      : pages;
 
     return {
       metadata: {
         title: docTitle,
         pageCount: totalPages
       },
-      pages
+      pages: finalPages
     };
   } finally {
     try {
