@@ -24,20 +24,21 @@ import {
 } from '../links/extractor.js';
 
 /**
- * Validates a document IR object against the required lightweight, bbox-free schema structure.
- * Enforces Document schema: { title, author, pageCount, outline, metadata, blocks }
- * and Block schema: { id, type, content, page, order, metadata? } with NO bbox.
+ * Validates a document IR object against the required lightweight, bbox-free page-centric schema structure.
+ * Enforces:
+ * - Top-level `metadata` object: { title, author?, pageCount, ... }
+ * - Top-level `pages` array: [{ page: number, content: Block[] }, ...]
+ * - Block schema: { type, content, metadata? } with NO bbox.
  *
  * @param {Object} doc - Document IR object to validate.
  * @returns {boolean} True if valid according to schema, false otherwise.
  */
 export function validateDocumentIR(doc) {
   if (!doc || typeof doc !== 'object') return false;
-  if (typeof doc.title !== 'string') return false;
-  if (typeof doc.pageCount !== 'number') return false;
-  if (!Array.isArray(doc.outline)) return false;
   if (!doc.metadata || typeof doc.metadata !== 'object') return false;
-  if (!Array.isArray(doc.blocks)) return false;
+  if (typeof doc.metadata.title !== 'string') return false;
+  if (typeof doc.metadata.pageCount !== 'number') return false;
+  if (!Array.isArray(doc.pages)) return false;
 
   const validTypes = new Set([
     'heading',
@@ -50,16 +51,19 @@ export function validateDocumentIR(doc) {
     'list'
   ]);
 
-  for (const block of doc.blocks) {
-    if (!block || typeof block !== 'object') return false;
-    if (typeof block.id !== 'string') return false;
-    if (!validTypes.has(block.type)) return false;
-    if (block.content === undefined || block.content === null) return false;
-    if (typeof block.page !== 'number') return false;
-    // Bbox-free assertion: bounding boxes and spatial coordinates are omitted
-    if ('bbox' in block) return false;
-    if (typeof block.order !== 'number') return false;
-    if (block.metadata !== undefined && (typeof block.metadata !== 'object' || block.metadata === null)) return false;
+  for (const pageObj of doc.pages) {
+    if (!pageObj || typeof pageObj !== 'object') return false;
+    if (typeof pageObj.page !== 'number') return false;
+    if (!Array.isArray(pageObj.content)) return false;
+
+    for (const block of pageObj.content) {
+      if (!block || typeof block !== 'object') return false;
+      if (!validTypes.has(block.type)) return false;
+      if (block.content === undefined || block.content === null) return false;
+      // Bbox-free assertion: bounding boxes and spatial coordinates are omitted
+      if ('bbox' in block) return false;
+      if (block.metadata !== undefined && (typeof block.metadata !== 'object' || block.metadata === null)) return false;
+    }
   }
 
   return true;
@@ -201,8 +205,7 @@ export async function convertPdfToDocumentIR(input, options = {}) {
     const allLines = rawPagesData.flatMap(p => p.lines);
     const bodyMode = calculateBodyFontSizeMode(allLines);
 
-    const blocks = [];
-    let globalOrder = 0;
+    const pages = [];
     const claimedAnchorIds = new Set();
 
     for (let i = 0; i < rawPagesData.length; i++) {
@@ -256,26 +259,23 @@ export async function convertPdfToDocumentIR(input, options = {}) {
 
       // Recursively partition and order content items via XY-Cut
       const contentItems = recursiveXyCut(blocksToOrder, 0, 0, pData.width, pData.height);
+      const pageContent = [];
 
       for (const item of contentItems) {
         if (item.type === 'table') {
           const t = item.data;
-          blocks.push({
-            id: `blk-p${pData.pageNumber}-${globalOrder}`,
+          pageContent.push({
             type: 'table',
             content: {
               markdown: t.markdown,
               rows: t.rows || [],
               columns: t.cols || []
             },
-            page: pData.pageNumber,
-            order: globalOrder++,
             metadata: { tableType: t.type || 'grid' }
           });
         } else if (item.type === 'image') {
           const img = item.data;
-          blocks.push({
-            id: `blk-p${pData.pageNumber}-${globalOrder}`,
+          pageContent.push({
             type: 'image',
             content: {
               type: img.type || 'image',
@@ -285,8 +285,6 @@ export async function convertPdfToDocumentIR(input, options = {}) {
               width: img.width || 0,
               height: img.height || 0
             },
-            page: pData.pageNumber,
-            order: globalOrder++,
             metadata: {
               filename: img.filename || null,
               sizeKb: img.sizeKb || null
@@ -344,12 +342,9 @@ export async function convertPdfToDocumentIR(input, options = {}) {
             irType = 'equation';
           }
 
-          blocks.push({
-            id: `blk-p${pData.pageNumber}-${globalOrder}`,
+          pageContent.push({
             type: irType,
             content: text,
-            page: pData.pageNumber,
-            order: globalOrder++,
             metadata: {
               font: line.font || null,
               fontSize: line.font?.size || null,
@@ -359,6 +354,11 @@ export async function convertPdfToDocumentIR(input, options = {}) {
           });
         }
       }
+
+      pages.push({
+        page: pData.pageNumber,
+        content: pageContent
+      });
     }
 
     let docAuthor = null;
@@ -378,16 +378,16 @@ export async function convertPdfToDocumentIR(input, options = {}) {
     } catch {}
 
     return {
-      title: docTitle,
-      author: docAuthor,
-      pageCount: totalPages,
-      outline: docOutline,
       metadata: {
+        title: docTitle,
+        author: docAuthor,
+        pageCount: totalPages,
+        outline: docOutline,
         generator: 'paper-drift',
         scale: options.scale || 2.0,
         createdAt: new Date().toISOString()
       },
-      blocks
+      pages
     };
   } finally {
     try {

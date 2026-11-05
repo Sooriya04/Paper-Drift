@@ -168,7 +168,7 @@ export interface ConvertMarkdownResult {
   durationMs: number;
 }
 
-import { BlockType, DocumentBlock, DocumentOutlineItem, DocumentIR, ConvertDocumentIROptions } from './ir/types.d.ts';
+import { BlockType, DocumentBlock, DocumentPageIR, DocumentMetadata, DocumentOutlineItem, DocumentIR, ConvertDocumentIROptions } from './ir/types.d.ts';
 export * from './ir/types.d.ts';
 
 /**
