@@ -2,7 +2,8 @@
  * @file src/index.js
  * @description Main library entrypoint for paper-drift.
  * High-performance WebAssembly PDF engine: high-res Image rendering (Base64/PNG),
- * standalone HTML export, publication-grade GFM Markdown conversion, and spatial reading order layout analysis.
+ * standalone HTML export, publication-grade GFM Markdown conversion, spatial reading order layout analysis,
+ * and Structured Document IR.
  * Part of paper-drift - https://github.com/Sooriya04/Paper-Drift
  */
 
@@ -11,6 +12,7 @@ import { convertPdfToMarkdown } from './markdown/converter.js';
 import { extractPdfImages } from './images/extractor.js';
 import { extractPageLinks, buildDocumentDestinations, applyLinksToLine, findDestinationAnchors, formatDestinationSlug } from './links/extractor.js';
 import { resolveReadingOrder, recursiveXyCut } from './spatial/reading-order.js';
+import { convertPdfToDocumentIR, validateDocumentIR, exportToJson } from './ir/schema.js';
 
 export {
   convertPdfToImages,
@@ -25,7 +27,10 @@ export {
   findDestinationAnchors,
   formatDestinationSlug,
   resolveReadingOrder,
-  recursiveXyCut
+  recursiveXyCut,
+  convertPdfToDocumentIR,
+  validateDocumentIR,
+  exportToJson
 };
 
 export default {
@@ -41,5 +46,8 @@ export default {
   formatDestinationSlug,
   parsePageRange,
   resolveReadingOrder,
-  recursiveXyCut
+  recursiveXyCut,
+  convertPdfToDocumentIR,
+  validateDocumentIR,
+  exportToJson
 };
