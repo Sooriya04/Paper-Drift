@@ -1,6 +1,6 @@
 /**
  * @file src/index.d.ts
- * @description TypeScript definitions for paper-drift.
+ * @description TypeScript definitions for paper-drift including Structured Document IR.
  * Part of paper-drift - https://github.com/Sooriya04/Paper-Drift
  */
 
@@ -168,6 +168,38 @@ export interface ConvertMarkdownResult {
   durationMs: number;
 }
 
+export type BlockType = 'heading' | 'paragraph' | 'table' | 'image' | 'equation' | 'caption' | 'footnote' | 'list';
+
+export interface DocumentBlock {
+  id: string;
+  type: BlockType;
+  content: string | object;
+  page: number;
+  bbox: number[];
+  order: number;
+  metadata: Record<string, any>;
+}
+
+export interface DocumentIR {
+  title: string;
+  author?: string | null;
+  page_count: number;
+  outline: Array<object>;
+  metadata: Record<string, any>;
+  blocks: DocumentBlock[];
+}
+
+export interface ConvertDocumentIROptions {
+  pages?: string | number | number[];
+  pageRange?: string | number | number[];
+  tables?: boolean;
+  stripRepeatedLines?: boolean;
+  links?: boolean;
+  extractImages?: boolean;
+  title?: string;
+  scale?: number;
+}
+
 /**
  * Converts a PDF buffer or file path into high-resolution images and Base64 strings.
  */
@@ -186,7 +218,6 @@ export function convertPdfToMarkdown(
 
 /**
  * Asynchronously streams rendered PDF pages one by one as an async generator.
- * Ideal for large documents (100+ pages) to keep memory footprint minimal and constant O(1).
  */
 export function streamPdfPages(
   input: string | Buffer | Uint8Array,
@@ -200,6 +231,24 @@ export function convertPdfToHtml(
   input: string | Buffer | Uint8Array,
   options?: ConvertHtmlOptions
 ): Promise<ConvertHtmlResult>;
+
+/**
+ * Converts a PDF into normalized Structured Document IR.
+ */
+export function convertPdfToDocumentIR(
+  input: string | Buffer | Uint8Array,
+  options?: ConvertDocumentIROptions
+): Promise<DocumentIR>;
+
+/**
+ * Validates a document IR object against the required schema structure.
+ */
+export function validateDocumentIR(doc: any): boolean;
+
+/**
+ * Serializes a Document IR object into a formatted JSON string.
+ */
+export function exportToJson(docIR: DocumentIR): string;
 
 /**
  * Parses page range input into sorted 0-indexed page numbers.
@@ -275,6 +324,9 @@ declare const _default: {
   formatDestinationSlug: typeof formatDestinationSlug;
   parsePageRange: typeof parsePageRange;
   resolveReadingOrder: typeof resolveReadingOrder;
+  convertPdfToDocumentIR: typeof convertPdfToDocumentIR;
+  validateDocumentIR: typeof validateDocumentIR;
+  exportToJson: typeof exportToJson;
 };
 
 export default _default;

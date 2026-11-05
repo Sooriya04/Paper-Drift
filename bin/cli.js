@@ -2,14 +2,15 @@
 /**
  * @file bin/cli.js
  * @description Command-line interface executable for paper-drift.
- * High-performance WebAssembly PDF to Image & Base64 rasterizer, HTML viewer, GFM Markdown converter, and spatial text extractor.
+ * High-performance WebAssembly PDF to Image & Base64 rasterizer, HTML viewer, GFM Markdown converter,
+ * spatial text extractor, and Structured Document IR JSON export.
  * Part of paper-drift - https://github.com/Sooriya04/Paper-Drift
  */
 
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { convertPdfToImages, streamPdfPages, convertPdfToHtml, convertPdfToMarkdown, extractPdfImages } from '../src/index.js';
+import { convertPdfToImages, streamPdfPages, convertPdfToHtml, convertPdfToMarkdown, extractPdfImages, convertPdfToDocumentIR, exportToJson } from '../src/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -22,7 +23,7 @@ const packageJson = JSON.parse(
 function printHelp() {
   console.log(`
 \x1b[1m\x1b[36mpaper-drift\x1b[0m v${packageJson.version}
-High-performance, zero-Chromium WebAssembly PDF to Image, Markdown (GFM), HTML & layout engine.
+High-performance, zero-Chromium WebAssembly PDF to Image, Markdown (GFM), HTML, and Structured Document IR engine.
 
 \x1b[1mUSAGE:\x1b[0m
   $ paper-drift <input.pdf> [output] [options]
@@ -32,7 +33,7 @@ High-performance, zero-Chromium WebAssembly PDF to Image, Markdown (GFM), HTML &
   output           (Optional) Destination file or directory path
 
 \x1b[1mOPTIONS:\x1b[0m
-  --format <fmt>       Output format: image (png) | base64 | html | markdown (md) | text | json | extract-images (default: image)
+  --format <fmt>       Output format: image (png) | base64 | html | markdown (md) | text | json | ir | extract-images (default: image)
   -i, --extract-images [dir] Extract embedded raster images & vector figures (optional directory)
   --scale <num>        DPI resolution scale factor (default: 2.0 = Retina 144 DPI, 3.0 = 216 DPI)
   --pages <range>      Target pages to convert (e.g. "1-5", "2,4,6", 1, default: "all")
@@ -45,6 +46,7 @@ High-performance, zero-Chromium WebAssembly PDF to Image, Markdown (GFM), HTML &
   $ paper-drift paper.pdf output.png --pages 1           # Convert page 1 to output.png
   $ paper-drift paper.pdf images/ --format image         # Export pages into an images/ directory
   $ paper-drift paper.pdf --format base64                # Export pages as Base64 JSON
+  $ paper-drift paper.pdf --format json                  # Export Structured Document IR JSON
   $ paper-drift paper.pdf output.html --format html      # Export standalone HTML viewer
   $ paper-drift paper.pdf output.md --format markdown    # Convert to publication-grade GFM Markdown
   $ paper-drift paper.pdf output.md -i                   # Markdown with embedded images & figures
@@ -131,14 +133,15 @@ async function run() {
     process.exit(1);
   }
 
-  const validFormats = ['image', 'png', 'img', 'base64', 'html', 'text', 'json', 'markdown', 'md', 'extract-images', 'images', 'assets'];
+  const validFormats = ['image', 'png', 'img', 'base64', 'html', 'text', 'json', 'ir', 'markdown', 'md', 'extract-images', 'images', 'assets'];
   if (!validFormats.includes(format)) {
-    console.error(`\x1b[31mError: Unsupported format "${format}". Supported: image (png) | base64 | html | markdown (md) | text | json | extract-images\x1b[0m`);
+    console.error(`\x1b[31mError: Unsupported format "${format}". Supported: image (png) | base64 | html | markdown (md) | text | json | ir | extract-images\x1b[0m`);
     process.exit(1);
   }
 
   const isImageMode = format === 'image' || format === 'png' || format === 'img';
   const isBase64Mode = format === 'base64';
+  const isJsonMode = format === 'json' || format === 'ir';
   const isMarkdownMode = format === 'markdown' || format === 'md';
   const isExtractImagesMode = format === 'extract-images' || format === 'images' || format === 'assets';
 
@@ -240,6 +243,28 @@ async function run() {
       console.log(`\n\x1b[32m[OK] Exported Base64 for ${result.pagesProcessed} page(s) in ${result.durationMs}ms\x1b[0m`);
       console.log(`Output: ${destFile} (${kb} KB)`);
       console.log(`File path: file://${destFile}\n`);
+    } else if (isJsonMode) {
+      const startTime = Date.now();
+      const irDoc = await convertPdfToDocumentIR(resolvedInput, {
+        pages: pageRange,
+        scale,
+        title: parsedInput.name
+      });
+
+      let destFile = outputFile ? path.resolve(process.cwd(), outputFile) : path.join(process.cwd(), `${parsedInput.name}-ir.json`);
+      if (!destFile.endsWith('.json')) {
+        destFile += '.json';
+      }
+
+      const jsonStr = exportToJson(irDoc);
+      fs.writeFileSync(destFile, jsonStr, 'utf-8');
+      const stats = fs.statSync(destFile);
+      const kb = (stats.size / 1024).toFixed(1);
+      const durationMs = Date.now() - startTime;
+
+      console.log(`\n\x1b[32m[OK] Exported Structured Document IR (${irDoc.blocks.length} blocks) in ${durationMs}ms\x1b[0m`);
+      console.log(`Output: ${destFile} (${kb} KB)`);
+      console.log(`File path: file://${destFile}\n`);
     } else if (isMarkdownMode) {
       let destFile = outputFile ? path.resolve(process.cwd(), outputFile) : path.join(process.cwd(), `${parsedInput.name}.md`);
       if (!destFile.endsWith('.md') && !destFile.endsWith('.markdown')) {
@@ -325,9 +350,9 @@ async function run() {
       }
       console.log(`Completed successfully.\n`);
     } else {
-      // HTML, text, json format modes
+      // HTML or text format modes
       let destFile = outputFile ? path.resolve(process.cwd(), outputFile) : null;
-      const ext = format === 'text' ? 'txt' : (format === 'json' ? 'json' : 'html');
+      const ext = format === 'text' ? 'txt' : 'html';
       if (!destFile) {
         destFile = path.join(process.cwd(), `${parsedInput.name}.${ext}`);
       }
@@ -345,8 +370,6 @@ async function run() {
       let outputContent;
       if (format === 'text') {
         outputContent = result.text;
-      } else if (format === 'json') {
-        outputContent = JSON.stringify(result.pages, null, 2);
       } else {
         outputContent = result.html;
       }
