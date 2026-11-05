@@ -261,8 +261,7 @@ async function run() {
       const stats = fs.statSync(destFile);
       const kb = (stats.size / 1024).toFixed(1);
       const durationMs = Date.now() - startTime;
-
-      console.log(`\n\x1b[32m[OK] Exported Structured Document IR (${irDoc.blocks.length} blocks) in ${durationMs}ms\x1b[0m`);
+      console.log(`\n\x1b[32m[OK] Exported Structured Document IR (${irDoc.pages.length} pages) in ${durationMs}ms\x1b[0m`);
       console.log(`Output: ${destFile} (${kb} KB)`);
       console.log(`File path: file://${destFile}\n`);
     } else if (isMarkdownMode) {

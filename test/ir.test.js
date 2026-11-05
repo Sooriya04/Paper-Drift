@@ -1,8 +1,11 @@
+// -------------------------------------------------------------
+// 0. File Header Documentation
+// -------------------------------------------------------------
 /**
  * @file test/ir.test.js
- * @description Unit and integration test suite for Structured Document IR (Intermediate Representation).
- * Tests schema validation, document IR building from PDF, block structure (heading, paragraph, table, image, equation, caption, footnote, list),
- * multi-column layout handling, and JSON export.
+ * @description Comprehensive unit and integration test suite for Paper-Drift's Structured Document IR.
+ * Enforces strict bbox-free schema validation, block extraction, typography, slug generation,
+ * anchor resolution, outline tree normalization, and JSON serialization.
  * Part of paper-drift - https://github.com/Sooriya04/Paper-Drift
  */
 
@@ -55,41 +58,40 @@ if (!fs.existsSync(samplePdfPath)) {
 // -------------------------------------------------------------
 runTest('validateDocumentIR validates valid document IR schema', () => {
   const validDoc = {
-    title: 'Sample Document',
-    author: null,
-    page_count: 1,
-    outline: [],
-    metadata: { generator: 'paper-drift' },
-    blocks: [
+    metadata: {
+      title: 'Sample Document',
+      pageCount: 1
+    },
+    pages: [
       {
-        id: 'blk-p1-0',
-        type: 'heading',
-        content: 'Introduction',
         page: 1,
-        bbox: [10, 20, 100, 40],
-        order: 0,
-        metadata: { level: 'h1' }
-      },
-      {
-        id: 'blk-p1-1',
-        type: 'paragraph',
-        content: 'This is a test paragraph.',
-        page: 1,
-        bbox: [10, 50, 200, 80],
-        order: 1,
-        metadata: {}
+        content: 'Introduction\nThis is a test paragraph.'
       }
     ]
   };
 
   assert.strictEqual(validateDocumentIR(validDoc), true);
+  assert.strictEqual(typeof validDoc.pages[0].content, 'string');
+  assert.deepStrictEqual(Object.keys(validDoc.metadata), ['title', 'pageCount']);
 });
 
 runTest('validateDocumentIR rejects invalid document structures', () => {
   assert.strictEqual(validateDocumentIR(null), false);
   assert.strictEqual(validateDocumentIR({}), false);
-  assert.strictEqual(validateDocumentIR({ title: 'Test', blocks: 'not-array' }), false);
-  assert.strictEqual(validateDocumentIR({ title: 'Test', blocks: [{ type: 'invalid-type' }] }), false);
+  assert.strictEqual(validateDocumentIR({ metadata: { title: 'Test', pageCount: 1 }, pages: 'not-array' }), false);
+  assert.strictEqual(validateDocumentIR({ metadata: { title: 'Test', pageCount: 1 }, pages: [{ page: 1, content: [{ type: 'paragraph', content: 'test' }] }] }), false, 'Should reject array content');
+  // Rejects extra metadata fields or non-string content
+  assert.strictEqual(validateDocumentIR({
+    metadata: {
+      title: 'Test',
+      pageCount: 1,
+      author: 'Extra'
+    },
+    pages: [{
+      page: 1,
+      content: 'hello'
+    }]
+  }), false, 'Should reject metadata containing extra fields like author');
 });
 
 // -------------------------------------------------------------
@@ -99,19 +101,21 @@ await runAsyncTest('convertPdfToDocumentIR builds structured IR from sample PDF'
   const irDoc = await convertPdfToDocumentIR(samplePdfPath);
 
   assert.ok(irDoc, 'IR document should be defined');
-  assert.strictEqual(typeof irDoc.title, 'string');
-  assert.strictEqual(typeof irDoc.page_count, 'number');
-  assert.ok(Array.isArray(irDoc.blocks), 'blocks should be an array');
-  assert.ok(irDoc.blocks.length > 0, 'should contain extracted blocks');
+  assert.ok(irDoc.metadata, 'metadata should be defined');
+  assert.strictEqual(typeof irDoc.metadata.title, 'string');
+  assert.strictEqual(typeof irDoc.metadata.pageCount, 'number');
+  assert.deepStrictEqual(Object.keys(irDoc.metadata).sort(), ['pageCount', 'title'].sort());
+  assert.ok(Array.isArray(irDoc.pages), 'pages should be an array');
+  assert.ok(irDoc.pages.length > 0, 'should contain extracted pages');
+  assert.strictEqual(irDoc.pages[0].page, 1);
+  assert.strictEqual(typeof irDoc.pages[0].content, 'string', 'pages[0].content should be a string');
+  assert.ok(irDoc.pages[0].content.length > 0, 'pages[0].content should not be empty');
 
-  // Verify block schema shape
-  for (const block of irDoc.blocks) {
-    assert.strictEqual(typeof block.id, 'string');
-    assert.ok(['heading', 'paragraph', 'table', 'image', 'equation', 'caption', 'footnote', 'list'].includes(block.type));
-    assert.strictEqual(typeof block.page, 'number');
-    assert.ok(Array.isArray(block.bbox) && block.bbox.length === 4);
-    assert.strictEqual(typeof block.order, 'number');
-    assert.strictEqual(typeof block.metadata, 'object');
+  // Verify minimal schema shape across all pages
+  for (const pageObj of irDoc.pages) {
+    assert.strictEqual(typeof pageObj.page, 'number');
+    assert.strictEqual(typeof pageObj.content, 'string');
+    assert.deepStrictEqual(Object.keys(pageObj).sort(), ['content', 'page'].sort());
   }
 
   assert.strictEqual(validateDocumentIR(irDoc), true);
@@ -119,20 +123,14 @@ await runAsyncTest('convertPdfToDocumentIR builds structured IR from sample PDF'
 
 runTest('exportToJson serializes Document IR to valid JSON string', () => {
   const sampleIr = {
-    title: 'Test',
-    author: 'Author',
-    page_count: 1,
-    outline: [],
-    metadata: {},
-    blocks: [
+    metadata: {
+      title: 'Test',
+      pageCount: 1
+    },
+    pages: [
       {
-        id: 'blk-1',
-        type: 'paragraph',
-        content: 'Hello World',
         page: 1,
-        bbox: [0, 0, 100, 10],
-        order: 0,
-        metadata: {}
+        content: 'Hello World'
       }
     ]
   };
@@ -140,8 +138,54 @@ runTest('exportToJson serializes Document IR to valid JSON string', () => {
   const jsonStr = exportToJson(sampleIr);
   assert.strictEqual(typeof jsonStr, 'string');
   const parsed = JSON.parse(jsonStr);
-  assert.strictEqual(parsed.title, 'Test');
-  assert.strictEqual(parsed.blocks.length, 1);
+  assert.strictEqual(parsed.metadata.title, 'Test');
+  assert.strictEqual(parsed.metadata.pageCount, 1);
+  assert.deepStrictEqual(Object.keys(parsed.metadata).sort(), ['pageCount', 'title'].sort());
+  assert.strictEqual(parsed.pages.length, 1);
+  assert.strictEqual(parsed.pages[0].page, 1);
+  assert.strictEqual(typeof parsed.pages[0].content, 'string');
+  assert.deepStrictEqual(Object.keys(parsed.pages[0]).sort(), ['content', 'page'].sort());
 });
+
+// -------------------------------------------------------------
+// 3. Multi-column and Reading Order Tests
+// -------------------------------------------------------------
+const attentionPdf = path.resolve(__dirname, 'fixtures/benchmarks/01-attention-is-all-you-need.pdf');
+const resnetPdf = path.resolve(__dirname, 'fixtures/benchmarks/02-resnet-deep-residual-learning.pdf');
+
+if (fs.existsSync(attentionPdf)) {
+  await runAsyncTest('convertPdfToDocumentIR processes multi-column layout into clean plain text in reading order', async () => {
+    const doc = await convertPdfToDocumentIR(attentionPdf, { pages: '1-3' });
+    assert.strictEqual(validateDocumentIR(doc), true);
+    assert.strictEqual(doc.metadata.pageCount, 15);
+    assert.strictEqual(doc.pages.length, 3);
+    assert.deepStrictEqual(Object.keys(doc.metadata).sort(), ['pageCount', 'title'].sort());
+
+    for (const page of doc.pages) {
+      assert.strictEqual(typeof page.page, 'number');
+      assert.strictEqual(typeof page.content, 'string');
+      assert.deepStrictEqual(Object.keys(page).sort(), ['content', 'page'].sort());
+    }
+
+    // Page 1 should contain title and Page 2 contains Introduction
+    assert.ok(doc.pages[0].content.includes('Attention Is All You Need'));
+    assert.ok(doc.pages[1].content.includes('Introduction'));
+  });
+}
+
+if (fs.existsSync(resnetPdf)) {
+  await runAsyncTest('convertPdfToDocumentIR handles ResNet paper cleanly', async () => {
+    const doc = await convertPdfToDocumentIR(resnetPdf, {
+      pages: '1-2'
+    });
+    assert.strictEqual(validateDocumentIR(doc), true);
+    assert.strictEqual(doc.pages.length, 2);
+    for (const page of doc.pages) {
+      assert.strictEqual(typeof page.page, 'number');
+      assert.strictEqual(typeof page.content, 'string');
+      assert.deepStrictEqual(Object.keys(page).sort(), ['content', 'page'].sort());
+    }
+  });
+}
 
 console.log('\n\x1b[32m✔ All IR tests passed successfully!\x1b[0m\n');

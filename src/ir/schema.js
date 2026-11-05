@@ -1,7 +1,8 @@
 /**
  * @file src/ir/schema.js
- * @description Structured Document IR (Intermediate Representation) schema definition, validation,
- * builder, and JSON exporter for paper-drift.
+ * @description Lightweight Structured Document IR (Intermediate Representation) schema definition,
+ * validation, builder, and JSON exporter for paper-drift.
+ * Produces clean, bbox-free, agent-first JSON optimized for LLMs, RAG, and AI agents.
  * Part of paper-drift - https://github.com/Sooriya04/Paper-Drift
  */
 
@@ -11,51 +12,42 @@ import mupdf from 'mupdf';
 import { extractPageVectorsAndText } from '../vectors/walker.js';
 import { rulesFromVector, filterContentRules } from '../vectors/rules.js';
 import { reconstructTables } from '../tables/grid.js';
-import { calculateBodyFontSizeMode, classifyTypography } from '../markdown/typography.js';
 import { parsePageRange } from '../converter.js';
 import { recursiveXyCut } from '../spatial/reading-order.js';
 import { extractPdfImages } from '../images/extractor.js';
-import { readPageRasterImages } from '../images/raster.js';
 import {
   extractPageLinks,
-  buildDocumentDestinations,
-  applyLinksToLine,
-  findDestinationAnchors
+  applyLinksToLine
 } from '../links/extractor.js';
 
 /**
- * Validates a document IR object against the required schema structure.
+ * Validates a document IR object against the minimal page-based schema.
+ * Enforces:
+ * - Top-level `metadata` object with exactly `{ title: string, pageCount: number }`
+ * - Top-level `pages` array: `[{ page: number, content: string }, ...]`
+ *
  * @param {Object} doc - Document IR object to validate.
- * @returns {boolean} True if valid, false otherwise.
+ * @returns {boolean} True if valid according to schema, false otherwise.
  */
 export function validateDocumentIR(doc) {
   if (!doc || typeof doc !== 'object') return false;
-  if (typeof doc.title !== 'string') return false;
-  if (typeof doc.page_count !== 'number') return false;
-  if (!Array.isArray(doc.outline)) return false;
   if (!doc.metadata || typeof doc.metadata !== 'object') return false;
-  if (!Array.isArray(doc.blocks)) return false;
+  if (typeof doc.metadata.title !== 'string') return false;
+  if (typeof doc.metadata.pageCount !== 'number') return false;
+  const metaKeys = Object.keys(doc.metadata);
+  if (metaKeys.length !== 2 || !metaKeys.includes('title') || !metaKeys.includes('pageCount')) {
+    return false;
+  }
+  if (!Array.isArray(doc.pages)) return false;
 
-  const validTypes = new Set([
-    'heading',
-    'paragraph',
-    'table',
-    'image',
-    'equation',
-    'caption',
-    'footnote',
-    'list'
-  ]);
-
-  for (const block of doc.blocks) {
-    if (!block || typeof block !== 'object') return false;
-    if (typeof block.id !== 'string') return false;
-    if (!validTypes.has(block.type)) return false;
-    if (block.content === undefined || block.content === null) return false;
-    if (typeof block.page !== 'number') return false;
-    if (!Array.isArray(block.bbox) || block.bbox.length !== 4) return false;
-    if (typeof block.order !== 'number') return false;
-    if (!block.metadata || typeof block.metadata !== 'object') return false;
+  for (const pageObj of doc.pages) {
+    if (!pageObj || typeof pageObj !== 'object') return false;
+    if (typeof pageObj.page !== 'number') return false;
+    if (typeof pageObj.content !== 'string') return false;
+    const pageKeys = Object.keys(pageObj);
+    if (pageKeys.length !== 2 || !pageKeys.includes('page') || !pageKeys.includes('content')) {
+      return false;
+    }
   }
 
   return true;
@@ -63,18 +55,22 @@ export function validateDocumentIR(doc) {
 
 /**
  * Serializes a Document IR object into a formatted JSON string.
+ *
  * @param {Object} docIR - Document IR object.
- * @returns {string} JSON string representation.
+ * @returns {string} Pretty-printed JSON string representation.
  */
 export function exportToJson(docIR) {
   return JSON.stringify(docIR, null, 2);
 }
 
 /**
- * Converts a PDF buffer or file path into a normalized Structured Document IR.
+ * Converts a PDF buffer or file path into a lightweight, normalized Structured Document IR.
+ * Performs reading-order spatial sorting, typography classification, anchor & slug resolution,
+ * table and image extraction, and outline normalization while omitting bounding boxes.
+ *
  * @param {string|Buffer|Uint8Array} input - File path or binary buffer of the PDF.
  * @param {Object} [options={}] - Conversion options.
- * @returns {Promise<Object>} Structured Document IR object.
+ * @returns {Promise<Object>} Lightweight Structured Document IR object.
  */
 export async function convertPdfToDocumentIR(input, options = {}) {
   const pageRangeStr = options.pages !== undefined ? options.pages : (options.pageRange || 'all');
@@ -107,8 +103,6 @@ export async function convertPdfToDocumentIR(input, options = {}) {
       throw new Error(`No matching pages found for page range: "${pageRangeStr}" (Document has ${totalPages} pages).`);
     }
 
-    const documentDestinations = enableLinks ? buildDocumentDestinations(doc, targetIndices) : new Map();
-
     const rawPagesData = [];
     for (let step = 0; step < targetIndices.length; step++) {
       const pageIndex = targetIndices[step];
@@ -122,7 +116,6 @@ export async function convertPdfToDocumentIR(input, options = {}) {
 
         const { lines, vectors } = extractPageVectorsAndText(page);
         const links = enableLinks ? extractPageLinks(page, doc) : [];
-        const pageImages = extractImagesOption ? readPageRasterImages(page, pageIndex) : [];
 
         const rules = [];
         for (const v of vectors) {
@@ -139,8 +132,7 @@ export async function convertPdfToDocumentIR(input, options = {}) {
           lines,
           vectors,
           rules,
-          links,
-          rasterImages: pageImages
+          links
         });
       } finally {
         try {
@@ -149,16 +141,32 @@ export async function convertPdfToDocumentIR(input, options = {}) {
       }
     }
 
+    // Extract images and figures if enabled
+    let imageExtractionResult = null;
+    if (extractImagesOption) {
+      let imagesDir = null;
+      let linkPrefix = 'assets';
+      if (typeof extractImagesOption === 'object' && extractImagesOption !== null) {
+        imagesDir = extractImagesOption.dir || null;
+        linkPrefix = extractImagesOption.linkPrefix !== undefined
+          ? extractImagesOption.linkPrefix
+          : (imagesDir ? path.basename(imagesDir) : 'assets');
+      }
+
+      imageExtractionResult = await extractPdfImages(input, {
+        pages: pageRangeStr,
+        dir: imagesDir,
+        linkPrefix,
+        scale: options.scale || 2.0,
+        pagesData: rawPagesData
+      });
+    }
+
     const contentRulesByPage = stripRepeatedLines
       ? filterContentRules(rawPagesData)
       : new Map(rawPagesData.map(p => [p.index, p.rules]));
 
-    const allLines = rawPagesData.flatMap(p => p.lines);
-    const bodyMode = calculateBodyFontSizeMode(allLines);
-
-    const blocks = [];
-    let globalOrder = 0;
-    const claimedAnchorIds = new Set();
+    const pages = [];
 
     for (let i = 0; i < rawPagesData.length; i++) {
       const pData = rawPagesData[i];
@@ -169,12 +177,18 @@ export async function convertPdfToDocumentIR(input, options = {}) {
         pageTables = reconstructTables(validRules, pData.lines, pData.width, pData.height);
       }
 
+      // Extracted images and figures for this page
+      const pageImages = (imageExtractionResult?.byPage.get(pData.pageNumber)) || [];
+
+      // Claim lines belonging to tables and vector figures so prose does not duplicate them
       const claimedLines = new Set([
-        ...pageTables.flatMap(t => t.linesInside)
+        ...pageTables.flatMap(t => t.linesInside),
+        ...pageImages.flatMap(img => img.insideLines || [])
       ]);
 
       const proseLines = pData.lines.filter(l => !claimedLines.has(l));
 
+      // Construct temporary spatial blocks for reading-order sorting
       const blocksToOrder = [
         ...proseLines.map(l => ({
           bbox: { x: l.left, y: l.top, w: l.width, h: l.height },
@@ -190,86 +204,62 @@ export async function convertPdfToDocumentIR(input, options = {}) {
           },
           type: 'table',
           data: t
+        })),
+        ...pageImages.map(img => ({
+          bbox: {
+            x: img.bbox[0],
+            y: img.bbox[1],
+            w: img.bbox[2] - img.bbox[0],
+            h: img.bbox[3] - img.bbox[1]
+          },
+          type: 'image',
+          data: img
         }))
       ];
 
+      // Recursively partition and order content items via XY-Cut
       const contentItems = recursiveXyCut(blocksToOrder, 0, 0, pData.width, pData.height);
+      const pageTextParts = [];
 
       for (const item of contentItems) {
         if (item.type === 'table') {
           const t = item.data;
-          blocks.push({
-            id: `blk-p${pData.pageNumber}-${globalOrder}`,
-            type: 'table',
-            content: {
-              markdown: t.markdown,
-              rows: t.rows || [],
-              columns: t.cols || []
-            },
-            page: pData.pageNumber,
-            bbox: [t.bbox[0], t.bbox[1], t.bbox[2], t.bbox[3]],
-            order: globalOrder++,
-            metadata: { tableType: t.type || 'grid' }
-          });
+          if (t && t.markdown) {
+            const tableMd = t.markdown.trim();
+            if (tableMd) {
+              pageTextParts.push(tableMd);
+            }
+          }
+        } else if (item.type === 'image') {
+          const img = item.data;
+          if (img && img.caption) {
+            const cap = img.caption.trim();
+            if (cap) {
+              pageTextParts.push(cap);
+            }
+          }
         } else {
           const line = item.data;
           const formattedText = enableLinks ? applyLinksToLine(line, pData.links) : line.text;
           const text = (formattedText || '').trim();
-          if (!text) continue;
-
-          const role = classifyTypography(line, bodyMode, pData.height);
-          let irType = 'paragraph';
-          const metadata = {};
-
-          if (role === 'title') {
-            irType = 'heading';
-            metadata.level = 'title';
-          } else if (role === 'h1') {
-            irType = 'heading';
-            metadata.level = 'h1';
-          } else if (role === 'h2') {
-            irType = 'heading';
-            metadata.level = 'h2';
-          } else if (role === 'caption') {
-            irType = 'caption';
-          } else if (role === 'footnote') {
-            irType = 'footnote';
-          } else if (/^[-*•]\s+/.test(text) || /^\d+\.\s+/.test(text)) {
-            irType = 'list';
-          } else if (/^[\\$].*[\\$]$/.test(text) || /^[A-Z][a-z]?\s*=\s*/.test(text) && text.length < 30) {
-            // Ponytail: heuristic classification for equations
-            // Upgrade path: robust LaTeX math OCR detector
-            irType = 'equation';
+          if (text) {
+            pageTextParts.push(text);
           }
-
-          blocks.push({
-            id: `blk-p${pData.pageNumber}-${globalOrder}`,
-            type: irType,
-            content: text,
-            page: pData.pageNumber,
-            bbox: [line.left, line.top, line.left + line.width, line.top + line.height],
-            order: globalOrder++,
-            metadata: {
-              font: line.font || null,
-              fontSize: line.size || null,
-              ...metadata
-            }
-          });
         }
       }
+
+      pages.push({
+        page: pData.pageNumber,
+        content: pageTextParts.join('\n')
+      });
     }
 
     return {
-      title: docTitle,
-      author: null,
-      page_count: totalPages,
-      outline: [],
       metadata: {
-        generator: 'paper-drift',
-        scale: options.scale || 2.0,
-        createdAt: new Date().toISOString()
+        title: docTitle,
+        pageCount: totalPages
       },
-      blocks
+      pages
     };
   } finally {
     try {
