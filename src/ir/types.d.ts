@@ -1,66 +1,27 @@
 /**
  * @file src/ir/types.d.ts
- * @description TypeScript type declarations for Structured Document IR (Intermediate Representation).
+ * @description TypeScript type declarations for Minimal Plain-Text Structured Document IR.
  * Part of paper-drift - https://github.com/Sooriya04/Paper-Drift
  */
 
-export type BlockType =
-  | 'heading'
-  | 'paragraph'
-  | 'table'
-  | 'image'
-  | 'equation'
-  | 'caption'
-  | 'footnote'
-  | 'list';
-
-export interface DocumentBlock {
-  /** Normalized block type */
-  type: BlockType;
-  /** Content text or structured payload (e.g. table rows/columns, image links) */
-  content: string | object;
-  /** Metadata dictionary for font, level, links, anchors, slugs, etc. */
-  metadata?: Record<string, any>;
+export interface DocumentMetadata {
+  /** Document title */
+  title: string;
+  /** Total count of pages in document */
+  pageCount: number;
 }
 
 export interface DocumentPageIR {
   /** 1-indexed page number */
   page: number;
-  /** Array of structured content blocks on this page */
-  content: DocumentBlock[];
-}
-
-export interface DocumentOutlineItem {
-  title: string;
-  uri?: string;
-  page?: number;
-  open?: boolean;
-  children?: DocumentOutlineItem[];
-}
-
-export interface DocumentMetadata {
-  /** Document title */
-  title: string;
-  /** Document author if available */
-  author?: string | null;
-  /** Total count of pages in document */
-  pageCount: number;
-  /** Document table of contents / outline tree */
-  outline?: DocumentOutlineItem[];
-  /** Generator identifier */
-  generator?: string;
-  /** DPI scale factor used */
-  scale?: number;
-  /** ISO timestamp of generation */
-  createdAt?: string;
-  /** Additional metadata */
-  [key: string]: any;
+  /** Clean plain-text string of page in reading order */
+  content: string;
 }
 
 export interface DocumentIR {
-  /** Global document metadata dictionary */
+  /** Global document metadata */
   metadata: DocumentMetadata;
-  /** Spatially ordered pages with blocks */
+  /** Spatially ordered pages with plain-text content */
   pages: DocumentPageIR[];
 }
 

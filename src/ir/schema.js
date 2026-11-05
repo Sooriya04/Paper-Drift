@@ -12,23 +12,19 @@ import mupdf from 'mupdf';
 import { extractPageVectorsAndText } from '../vectors/walker.js';
 import { rulesFromVector, filterContentRules } from '../vectors/rules.js';
 import { reconstructTables } from '../tables/grid.js';
-import { calculateBodyFontSizeMode, classifyTypography } from '../markdown/typography.js';
 import { parsePageRange } from '../converter.js';
 import { recursiveXyCut } from '../spatial/reading-order.js';
 import { extractPdfImages } from '../images/extractor.js';
 import {
   extractPageLinks,
-  buildDocumentDestinations,
-  applyLinksToLine,
-  findDestinationAnchors
+  applyLinksToLine
 } from '../links/extractor.js';
 
 /**
- * Validates a document IR object against the required lightweight, bbox-free page-centric schema structure.
+ * Validates a document IR object against the minimal page-based schema.
  * Enforces:
- * - Top-level `metadata` object: { title, author?, pageCount, ... }
- * - Top-level `pages` array: [{ page: number, content: Block[] }, ...]
- * - Block schema: { type, content, metadata? } with NO bbox.
+ * - Top-level `metadata` object with exactly `{ title: string, pageCount: number }`
+ * - Top-level `pages` array: `[{ page: number, content: string }, ...]`
  *
  * @param {Object} doc - Document IR object to validate.
  * @returns {boolean} True if valid according to schema, false otherwise.
@@ -38,31 +34,19 @@ export function validateDocumentIR(doc) {
   if (!doc.metadata || typeof doc.metadata !== 'object') return false;
   if (typeof doc.metadata.title !== 'string') return false;
   if (typeof doc.metadata.pageCount !== 'number') return false;
+  const metaKeys = Object.keys(doc.metadata);
+  if (metaKeys.length !== 2 || !metaKeys.includes('title') || !metaKeys.includes('pageCount')) {
+    return false;
+  }
   if (!Array.isArray(doc.pages)) return false;
-
-  const validTypes = new Set([
-    'heading',
-    'paragraph',
-    'table',
-    'image',
-    'equation',
-    'caption',
-    'footnote',
-    'list'
-  ]);
 
   for (const pageObj of doc.pages) {
     if (!pageObj || typeof pageObj !== 'object') return false;
     if (typeof pageObj.page !== 'number') return false;
-    if (!Array.isArray(pageObj.content)) return false;
-
-    for (const block of pageObj.content) {
-      if (!block || typeof block !== 'object') return false;
-      if (!validTypes.has(block.type)) return false;
-      if (block.content === undefined || block.content === null) return false;
-      // Bbox-free assertion: bounding boxes and spatial coordinates are omitted
-      if ('bbox' in block) return false;
-      if (block.metadata !== undefined && (typeof block.metadata !== 'object' || block.metadata === null)) return false;
+    if (typeof pageObj.content !== 'string') return false;
+    const pageKeys = Object.keys(pageObj);
+    if (pageKeys.length !== 2 || !pageKeys.includes('page') || !pageKeys.includes('content')) {
+      return false;
     }
   }
 
@@ -77,24 +61,6 @@ export function validateDocumentIR(doc) {
  */
 export function exportToJson(docIR) {
   return JSON.stringify(docIR, null, 2);
-}
-
-/**
- * Recursively normalizes MuPDF outline tree nodes to match the standard TypeScript outline schema.
- * Replaces MuPDF's C pointer `down` array with standard AST `children`.
- *
- * @param {Array<Object>} items - Array of MuPDF outline items.
- * @returns {Array<Object>} Normalized outline tree with `children`.
- */
-function normalizeOutlineTree(items) {
-  if (!Array.isArray(items)) return [];
-  return items.map(item => ({
-    title: item.title || '',
-    uri: item.uri || undefined,
-    page: item.page !== undefined ? item.page : undefined,
-    open: item.open !== undefined ? Boolean(item.open) : undefined,
-    children: item.down ? normalizeOutlineTree(item.down) : []
-  }));
 }
 
 /**
@@ -136,8 +102,6 @@ export async function convertPdfToDocumentIR(input, options = {}) {
     if (targetIndices.length === 0) {
       throw new Error(`No matching pages found for page range: "${pageRangeStr}" (Document has ${totalPages} pages).`);
     }
-
-    const documentDestinations = enableLinks ? buildDocumentDestinations(doc, targetIndices) : new Map();
 
     const rawPagesData = [];
     for (let step = 0; step < targetIndices.length; step++) {
@@ -202,11 +166,7 @@ export async function convertPdfToDocumentIR(input, options = {}) {
       ? filterContentRules(rawPagesData)
       : new Map(rawPagesData.map(p => [p.index, p.rules]));
 
-    const allLines = rawPagesData.flatMap(p => p.lines);
-    const bodyMode = calculateBodyFontSizeMode(allLines);
-
     const pages = [];
-    const claimedAnchorIds = new Set();
 
     for (let i = 0; i < rawPagesData.length; i++) {
       const pData = rawPagesData[i];
@@ -259,133 +219,45 @@ export async function convertPdfToDocumentIR(input, options = {}) {
 
       // Recursively partition and order content items via XY-Cut
       const contentItems = recursiveXyCut(blocksToOrder, 0, 0, pData.width, pData.height);
-      const pageContent = [];
+      const pageTextParts = [];
 
       for (const item of contentItems) {
         if (item.type === 'table') {
           const t = item.data;
-          pageContent.push({
-            type: 'table',
-            content: {
-              markdown: t.markdown,
-              rows: t.rows || [],
-              columns: t.cols || []
-            },
-            metadata: { tableType: t.type || 'grid' }
-          });
+          if (t && t.markdown) {
+            const tableMd = t.markdown.trim();
+            if (tableMd) {
+              pageTextParts.push(tableMd);
+            }
+          }
         } else if (item.type === 'image') {
           const img = item.data;
-          pageContent.push({
-            type: 'image',
-            content: {
-              type: img.type || 'image',
-              link: img.link || '',
-              alt: img.alt || 'Image',
-              caption: img.caption || null,
-              width: img.width || 0,
-              height: img.height || 0
-            },
-            metadata: {
-              filename: img.filename || null,
-              sizeKb: img.sizeKb || null
+          if (img && img.caption) {
+            const cap = img.caption.trim();
+            if (cap) {
+              pageTextParts.push(cap);
             }
-          });
+          }
         } else {
           const line = item.data;
-          const pageDests = documentDestinations.get(pData.index) || [];
-          const anchorTags = enableLinks ? findDestinationAnchors(line, pageDests, claimedAnchorIds) : '';
-          const anchorMatches = anchorTags ? Array.from(anchorTags.matchAll(/id="([^"]+)"/g)).map(m => m[1]) : [];
-
           const formattedText = enableLinks ? applyLinksToLine(line, pData.links) : line.text;
           const text = (formattedText || '').trim();
-          if (!text) continue;
-
-          const role = classifyTypography(line, bodyMode, pData.height);
-          let irType = 'paragraph';
-          const metadata = {};
-
-          if (role === 'title') {
-            irType = 'heading';
-            metadata.level = 'title';
-          } else if (role === 'h1') {
-            irType = 'heading';
-            metadata.level = 'h1';
-            const secMatch = line.text.trim().match(/^(\d+(?:\.\d+)*)\.?\s+/);
-            if (secMatch) {
-              const secId = `section-${secMatch[1].replace(/\./g, '-')}`;
-              metadata.slug = secId;
-              if (!claimedAnchorIds.has(secId)) {
-                claimedAnchorIds.add(secId);
-              }
-            }
-          } else if (role === 'h2') {
-            irType = 'heading';
-            metadata.level = 'h2';
-            const secMatch = line.text.trim().match(/^(\d+(?:\.\d+)*)\.?\s+/);
-            if (secMatch) {
-              const prefix = secMatch[1].includes('.') ? 'subsection' : 'section';
-              const secId = `${prefix}-${secMatch[1].replace(/\./g, '-')}`;
-              metadata.slug = secId;
-              if (!claimedAnchorIds.has(secId)) {
-                claimedAnchorIds.add(secId);
-              }
-            }
-          } else if (role === 'caption') {
-            irType = 'caption';
-          } else if (role === 'footnote') {
-            irType = 'footnote';
-          } else if (/^[-*•]\s+/.test(text) || /^\d+\.\s+/.test(text)) {
-            irType = 'list';
-          } else if (/^[\\$].*[\\$]$/.test(text) || /^[A-Z][a-z]?\s*=\s*/.test(text) && text.length < 30) {
-            // Ponytail: heuristic classification for standalone inline/display equations
-            // Upgrade path: robust LaTeX math OCR detector
-            irType = 'equation';
+          if (text) {
+            pageTextParts.push(text);
           }
-
-          pageContent.push({
-            type: irType,
-            content: text,
-            metadata: {
-              font: line.font || null,
-              fontSize: line.font?.size || null,
-              ...(anchorMatches.length > 0 ? { anchorIds: anchorMatches } : {}),
-              ...metadata
-            }
-          });
         }
       }
 
       pages.push({
         page: pData.pageNumber,
-        content: pageContent
+        content: pageTextParts.join('\n')
       });
     }
-
-    let docAuthor = null;
-    try {
-      const metaAuthor = doc.getMetaData('info:Author');
-      if (metaAuthor && typeof metaAuthor === 'string') {
-        docAuthor = metaAuthor.trim();
-      }
-    } catch {}
-
-    let docOutline = [];
-    try {
-      const rawOutline = doc.loadOutline();
-      if (Array.isArray(rawOutline)) {
-        docOutline = normalizeOutlineTree(rawOutline);
-      }
-    } catch {}
 
     return {
       metadata: {
         title: docTitle,
-        author: docAuthor,
-        pageCount: totalPages,
-        outline: docOutline,
-        generator: 'paper-drift',
-        scale: options.scale || 2.0,
-        createdAt: new Date().toISOString()
+        pageCount: totalPages
       },
       pages
     };
