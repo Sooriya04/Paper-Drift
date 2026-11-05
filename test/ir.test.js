@@ -1,8 +1,11 @@
+// -------------------------------------------------------------
+// 0. File Header Documentation
+// -------------------------------------------------------------
 /**
  * @file test/ir.test.js
- * @description Unit and integration test suite for Structured Document IR (Intermediate Representation).
- * Tests schema validation, document IR building from PDF, block structure (heading, paragraph, table, image, equation, caption, footnote, list),
- * multi-column layout handling, and JSON export.
+ * @description Comprehensive unit and integration test suite for Paper-Drift's Structured Document IR.
+ * Enforces strict bbox-free schema validation, block extraction, typography, slug generation,
+ * anchor resolution, outline tree normalization, and JSON serialization.
  * Part of paper-drift - https://github.com/Sooriya04/Paper-Drift
  */
 
@@ -57,7 +60,7 @@ runTest('validateDocumentIR validates valid document IR schema', () => {
   const validDoc = {
     title: 'Sample Document',
     author: null,
-    page_count: 1,
+    pageCount: 1,
     outline: [],
     metadata: { generator: 'paper-drift' },
     blocks: [
@@ -66,16 +69,14 @@ runTest('validateDocumentIR validates valid document IR schema', () => {
         type: 'heading',
         content: 'Introduction',
         page: 1,
-        bbox: [10, 20, 100, 40],
         order: 0,
-        metadata: { level: 'h1' }
+        metadata: { level: 'h1', slug: 'section-1', anchorIds: ['sec-intro'] }
       },
       {
         id: 'blk-p1-1',
         type: 'paragraph',
         content: 'This is a test paragraph.',
         page: 1,
-        bbox: [10, 50, 200, 80],
         order: 1,
         metadata: {}
       }
@@ -83,13 +84,32 @@ runTest('validateDocumentIR validates valid document IR schema', () => {
   };
 
   assert.strictEqual(validateDocumentIR(validDoc), true);
+  // Assert strict bbox-free requirement
+  assert.strictEqual('bbox' in validDoc.blocks[0], false, 'Block 0 must not have bbox');
+  assert.strictEqual('bbox' in validDoc.blocks[1], false, 'Block 1 must not have bbox');
 });
 
 runTest('validateDocumentIR rejects invalid document structures', () => {
   assert.strictEqual(validateDocumentIR(null), false);
   assert.strictEqual(validateDocumentIR({}), false);
-  assert.strictEqual(validateDocumentIR({ title: 'Test', blocks: 'not-array' }), false);
-  assert.strictEqual(validateDocumentIR({ title: 'Test', blocks: [{ type: 'invalid-type' }] }), false);
+  assert.strictEqual(validateDocumentIR({ title: 'Test', pageCount: 1, outline: [], metadata: {}, blocks: 'not-array' }), false);
+  assert.strictEqual(validateDocumentIR({ title: 'Test', pageCount: 1, outline: [], metadata: {}, blocks: [{ type: 'invalid-type' }] }), false);
+  // Rejects block with bbox if bbox-free schema is enforced
+  assert.strictEqual(validateDocumentIR({
+    title: 'Test',
+    pageCount: 1,
+    outline: [],
+    metadata: {},
+    blocks: [{
+      id: 'blk-1',
+      type: 'paragraph',
+      content: 'hello',
+      page: 1,
+      order: 0,
+      bbox: [0, 0, 10, 10],
+      metadata: {}
+    }]
+  }), false, 'Should reject blocks containing legacy bbox');
 });
 
 // -------------------------------------------------------------
@@ -100,16 +120,16 @@ await runAsyncTest('convertPdfToDocumentIR builds structured IR from sample PDF'
 
   assert.ok(irDoc, 'IR document should be defined');
   assert.strictEqual(typeof irDoc.title, 'string');
-  assert.strictEqual(typeof irDoc.page_count, 'number');
+  assert.strictEqual(typeof irDoc.pageCount, 'number');
   assert.ok(Array.isArray(irDoc.blocks), 'blocks should be an array');
   assert.ok(irDoc.blocks.length > 0, 'should contain extracted blocks');
 
-  // Verify block schema shape
+  // Verify block schema shape: must be bbox-free!
   for (const block of irDoc.blocks) {
     assert.strictEqual(typeof block.id, 'string');
     assert.ok(['heading', 'paragraph', 'table', 'image', 'equation', 'caption', 'footnote', 'list'].includes(block.type));
     assert.strictEqual(typeof block.page, 'number');
-    assert.ok(Array.isArray(block.bbox) && block.bbox.length === 4);
+    assert.strictEqual('bbox' in block, false, `Block ${block.id} must NOT have bbox`);
     assert.strictEqual(typeof block.order, 'number');
     assert.strictEqual(typeof block.metadata, 'object');
   }
@@ -121,7 +141,7 @@ runTest('exportToJson serializes Document IR to valid JSON string', () => {
   const sampleIr = {
     title: 'Test',
     author: 'Author',
-    page_count: 1,
+    pageCount: 1,
     outline: [],
     metadata: {},
     blocks: [
@@ -130,7 +150,6 @@ runTest('exportToJson serializes Document IR to valid JSON string', () => {
         type: 'paragraph',
         content: 'Hello World',
         page: 1,
-        bbox: [0, 0, 100, 10],
         order: 0,
         metadata: {}
       }
@@ -141,7 +160,9 @@ runTest('exportToJson serializes Document IR to valid JSON string', () => {
   assert.strictEqual(typeof jsonStr, 'string');
   const parsed = JSON.parse(jsonStr);
   assert.strictEqual(parsed.title, 'Test');
+  assert.strictEqual(parsed.pageCount, 1);
   assert.strictEqual(parsed.blocks.length, 1);
+  assert.strictEqual('bbox' in parsed.blocks[0], false);
 });
 
 // -------------------------------------------------------------
@@ -154,12 +175,19 @@ if (fs.existsSync(attentionPdf)) {
   await runAsyncTest('convertPdfToDocumentIR processes multi-column layout with tables and headings', async () => {
     const doc = await convertPdfToDocumentIR(attentionPdf, { pages: '1-3' });
     assert.strictEqual(validateDocumentIR(doc), true);
-    assert.strictEqual(doc.page_count, 15);
+    assert.strictEqual(doc.pageCount, 15);
     assert.ok(doc.blocks.length > 20, 'Should extract multi-column blocks');
 
     const headingBlocks = doc.blocks.filter(b => b.type === 'heading');
     assert.ok(headingBlocks.length >= 3, 'Should extract headings');
     assert.ok(headingBlocks.some(h => typeof h.content === 'string' && h.content.includes('Introduction')));
+
+    // Audit Fix 2 & 3: Check slug, anchorIds, and typography fontSize on headings
+    const introHeading = headingBlocks.find(h => typeof h.content === 'string' && h.content.includes('Introduction'));
+    assert.ok(introHeading, 'Introduction heading should exist');
+    assert.ok(introHeading.metadata, 'Heading must have metadata');
+    assert.strictEqual(introHeading.metadata.slug, 'section-1');
+    assert.ok(typeof introHeading.metadata.fontSize === 'number', 'fontSize should be a number, not null');
 
     const tableBlocks = doc.blocks.filter(b => b.type === 'table');
     assert.ok(tableBlocks.length >= 1, 'Should extract tables');
@@ -167,16 +195,18 @@ if (fs.existsSync(attentionPdf)) {
     assert.ok(tableBlocks[0].content && typeof tableBlocks[0].content === 'object');
     assert.ok(tableBlocks[0].content.markdown.includes('|'));
 
-    // Check outline extraction
+    // Audit Fix 4: Check outline extraction with 'children' tree
     assert.ok(Array.isArray(doc.outline));
     assert.ok(doc.outline.length > 0, 'Should extract document outline from PDF');
+    assert.strictEqual('down' in doc.outline[0], false, 'Outline item should not have "down"');
+    assert.ok(Array.isArray(doc.outline[0].children), 'Outline item should have "children" array');
   });
 }
 
 runTest('convertPdfToDocumentIR detects list and equation blocks correctly', () => {
   const mockDoc = {
     title: 'Test Blocks',
-    page_count: 1,
+    pageCount: 1,
     outline: [],
     metadata: {},
     blocks: [
@@ -185,7 +215,6 @@ runTest('convertPdfToDocumentIR detects list and equation blocks correctly', () 
         type: 'list',
         content: '- First item in bullet list',
         page: 1,
-        bbox: [10, 10, 100, 20],
         order: 0,
         metadata: {}
       },
@@ -194,7 +223,6 @@ runTest('convertPdfToDocumentIR detects list and equation blocks correctly', () 
         type: 'equation',
         content: '$E = mc^2$',
         page: 1,
-        bbox: [10, 30, 80, 50],
         order: 1,
         metadata: {}
       }
@@ -210,14 +238,16 @@ if (fs.existsSync(resnetPdf)) {
       extractImages: true
     });
     assert.strictEqual(validateDocumentIR(doc), true);
-    // Even if sample or resnet, verify image block structural validity when present
+    // Audit Fix 1: Check image/figure blocks are actually populated into doc.blocks!
     const imageBlocks = doc.blocks.filter(b => b.type === 'image');
+    assert.ok(imageBlocks.length > 0, 'ResNet pages 1-2 must emit type: image blocks');
     for (const img of imageBlocks) {
       assert.strictEqual(typeof img.id, 'string');
       assert.strictEqual(img.type, 'image');
       assert.ok(img.content !== undefined);
       assert.strictEqual(typeof img.page, 'number');
-      assert.strictEqual(img.bbox.length, 4);
+      assert.strictEqual('bbox' in img, false, 'Image block must not have bbox');
+      assert.strictEqual(typeof img.order, 'number');
     }
   });
 }

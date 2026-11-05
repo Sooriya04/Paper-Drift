@@ -23,12 +23,10 @@ export interface DocumentBlock {
   content: string | object;
   /** 1-indexed page number */
   page: number;
-  /** Bounding box coordinates: [x0, y0, x1, y1] */
-  bbox: [number, number, number, number] | number[];
   /** Zero-indexed global reading order index */
   order: number;
-  /** Metadata dictionary for font, level, links, anchors, etc. */
-  metadata: Record<string, any>;
+  /** Metadata dictionary for font, level, links, anchors, slugs, etc. */
+  metadata?: Record<string, any>;
 }
 
 export interface DocumentOutlineItem {
@@ -45,7 +43,7 @@ export interface DocumentIR {
   /** Document author if available */
   author?: string | null;
   /** Total count of pages in document */
-  page_count: number;
+  pageCount: number;
   /** Document table of contents / outline tree */
   outline: DocumentOutlineItem[];
   /** Global document metadata dictionary */

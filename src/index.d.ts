@@ -168,8 +168,8 @@ export interface ConvertMarkdownResult {
   durationMs: number;
 }
 
-import { BlockType, DocumentBlock, DocumentOutlineItem, DocumentIR, ConvertDocumentIROptions } from './ir/types.js';
-export * from './ir/types.js';
+import { BlockType, DocumentBlock, DocumentOutlineItem, DocumentIR, ConvertDocumentIROptions } from './ir/types.d.ts';
+export * from './ir/types.d.ts';
 
 /**
  * Converts a PDF buffer or file path into high-resolution images and Base64 strings.
