@@ -168,12 +168,19 @@ runTest('classifyTypography categorizes headings, captions, footnotes, and body 
   const academicH1Line = { text: 'Introduction', font: { size: 12, isBold: true } };
   assert.strictEqual(classifyTypography(academicH1Line, bodyMode, pageHeight), 'h1');
 
-  // H2: ratio >= 1.05 && matches SECTION_NUMBER_REGEX && wordCount <= 14
+  // H2: ratio >= 0.95 && matches SUBSECTION_REGEX && wordCount <= 14
   const h2Line = { text: '1.1 System Architecture Overview', font: { size: 11 } };
   assert.strictEqual(classifyTypography(h2Line, bodyMode, pageHeight), 'h2');
 
-  const romanH2Line = { text: 'IV. Experimental Setup', font: { size: 11 } };
-  assert.strictEqual(classifyTypography(romanH2Line, bodyMode, pageHeight), 'h2');
+  const h3Line = { text: '1.1.1 Network Architecture Details', font: { size: 10, isBold: true } };
+  assert.strictEqual(classifyTypography(h3Line, bodyMode, pageHeight), 'h3');
+
+  const romanH1Line = { text: 'IV. Experimental Setup', font: { size: 11 } };
+  assert.strictEqual(classifyTypography(romanH1Line, bodyMode, pageHeight), 'h1');
+
+  // H4 / Run-in heading
+  const runInHeading = { text: 'Encoder:', font: { size: 10, isBold: true } };
+  assert.strictEqual(classifyTypography(runInHeading, bodyMode, pageHeight), 'h4');
 
   // Caption: matches CAPTION_REGEX
   const figureCaption = { text: 'Figure 1: High-level system architecture and data pipeline.', font: { size: 9 }, top: 300 };
@@ -308,9 +315,46 @@ runTest('CLI infers markdown format automatically from .md extension', () => {
     { encoding: 'utf-8' }
   );
 
-  assert.ok(fs.existsSync(inferredOutputFile), 'Inferred output file should exist');
+  assert.ok(fs.existsSync(inferredOutputFile), 'Inferred markdown file should exist on disk');
   const content = fs.readFileSync(inferredOutputFile, 'utf-8');
   assert.ok(content.includes('# paper-drift Document Parser'));
+});
+
+// -------------------------------------------------------------
+// 6. Academic PDF Hierarchy & Typography Regression Tests
+// -------------------------------------------------------------
+await runAsyncTest('Academic PDFs preserve accurate Title, H1, H2, and H3 hierarchy without notice corruption', async () => {
+  const attentionPdf = path.resolve(__dirname, 'fixtures/benchmarks/01-attention-is-all-you-need.pdf');
+  const resnetPdf = path.resolve(__dirname, 'fixtures/benchmarks/02-resnet-deep-residual-learning.pdf');
+  const loraPdf = path.resolve(__dirname, 'fixtures/benchmarks/03-lora-low-rank-adaptation.pdf');
+
+  if (fs.existsSync(attentionPdf)) {
+    const attRes = await convertPdfToMarkdown(attentionPdf, { pages: '1-4' });
+    // Title is H1 '# Attention Is All You Need'
+    assert.ok(attRes.markdown.includes('# Attention Is All You Need'), 'Expected Attention main title');
+    // Notice is body text, not H1/H2
+    assert.ok(!attRes.markdown.includes('## Provided proper attribution'), 'Permission notice must not be classified as H1/H2');
+    // Section 1 is H2 '## <a id="section-1"></a>1 Introduction'
+    assert.ok(attRes.markdown.includes('## <a id="section-1"></a>1 Introduction'), 'Expected Section 1 heading');
+    // Section 3.1 is H3 '### <a id="subsection-3-1"></a>3.1 Encoder and Decoder Stacks'
+    assert.ok(attRes.markdown.includes('### <a id="subsection-3-1"></a>3.1 Encoder and Decoder Stacks'), 'Expected Subsection 3.1 heading');
+    // Section 3.2.1 is H4 '#### <a id="subsubsection-3-2-1"></a>3.2.1 Scaled Dot-Product Attention'
+    assert.ok(attRes.markdown.includes('#### <a id="subsubsection-3-2-1"></a>3.2.1 Scaled Dot-Product Attention'), 'Expected Subsubsection 3.2.1 heading');
+    // Run-in heading '##### Encoder:'
+    assert.ok(attRes.markdown.includes('##### Encoder:'), 'Expected run-in heading for Encoder:');
+  }
+
+  if (fs.existsSync(resnetPdf)) {
+    const resnetRes = await convertPdfToMarkdown(resnetPdf, { pages: '1' });
+    assert.ok(resnetRes.markdown.includes('# Deep Residual Learning for Image Recognition'), 'Expected ResNet main title');
+    assert.ok(!resnetRes.markdown.includes('## Kaiming He'), 'Authors must not be classified as headings');
+  }
+
+  if (fs.existsSync(loraPdf)) {
+    const loraRes = await convertPdfToMarkdown(loraPdf, { pages: '4' });
+    assert.ok(loraRes.markdown.includes('## <a id="section-4"></a>4 OUR METHOD'), 'Expected Section 4 heading');
+    assert.ok(loraRes.markdown.includes('### <a id="subsection-4-1"></a>4.1 LOW-RANK-PARAMETRIZED UPDATE MATRICES'), 'Expected Subsection 4.1 heading');
+  }
 });
 
 console.log('\n\x1b[32m✔ All Markdown, Typography & CLI tests passed successfully!\x1b[0m\n');

@@ -96,7 +96,19 @@ export function recursiveXyCut(blockList, clipMinX, clipMinY, clipMaxX, clipMaxY
 
     if (hasSpanning) {
       // Partition by spanning blocks into horizontal bands from top to bottom
-      const sorted = [...blocks].sort((a, b) => a.bbox.y - b.bbox.y);
+      // Sort with natural reading order comparison so inline items sharing baseline are ordered left-to-right
+      const sorted = [...blocks].sort((a, b) => {
+        const aBox = a.bbox;
+        const bBox = b.bbox;
+        const overlapY = Math.min(aBox.y + aBox.h, bBox.y + bBox.h) - Math.max(aBox.y, bBox.y);
+        const minH = Math.min(aBox.h, bBox.h);
+        if (overlapY >= minH * 0.5) {
+          return aBox.x - bBox.x;
+        }
+        const dy = aBox.y - bBox.y;
+        if (Math.abs(dy) > 3) return dy;
+        return aBox.x - bBox.x;
+      });
       const res = [];
       let curBand = [];
 
