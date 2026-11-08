@@ -101,4 +101,92 @@ if (fs.existsSync(samplePath)) {
   });
 }
 
+// 4. Synthetic 3-column test with banner and page number footer
+runTest('recursiveXyCut sorts 3-column blocks and spanning elements correctly', () => {
+  const banner = { bbox: { x: 50, y: 20, w: 500, h: 30 }, lines: [{ text: 'Tri-Column Header Banner' }] };
+  const col1Top = { bbox: { x: 50, y: 70, w: 140, h: 40 }, lines: [{ text: 'Col 1 Top' }] };
+  const col1Bot = { bbox: { x: 50, y: 120, w: 140, h: 40 }, lines: [{ text: 'Col 1 Bot' }] };
+  const col2Top = { bbox: { x: 230, y: 70, w: 140, h: 40 }, lines: [{ text: 'Col 2 Top' }] };
+  const col2Bot = { bbox: { x: 230, y: 120, w: 140, h: 40 }, lines: [{ text: 'Col 2 Bot' }] };
+  const col3Top = { bbox: { x: 410, y: 70, w: 140, h: 40 }, lines: [{ text: 'Col 3 Top' }] };
+  const col3Bot = { bbox: { x: 410, y: 120, w: 140, h: 40 }, lines: [{ text: 'Col 3 Bot' }] };
+  const footer = { bbox: { x: 295, y: 500, w: 10, h: 10 }, lines: [{ text: '1' }] };
+
+  // Shuffled input order
+  const shuffled = [col2Bot, col3Top, banner, col1Bot, footer, col2Top, col3Bot, col1Top];
+  const ordered = recursiveXyCut(shuffled);
+  assert(ordered.length === 8, 'Must preserve all 8 blocks');
+
+  const texts = ordered.map(b => b.lines[0].text);
+  assert(texts[0] === 'Tri-Column Header Banner', 'Banner must come first');
+  assert(texts[1] === 'Col 1 Top', 'Col 1 Top should precede others');
+  assert(texts[2] === 'Col 1 Bot', 'Col 1 Bot should precede Col 2');
+  assert(texts[3] === 'Col 2 Top', 'Col 2 Top should follow Col 1');
+  assert(texts[4] === 'Col 2 Bot', 'Col 2 Bot should follow Col 2 Top');
+  assert(texts[5] === 'Col 3 Top', 'Col 3 Top should follow Col 2');
+  assert(texts[6] === 'Col 3 Bot', 'Col 3 Bot should follow Col 3 Top');
+  assert(texts[7] === '1', 'Footer must come last');
+});
+
+// 5. Mixed layout test: Spanning banner, 2 columns, spanning figure, followed by 2 columns
+runTest('recursiveXyCut partitions mixed spanning figures cleanly across 2-column flow', () => {
+  const title = { bbox: { x: 50, y: 20, w: 500, h: 30 }, lines: [{ text: 'Mixed Layout Paper' }] };
+  const topCol1 = { bbox: { x: 50, y: 70, w: 230, h: 50 }, lines: [{ text: 'Top Col 1' }] };
+  const topCol2 = { bbox: { x: 320, y: 70, w: 230, h: 50 }, lines: [{ text: 'Top Col 2' }] };
+  const spanningFigure = { bbox: { x: 50, y: 140, w: 500, h: 60 }, lines: [{ text: 'Figure 1: Full width architecture diagram' }] };
+  const botCol1 = { bbox: { x: 50, y: 220, w: 230, h: 50 }, lines: [{ text: 'Bottom Col 1' }] };
+  const botCol2 = { bbox: { x: 320, y: 220, w: 230, h: 50 }, lines: [{ text: 'Bottom Col 2' }] };
+
+  const shuffled = [botCol2, topCol2, spanningFigure, botCol1, title, topCol1];
+  const ordered = recursiveXyCut(shuffled);
+
+  const texts = ordered.map(b => b.lines[0].text);
+  assert(texts[0] === 'Mixed Layout Paper', 'Title first');
+  assert(texts[1] === 'Top Col 1', 'Top Col 1 precedes Top Col 2');
+  assert(texts[2] === 'Top Col 2', 'Top Col 2 precedes Spanning Figure');
+  assert(texts[3] === 'Figure 1: Full width architecture diagram', 'Spanning Figure cleanly separates bands');
+  assert(texts[4] === 'Bottom Col 1', 'Bottom Col 1 precedes Bottom Col 2');
+  assert(texts[5] === 'Bottom Col 2', 'Bottom Col 2 comes last');
+});
+
+// 6. Inline overlapping elements (e.g. math terms) test
+runTest('recursiveXyCut sorts horizontally overlapping inline symbols left-to-right', () => {
+  const sym1 = { bbox: { x: 100, y: 150, w: 20, h: 14 }, lines: [{ text: 'f(x)' }] };
+  const sym2 = { bbox: { x: 130, y: 151, w: 10, h: 12 }, lines: [{ text: '=' }] };
+  const sym3 = { bbox: { x: 150, y: 149, w: 30, h: 15 }, lines: [{ text: 'x^2' }] };
+
+  const shuffled = [sym3, sym1, sym2];
+  const ordered = recursiveXyCut(shuffled);
+  const texts = ordered.map(b => b.lines[0].text);
+  assert(texts[0] === 'f(x)' && texts[1] === '=' && texts[2] === 'x^2', 'Must sort inline symbols left-to-right');
+});
+
+// 7. Real benchmark PDFs validation
+const benchmarks = [
+  { name: 'Attention is All You Need', file: 'fixtures/benchmarks/01-attention-is-all-you-need.pdf' },
+  { name: 'Deep Residual Learning (ResNet)', file: 'fixtures/benchmarks/02-resnet-deep-residual-learning.pdf' },
+  { name: 'LoRA: Low-Rank Adaptation', file: 'fixtures/benchmarks/03-lora-low-rank-adaptation.pdf' }
+];
+
+for (const bm of benchmarks) {
+  const bmPath = path.resolve(__dirname, bm.file);
+  if (fs.existsSync(bmPath)) {
+    runTest(`resolveReadingOrder accurately parses ${bm.name} preserving all content`, () => {
+      const buf = fs.readFileSync(bmPath);
+      const doc = mupdf.Document.openDocument(buf, 'application/pdf');
+      const count = Math.min(doc.countPages(), 3);
+      for (let p = 0; p < count; p++) {
+        const page = doc.loadPage(p);
+        const bounds = page.getBounds();
+        const json = JSON.parse(page.toStructuredText().asJSON());
+        const rawCount = json.blocks.filter(b => b.type === 'text').length;
+        const res = resolveReadingOrder(json, bounds[2] - bounds[0], bounds[3] - bounds[1]);
+        assert(res.blocks.length === rawCount, `Page ${p + 1}: expected ${rawCount} blocks, got ${res.blocks.length}`);
+        assert(typeof res.text === 'string' && res.text.length > 0, `Page ${p + 1}: text must not be empty`);
+        assert(res.columnsDetected >= 1 && res.columnsDetected <= 3, `Page ${p + 1}: valid column count`);
+      }
+    });
+  }
+}
+
 console.log('\n\x1b[32m✔ All spatial tests passed successfully!\x1b[0m\n');
