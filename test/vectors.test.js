@@ -16,8 +16,12 @@ import {
   inMargin,
   runningPageThreshold,
   filterContentRules,
+  classifyVector,
+  mergeCollinearRules,
+  isDarkMonochrome,
   MAX_RULE_THICKNESS,
   MIN_RULE_LENGTH,
+  MIN_FRACTION_BAR_LENGTH,
   MARGIN_BAND
 } from '../src/vectors/rules.js';
 import { extractPageVectorsAndText } from '../src/vectors/walker.js';
@@ -376,6 +380,150 @@ runTest('extractPageVectorsAndText fallback handles edge case gracefully', () =>
   assert(fallbackResult.lines[0].text === 'Fallback line text', 'Fallback extracted line text');
   assert(fallbackResult.lines[0].font.name === 'Fallback-Font', 'Fallback extracted font info');
   assert(fallbackResult.vectors.length === 0, 'Fallback returned safe empty vectors');
+});
+
+// ==========================================
+// Suite 5: classifyVector & Semantic Roles
+// ==========================================
+runTest('classifyVector differentiates table rules, math fraction bars, diagram fills, and shapes', () => {
+  // 1. Table rule (stroked horizontal line >= 8pt)
+  const tableRuleVec = {
+    bbox: [100, 200, 350, 201],
+    flags: { isStroked: true, isRectangle: true },
+    color: [0, 0, 0]
+  };
+  assert(classifyVector(tableRuleVec) === 'table_rule', 'Stroked thin horizontal line is table_rule');
+
+  // 2. Math fraction bar / vinculum (length 2-8pt, thickness <= 1.5pt)
+  const fractionBarVec = {
+    bbox: [350.6, 258.6, 358.0, 259.0], // Adam pg 4 fraction bar: w=7.4, h=0.4
+    flags: { isStroked: true, isRectangle: true },
+    color: [0, 0, 0]
+  };
+  assert(classifyVector(fractionBarVec) === 'fraction_bar', 'Short stroked line (7.4pt) is fraction_bar');
+
+  const sqrtVinculumVec = {
+    bbox: [379.6, 326.6, 383.3, 326.9], // Adam pg 4 sqrt bar: w=3.7, h=0.3
+    flags: { isStroked: true, isRectangle: true },
+    color: [0, 0, 0]
+  };
+  assert(classifyVector(sqrtVinculumVec) === 'fraction_bar', 'Short sqrt vinculum (3.7pt) is fraction_bar');
+
+  // 3. Colored heatmap strip (unstroked, colored fill: rejected from rules)
+  const heatmapStripVec = {
+    bbox: [100, 200, 120, 201], // w=20, h=1
+    flags: { isStroked: false, isRectangle: true },
+    color: [0.91, 0.25, 0.24] // bright red heatmap cell
+  };
+  assert(classifyVector(heatmapStripVec) === 'diagram_element', 'Unstroked colored strip is diagram_element');
+  assert(rulesFromVector(heatmapStripVec).length === 0, 'rulesFromVector rejects unstroked colored heatmap strip');
+
+  // 4. Large filled diagram block
+  const filledBlockVec = {
+    bbox: [50, 50, 150, 120],
+    flags: { isStroked: false, isRectangle: true },
+    color: [0.8, 0.8, 0.8]
+  };
+  assert(classifyVector(filledBlockVec) === 'fill', 'Unstroked large shape is fill');
+
+  // 5. Stroked rectangle frame
+  const frameVec = {
+    bbox: [50, 50, 200, 150],
+    flags: { isStroked: true, isRectangle: true },
+    color: [0, 0, 0]
+  };
+  assert(classifyVector(frameVec) === 'table_rule', 'Stroked box frame decomposes into table_rule');
+});
+
+// ==========================================
+// Suite 6: Collinear Rule Merging
+// ==========================================
+runTest('mergeCollinearRules joins collinear broken or segmented ruling lines', () => {
+  // Two broken horizontal segments on same baseline (y=100) with a 1.0pt gap
+  const brokenHoriz = [
+    { left: 50, top: 100, right: 150, bottom: 100.5 },
+    { left: 151, top: 100, right: 280, bottom: 100.5 }
+  ];
+  const mergedHoriz = mergeCollinearRules(brokenHoriz);
+  assert(mergedHoriz.length === 1, `Expected 1 merged rule, got ${mergedHoriz.length}`);
+  assert(mergedHoriz[0].left === 50, 'Merged left is 50');
+  assert(mergedHoriz[0].right === 280, 'Merged right is 280');
+
+  // Overlapping vertical segments on same x-axis (x=200)
+  const brokenVert = [
+    { left: 200, top: 50, right: 200.5, bottom: 150 },
+    { left: 200, top: 140, right: 200.5, bottom: 300 }
+  ];
+  const mergedVert = mergeCollinearRules(brokenVert);
+  assert(mergedVert.length === 1, `Expected 1 merged vertical rule, got ${mergedVert.length}`);
+  assert(mergedVert[0].top === 50 && mergedVert[0].bottom === 300, 'Merged top/bottom [50, 300]');
+
+  // Non-collinear segments remain distinct
+  const separate = [
+    { left: 50, top: 100, right: 150, bottom: 100.5 },
+    { left: 50, top: 200, right: 150, bottom: 200.5 }
+  ];
+  const notMerged = mergeCollinearRules(separate);
+  assert(notMerged.length === 2, 'Different elevations remain unmerged');
+});
+
+// ==========================================
+// Suite 7: Recto/Verso Fuzzy Margin Furniture Suppression
+// ==========================================
+runTest('filterContentRules suppresses recto/verso alternating running headers with shifting X coords', () => {
+  // Simulate 6 pages with alternating running header rule positions at y=39pt:
+  // Odd pages (recto): [107.8, 39.0, 504.2, 39.4] (full width)
+  // Even pages (verso): [127.5, 39.1, 484.4, 39.5] (shifted X coordinates due to author list vs title)
+  const pagesData = [
+    { index: 0, bounds: [0, 0, 612, 792], rules: [{ left: 107.8, top: 39.0, right: 504.2, bottom: 39.4 }] },
+    { index: 1, bounds: [0, 0, 612, 792], rules: [{ left: 127.5, top: 39.1, right: 484.4, bottom: 39.5 }] },
+    { index: 2, bounds: [0, 0, 612, 792], rules: [{ left: 107.8, top: 39.0, right: 504.2, bottom: 39.4 }] },
+    { index: 3, bounds: [0, 0, 612, 792], rules: [{ left: 127.5, top: 39.1, right: 484.4, bottom: 39.5 }] },
+    { index: 4, bounds: [0, 0, 612, 792], rules: [{ left: 107.8, top: 39.0, right: 504.2, bottom: 39.4 }] },
+    {
+      index: 5,
+      bounds: [0, 0, 612, 792],
+      rules: [
+        { left: 127.5, top: 39.1, right: 484.4, bottom: 39.5 },
+        // Content table line in middle of page 6 (body region)
+        { left: 100.0, top: 350.0, right: 500.0, bottom: 350.5 }
+      ]
+    }
+  ];
+
+  const filtered = filterContentRules(pagesData);
+
+  // All 6 recurring header rules should be suppressed by fuzzy spatial clustering
+  for (let i = 0; i < 5; i++) {
+    const rulesOnPage = filtered.get(i);
+    assert(rulesOnPage.length === 0, `Page ${i} running header should be suppressed`);
+  }
+
+  // Page 5 should have only the content table line preserved
+  const page5Rules = filtered.get(5);
+  assert(page5Rules.length === 1, `Page 5 should retain 1 content rule, got ${page5Rules.length}`);
+  assert(page5Rules[0].top === 350.0, 'Page 5 content rule preserved');
+});
+
+// ==========================================
+// Suite 8: Benchmark & Real Document Stress Tests
+// ==========================================
+runTest('Real PDF LoRA Page 26 filters out heatmap strips and extracts clean rules without lag', () => {
+  const loraPdfPath = path.resolve(__dirname, 'fixtures/benchmarks/03-lora-low-rank-adaptation.pdf');
+  if (fs.existsSync(loraPdfPath)) {
+    const data = fs.readFileSync(loraPdfPath);
+    const doc = mupdf.Document.openDocument(data, 'application/pdf');
+    const page = doc.loadPage(25); // Page 26 (0-indexed 25)
+
+    const t0 = performance.now();
+    const { vectors } = extractPageVectorsAndText(page);
+    const rules = vectors.flatMap(rulesFromVector);
+    const elapsed = performance.now() - t0;
+
+    // Previously extracted 14,095 false rules from heatmap strips. Now correctly extracts <= 50 structural rules!
+    assert(rules.length <= 50, `Expected <= 50 structural rules on LoRA page 26, got ${rules.length}`);
+    assert(elapsed < 1000, `Processing should complete quickly, took ${elapsed.toFixed(1)}ms`);
+  }
 });
 
 console.log('\n\x1b[32m✔ All vector tests passed successfully!\x1b[0m\n');
