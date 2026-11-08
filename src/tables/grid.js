@@ -1,7 +1,7 @@
 /**
  * @file src/tables/grid.js
  * @description Geometric table grid reconstruction for full-grid and academic Booktabs tables.
- * Maps text lines into 2D cell matrices based on rule intersections and column projections.
+ * Maps text lines into 2D cell matrices based on rule intersections, projection profiles, and character-level alignment.
  * Part of paper-drift - https://github.com/Sooriya04/Paper-Drift
  */
 
@@ -17,6 +17,20 @@ import { renderPipeTable } from './pipe-renderer.js';
 export function isHorizontal(rule) {
   const b = getRuleBounds(rule);
   return (b.right - b.left) >= (b.bottom - b.top);
+}
+
+/**
+ * Checks whether a rule is an isolated footnote divider rule rather than a table boundary.
+ *
+ * @param {Object} rule
+ * @param {number} pageHeight
+ * @returns {boolean}
+ */
+export function isFootnoteDivider(rule, pageHeight = 792) {
+  const b = getRuleBounds(rule);
+  const w = b.right - b.left;
+  const h = b.bottom - b.top;
+  return h <= 2.0 && w >= 60 && w <= 220 && b.left < 180 && b.top >= pageHeight * 0.65;
 }
 
 /**
@@ -47,9 +61,9 @@ export function cluster1D(positions, snap) {
 }
 
 /**
- * Extracts word tokens with their estimated horizontal spans from a text line.
- * Respects precomputed `line.words` if present.
- * Preserves multi-word cells when separated by double spaces.
+ * Extracts word tokens with physical horizontal bounds from a text line.
+ * Uses exact character positions and font metrics when available; otherwise splits on whitespace.
+ * Preserves multi-word cells when separated by single spaces while splitting multi-column items.
  *
  * @param {Object} line - Text line object
  * @returns {Array<{ text: string, left: number, right: number, top: number, bottom: number }>}
@@ -62,6 +76,7 @@ export function getWordsFromLine(line) {
   const lineTop = line.top ?? (line.bbox ? line.bbox[1] : 0);
   const lineBottom = line.bottom ?? (line.bbox ? line.bbox[3] : lineTop);
 
+  // 1. If explicit precomputed word tokens exist, use them
   if (Array.isArray(line.words) && line.words.length > 0) {
     return line.words.map(w => ({
       text: String(w.text ?? w.str ?? '').trim(),
@@ -72,11 +87,47 @@ export function getWordsFromLine(line) {
     })).filter(w => w.text.length > 0);
   }
 
+  // 2. Character-level spatial segmentation using physical font sizes & gaps
+  if (Array.isArray(line.chars) && line.chars.length > 0) {
+    const chars = line.chars;
+    const tokens = [];
+    let curText = chars[0].char;
+    let startX = chars[0].x;
+    let endX = chars[0].x + (chars[0].size * 0.5 || 5);
+
+    for (let i = 1; i < chars.length; i++) {
+      const c = chars[i];
+      const prev = chars[i - 1];
+      const fontSize = Math.max(6, c.size || (lineBottom - lineTop) || 10);
+      const gap = c.x - (prev.x + (prev.size * 0.45 || 4));
+
+      // If gap between characters exceeds a column gutter threshold (~0.75x font size or 7pt)
+      if (gap >= Math.max(7.0, fontSize * 0.75)) {
+        const trimmed = curText.trim();
+        if (trimmed) {
+          tokens.push({ text: trimmed, left: startX, right: endX, top: lineTop, bottom: lineBottom });
+        }
+        curText = c.char;
+        startX = c.x;
+        endX = c.x + (c.size * 0.5 || 5);
+      } else {
+        curText += c.char;
+        endX = Math.max(endX, c.x + (c.size * 0.5 || 5));
+      }
+    }
+    const trimmed = curText.trim();
+    if (trimmed) {
+      tokens.push({ text: trimmed, left: startX, right: endX, top: lineTop, bottom: lineBottom });
+    }
+    if (tokens.length > 0) {
+      return tokens;
+    }
+  }
+
+  // 3. Fallback: string whitespace analysis
   const rawText = String(line.text || '').trim();
   if (!rawText) return [];
 
-  // When multiple spaces exist within the line, treat 2+ spaces as column dividers
-  // This keeps multi-word cell text like "Transformer (base)" together
   const hasMultiSpace = /\s{2,}/.test(line.text);
   const regex = hasMultiSpace ? /\S+(?:\s\S+)*/g : /\S+/g;
   const matches = [];
@@ -113,9 +164,9 @@ export function getWordsFromLine(line) {
 }
 
 /**
- * Projects column boundaries and gutters from text X-positions for Booktabs tables.
+ * Projects column boundaries and gutters from text X-positions and whitespace intervals.
  *
- * @param {Array<Object>} words - Array of word objects inside the table
+ * @param {Array<Object>} words - Array of word tokens inside the table
  * @param {number} tableLeft - Left boundary of table
  * @param {number} tableRight - Right boundary of table
  * @param {number} snap - Snapping tolerance
@@ -131,7 +182,7 @@ export function projectColumnGutters(words, tableLeft, tableRight, snap) {
   const candidateWords = words.filter(w => (w.right - w.left) < tableWidth * 0.85);
   const tokens = candidateWords.length > 0 ? candidateWords : words;
 
-  // Merge overlapping and proximal horizontal intervals
+  // 1. Merge overlapping and proximal horizontal intervals
   const sortedTokens = [...tokens].sort((a, b) => a.left - b.left);
   const tolerance = Math.min(1.5, snap * 0.5);
   const intervals = [];
@@ -160,7 +211,35 @@ export function projectColumnGutters(words, tableLeft, tableRight, snap) {
     }
   }
 
-  // If no clear whitespace gutters were found, cluster column start coordinates
+  // 2. If no clear whitespace gutters were found via intervals, check whitespace histogram valleys
+  if (dividers.length === 0) {
+    const W = Math.ceil(tableWidth);
+    const hist = new Int32Array(W + 1);
+    for (const t of tokens) {
+      const x0 = Math.max(0, Math.floor(t.left - tableLeft));
+      const x1 = Math.min(W, Math.ceil(t.right - tableLeft));
+      for (let x = x0; x <= x1; x++) hist[x]++;
+    }
+
+    let vStart = null;
+    for (let x = 0; x <= W; x++) {
+      if (hist[x] === 0) {
+        if (vStart === null) vStart = x;
+      } else {
+        if (vStart !== null) {
+          if (x - vStart >= minGutter) {
+            const midX = (vStart + x - 1) / 2 + tableLeft;
+            if (midX > tableLeft + 8 && midX < tableRight - 8) {
+              dividers.push(midX);
+            }
+          }
+          vStart = null;
+        }
+      }
+    }
+  }
+
+  // 3. Fallback: cluster column start coordinates
   if (dividers.length === 0) {
     const starts = cluster1D(tokens.map(w => w.left), Math.max(12, snap * 3));
     if (starts.length >= 2) {
@@ -185,7 +264,6 @@ export function projectColumnGutters(words, tableLeft, tableRight, snap) {
     return [tableLeft, tableRight];
   }
 
-  // Ensure tableLeft and tableRight remain the outer boundaries
   unique[0] = Math.min(unique[0], tableLeft);
   unique[unique.length - 1] = Math.max(unique[unique.length - 1], tableRight);
 
@@ -246,13 +324,16 @@ export function groupLinesIntoRows(lines, snap) {
  * @param {Array<Object>} lines - Text lines on the page
  * @param {number} [pageWidth=612] - Page width in points
  * @param {number} [pageHeight=792] - Page height in points
- * @returns {Array<{ bbox: number[], markdown: string, matrix: string[][], linesInside: Array<Object>, claimedLines: Array<Object> }>}
+ * @returns {Array<{ bbox: number[], markdown: string, matrix: string[][], linesInside: Array<Object>, claimedLines: Array<Object>, geometry: Object }>}
  */
 export function reconstructTables(rules, lines, pageWidth = 612, pageHeight = 792) {
   if (!rules || rules.length === 0 || !lines || lines.length === 0) return [];
 
   const snap = (pageWidth && pageWidth > 0) ? pageWidth * 0.004 : 2.0;
-  const normalizedRules = rules.map(r => ({ ...getRuleBounds(r), orig: r }));
+
+  // Filter out isolated footnote separator rules
+  const candidateRules = rules.filter(r => !isFootnoteDivider(r, pageHeight));
+  const normalizedRules = candidateRules.map(r => ({ ...getRuleBounds(r), orig: r }));
 
   // Separate horizontal and vertical rules
   const horizontals = normalizedRules.filter(isHorizontal);
@@ -277,10 +358,14 @@ export function reconstructTables(rules, lines, pageWidth = 612, pageHeight = 79
         const xCoords = groupVert.flatMap(v => [v.left, v.right]);
         const colBoundaries = cluster1D(xCoords, snap * 2);
 
+        const yCoords = groupHoriz.flatMap(h => [h.top, h.bottom]);
+        const rowBoundaries = cluster1D(yCoords, snap * 2);
+
         tableCandidates.push({
           rules: cluster,
           isFullGrid: true,
-          colBoundaries
+          colBoundaries,
+          rowBoundaries
         });
       }
     }
@@ -293,7 +378,6 @@ export function reconstructTables(rules, lines, pageWidth = 612, pageHeight = 79
   if (booktabsRules.length >= 2) {
     booktabsRules.sort((a, b) => a.top - b.top);
     const dsu = new DisjointSet(booktabsRules.length);
-    const maxTableHeight = pageHeight ? Math.max(300, pageHeight * 0.6) : 350;
 
     for (let i = 0; i < booktabsRules.length; i++) {
       for (let j = i + 1; j < booktabsRules.length; j++) {
@@ -305,10 +389,11 @@ export function reconstructTables(rules, lines, pageWidth = 612, pageHeight = 79
         if (minW <= 0 || (xOverlap / minW) < 0.5) continue;
 
         const yDist = Math.abs(h2.top - h1.top);
-        if (yDist < 5 || yDist > maxTableHeight) continue;
+        // Table height between consecutive rules should be reasonable (<= 180pt max gap between rules)
+        if (yDist < 4 || yDist > 180) continue;
 
-        // Group consecutive or proximate aligned rules
-        if (j === i + 1 || yDist <= 220) {
+        // Group consecutive aligned rules
+        if (j === i + 1) {
           dsu.union(i, j);
         }
       }
@@ -328,7 +413,8 @@ export function reconstructTables(rules, lines, pageWidth = 612, pageHeight = 79
         tableCandidates.push({
           rules: group,
           isFullGrid: false,
-          colBoundaries: null
+          colBoundaries: null,
+          rowBoundaries: null
         });
       }
     }
@@ -350,7 +436,7 @@ export function reconstructTables(rules, lines, pageWidth = 612, pageHeight = 79
     // Minimum sensible dimensions for a table
     if (width < 35 || height < 12) continue;
 
-    // Collect all text lines that lie inside or intersect this bounding box
+    // Collect all text lines that lie inside this bounding box
     const linesInside = lines.filter(l => {
       const lLeft = l.left ?? (l.bbox ? l.bbox[0] : 0);
       const lRight = l.right ?? (l.bbox ? l.bbox[2] : 0);
@@ -367,8 +453,70 @@ export function reconstructTables(rules, lines, pageWidth = 612, pageHeight = 79
 
     if (linesInside.length < 2) continue;
 
-    // Determine column boundaries
     let colBoundaries = candidate.colBoundaries;
+    let rowBoundaries = candidate.rowBoundaries;
+
+    // Full-grid 2D cell matrix mapping
+    if (candidate.isFullGrid && colBoundaries && rowBoundaries && colBoundaries.length >= 1 && rowBoundaries.length >= 2) {
+      const fullXCoords = cluster1D([left, ...colBoundaries, right], snap * 2);
+      const fullYCoords = cluster1D([top, ...rowBoundaries, bottom], snap * 2);
+
+      const numGridRows = fullYCoords.length - 1;
+      const numGridCols = fullXCoords.length - 1;
+
+      if (numGridRows >= 1 && numGridCols >= 2) {
+        const gridCells = Array.from({ length: numGridRows }, () => Array.from({ length: numGridCols }, () => []));
+
+        for (const line of linesInside) {
+          const lMidY = (line.top + line.bottom) / 2;
+          const lMidX = (line.left + line.right) / 2;
+
+          let rIdx = numGridRows - 1;
+          for (let r = 0; r < numGridRows; r++) {
+            if (lMidY >= fullYCoords[r] - snap && lMidY < fullYCoords[r + 1] + snap) {
+              rIdx = r;
+              break;
+            }
+          }
+
+          let cIdx = numGridCols - 1;
+          for (let c = 0; c < numGridCols; c++) {
+            if (lMidX >= fullXCoords[c] - snap && lMidX < fullXCoords[c + 1] + snap) {
+              cIdx = c;
+              break;
+            }
+          }
+
+          gridCells[rIdx][cIdx].push(line.text);
+        }
+
+        const matrix = gridCells.map(row => row.map(cellLines => cellLines.join(' ').trim()));
+        const nonEmptyRows = matrix.filter(r => r.some(c => c.length > 0));
+
+        if (nonEmptyRows.length >= 2) {
+          const alignments = buildAlignments(nonEmptyRows, numGridCols);
+          const markdown = renderPipeTable(nonEmptyRows, alignments);
+
+          tables.push({
+            bbox: [left, top, right, bottom],
+            markdown,
+            matrix: nonEmptyRows,
+            linesInside,
+            claimedLines: linesInside,
+            geometry: {
+              isFullGrid: true,
+              rows: numGridRows,
+              cols: numGridCols,
+              colBoundaries: fullXCoords,
+              rowBoundaries: fullYCoords
+            }
+          });
+          continue;
+        }
+      }
+    }
+
+    // Booktabs or unstructured table reconstruction
     if (colBoundaries && candidate.isFullGrid) {
       colBoundaries = cluster1D([left, ...colBoundaries, right], snap * 2);
     }
@@ -417,20 +565,13 @@ export function reconstructTables(rules, lines, pageWidth = 612, pageHeight = 79
 
     if (matrix.length < 2) continue;
 
-    // Detect numeric alignments per column
-    const alignments = [];
-    const NUMERIC_REGEX = /^[-+]?[$€£]?\s*[-+]?\d+(?:[.,]\d+)*(?:[eE][-+]?\d+)?%?$/;
-
-    for (let c = 0; c < numCols; c++) {
-      const cellVals = matrix.slice(1).map(r => r[c]?.trim() || '').filter(Boolean);
-      const numericCount = cellVals.filter(v => NUMERIC_REGEX.test(v)).length;
-      if (cellVals.length > 0 && (numericCount / cellVals.length) >= 0.5) {
-        alignments.push('right');
-      } else {
-        alignments.push('left');
-      }
+    // Validate that table has meaningful column structure (not a single text block masquerading as table)
+    const maxFilledCols = Math.max(...matrix.map(r => r.filter(Boolean).length));
+    if (numCols === 1 && maxFilledCols <= 1 && height > 200) {
+      continue; // Skip single-column tall boxes (often abstracts or text blocks enclosed by horizontal rules)
     }
 
+    const alignments = buildAlignments(matrix, numCols);
     const markdown = renderPipeTable(matrix, alignments);
 
     tables.push({
@@ -438,9 +579,36 @@ export function reconstructTables(rules, lines, pageWidth = 612, pageHeight = 79
       markdown,
       matrix,
       linesInside,
-      claimedLines: linesInside
+      claimedLines: linesInside,
+      geometry: {
+        isFullGrid: false,
+        rows: matrix.length,
+        cols: numCols,
+        colBoundaries
+      }
     });
   }
 
   return tables;
+}
+
+/**
+ * Derives column alignments (left vs right) based on numeric density.
+ * @private
+ */
+function buildAlignments(matrix, numCols) {
+  const alignments = [];
+  const NUMERIC_REGEX = /^[-+]?[$€£]?\s*[-+]?\d+(?:[.,]\d+)*(?:[eE][-+]?\d+)?%?$/;
+
+  for (let c = 0; c < numCols; c++) {
+    const cellVals = matrix.slice(1).map(r => r[c]?.trim() || '').filter(Boolean);
+    const numericCount = cellVals.filter(v => NUMERIC_REGEX.test(v)).length;
+    if (cellVals.length > 0 && (numericCount / cellVals.length) >= 0.5) {
+      alignments.push('right');
+    } else {
+      alignments.push('left');
+    }
+  }
+
+  return alignments;
 }
