@@ -27,9 +27,11 @@ export interface StreamPageResult {
   widthPt: number;
   heightPt: number;
   scale: number;
-  buffer: Buffer;
-  readonly base64: string;
-  readonly dataUrl: string;
+  buffer?: Buffer;
+  readonly base64?: string;
+  readonly dataUrl?: string;
+  pixmap?: any;
+  raw?: Buffer;
   text: string;
 }
 
@@ -46,9 +48,43 @@ export interface StreamImagesOptions {
   pageRange?: string | number | number[];
   /** Whether to extract plain text for the page (default: true). Set false for even faster rendering. */
   extractText?: boolean;
+  /** Output format: 'buffer' (PNG Buffer), 'pixmap' (raw MuPDF Pixmap), or 'raw' (uncompressed RGB pixels Buffer). */
+  format?: 'buffer' | 'pixmap' | 'raw';
+  /** Bounded prefetch window (e.g. true or 1 for 1-page lookahead). */
+  prefetch?: boolean | number;
+  /** Whether to cache and use DisplayList for rendering and text extraction (default: true). */
+  useDisplayList?: boolean;
   /** Optional progress callback. */
   onProgress?: (progress: { current: number; total: number; pageNumber: number; totalPages: number }) => void;
 }
+
+export interface RegionOptions {
+  scale?: number;
+  transparent?: boolean;
+  noBg?: boolean;
+  withBg?: boolean;
+  format?: 'buffer' | 'pixmap' | 'raw';
+}
+
+export interface RegionResult {
+  buffer?: Buffer;
+  base64?: string;
+  dataUrl?: string;
+  pixmap?: any;
+  raw?: Buffer;
+  width: number;
+  height: number;
+  bbox: number[];
+}
+
+export declare class DisplayListCache {
+  constructor(maxSize?: number);
+  get(doc: any, pageIndex: number): { displayList: any; bounds: number[]; widthPt: number; heightPt: number };
+  set(pageIndex: number, entry: any): void;
+  clear(): void;
+}
+
+export declare function renderRegion(target: any, rect: number[], options?: RegionOptions): RegionResult;
 
 export interface ConvertImagesOptions extends StreamImagesOptions {}
 
