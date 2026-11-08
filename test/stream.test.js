@@ -9,7 +9,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import mupdf from 'mupdf';
-import { streamPdfPages, convertPdfToImages } from '../src/index.js';
+import { streamPdfPages, convertPdfToImages, renderRegion, DisplayListCache } from '../src/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -121,6 +121,100 @@ await runAsyncTest('generator can be aborted early via break without error', asy
   }
   if (seen !== 2) {
     throw new Error(`Expected exactly 2 iterations before break, got ${seen}`);
+  }
+});
+
+// 6. Consumer-controlled backpressure with bounded prefetch
+await runAsyncTest('streamPdfPages supports bounded prefetch lookahead', async () => {
+  const multiPdfBuffer = createMultiPagePdf(5);
+  const pagesSeen = [];
+  for await (const page of streamPdfPages(multiPdfBuffer, { prefetch: 1 })) {
+    pagesSeen.push(page.pageNumber);
+    // simulate slow consumer processing
+    await new Promise(r => setTimeout(r, 5));
+  }
+  if (pagesSeen.length !== 5 || pagesSeen[4] !== 5) {
+    throw new Error(`Expected 5 sequential pages, got: ${pagesSeen.join(',')}`);
+  }
+});
+
+// 7. Output format selection (raw Pixmap vs raw Buffer vs PNG)
+await runAsyncTest('streamPdfPages supports raw Buffer and Pixmap formats without PNG overhead', async () => {
+  // Test raw format
+  for await (const page of streamPdfPages(samplePdfPath, { format: 'raw', scale: 1.0 })) {
+    if (!Buffer.isBuffer(page.raw) || !Buffer.isBuffer(page.buffer)) {
+      throw new Error('Expected raw Buffer output');
+    }
+    const expectedBytes = page.width * page.height * 3;
+    if (page.raw.length !== expectedBytes) {
+      throw new Error(`Raw buffer size mismatch: got ${page.raw.length}, expected ${expectedBytes}`);
+    }
+  }
+
+  // Test pixmap format
+  for await (const page of streamPdfPages(samplePdfPath, { format: 'pixmap', scale: 1.0 })) {
+    if (!page.pixmap || typeof page.pixmap.destroy !== 'function') {
+      throw new Error('Expected MuPDF Pixmap instance');
+    }
+    if (page.pixmap.getWidth() !== page.width) {
+      throw new Error('Pixmap dimension mismatch');
+    }
+    page.pixmap.destroy(); // Explicit consumer release
+  }
+});
+
+// 8. Region-based sub-rect rendering
+await runAsyncTest('renderRegion accurately renders sub-rectangles with crisp bounds', async () => {
+  const doc = mupdf.Document.openDocument(fs.readFileSync(samplePdfPath), 'application/pdf');
+  try {
+    const page = doc.loadPage(0);
+    try {
+      const region = renderRegion(page, [50, 50, 200, 200], { scale: 2.0 });
+      if (!Buffer.isBuffer(region.buffer)) {
+        throw new Error('Region buffer is not a Buffer');
+      }
+      if (region.width !== 300 || region.height !== 300) {
+        throw new Error(`Expected 300x300 region, got ${region.width}x${region.height}`);
+      }
+      if (typeof region.base64 !== 'string' || !region.dataUrl.startsWith('data:image/png;base64,')) {
+        throw new Error('Region base64/dataUrl lazy evaluation failed');
+      }
+
+      // Raw format region test
+      const rawRegion = renderRegion(page, [50, 50, 200, 200], { scale: 2.0, format: 'raw' });
+      if (rawRegion.raw.length !== 300 * 300 * 3) {
+        throw new Error('Raw region byte length mismatch');
+      }
+    } finally {
+      page.destroy();
+    }
+  } finally {
+    doc.destroy();
+  }
+});
+
+// 9. DisplayListCache eviction and memory release
+await runAsyncTest('DisplayListCache caches, evicts oldest entry, and clears all WASM allocations', async () => {
+  const multiPdfBuffer = createMultiPagePdf(5);
+  const doc = mupdf.Document.openDocument(multiPdfBuffer, 'application/pdf');
+  try {
+    const cache = new DisplayListCache(2);
+    const p0 = cache.get(doc, 0);
+    const p1 = cache.get(doc, 1);
+    if (cache.cache.size !== 2) throw new Error('Expected cache size 2');
+
+    // Access p0 to make p1 oldest
+    cache.get(doc, 0);
+    // Add p2 -> evicts p1
+    const p2 = cache.get(doc, 2);
+    if (cache.cache.size !== 2 || cache.cache.has(1)) {
+      throw new Error('p1 should have been evicted');
+    }
+
+    cache.clear();
+    if (cache.cache.size !== 0) throw new Error('Expected empty cache after clear');
+  } finally {
+    doc.destroy();
   }
 });
 

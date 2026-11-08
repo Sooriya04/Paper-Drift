@@ -7,7 +7,14 @@
  * Part of paper-drift - https://github.com/Sooriya04/Paper-Drift
  */
 
-import { convertPdfToImages, streamPdfPages, convertPdfToHtml, parsePageRange } from './converter.js';
+import {
+  convertPdfToImages,
+  streamPdfPages,
+  convertPdfToHtml,
+  parsePageRange,
+  renderRegion,
+  DisplayListCache
+} from './converter.js';
 import { convertPdfToMarkdown } from './markdown/converter.js';
 import { extractPdfImages } from './images/extractor.js';
 import { extractPageLinks, buildDocumentDestinations, applyLinksToLine, findDestinationAnchors, formatDestinationSlug } from './links/extractor.js';
@@ -26,6 +33,8 @@ export {
   streamPdfPages,
   convertPdfToHtml,
   parsePageRange,
+  renderRegion,
+  DisplayListCache,
   convertPdfToMarkdown,
   extractPdfImages,
   extractPageLinks,
@@ -57,6 +66,8 @@ export default {
   findDestinationAnchors,
   formatDestinationSlug,
   parsePageRange,
+  renderRegion,
+  DisplayListCache,
   resolveReadingOrder,
   recursiveXyCut,
   convertPdfToDocumentIR,
