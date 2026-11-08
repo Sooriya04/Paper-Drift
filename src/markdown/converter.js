@@ -196,8 +196,12 @@ export async function convertPdfToMarkdown(input, options = {}) {
           ...pageImages.flatMap(img => img.insideLines || [])
         ]);
 
-        // Remaining prose lines
-        const proseLines = pData.lines.filter(l => !claimedLines.has(l));
+        // Remaining prose lines (filtering out vertical running margin lines like arXiv side banners)
+        const proseLines = pData.lines.filter(l => {
+          if (claimedLines.has(l)) return false;
+          if (stripRepeatedLines && l.left < 45 && l.height > l.width * 2) return false;
+          return true;
+        });
 
         // Combine prose blocks, table regions, and image/figure blocks into unified reading order blocks
         const blocksToOrder = [
@@ -318,7 +322,11 @@ export async function convertPdfToMarkdown(input, options = {}) {
             const text = (anchorTag + formattedText).trim();
             if (!text) continue;
 
-            const role = classifyTypography(line, bodyMode, pData.height);
+            const role = classifyTypography(line, bodyMode, pData.height, pData.pageIndex);
+
+            if (role === 'margin_artifact') {
+              continue;
+            }
 
             if (role === 'title') {
               flushAll();
@@ -350,6 +358,23 @@ export async function convertPdfToMarkdown(input, options = {}) {
                 }
               }
               pageMarkdownParts.push(`### ${secAnchor}${text}`);
+              lastLine = null;
+            } else if (role === 'h3') {
+              flushAll();
+              let secAnchor = '';
+              const secMatch = line.text.trim().match(/^(\d+(?:\.\d+)*)\.?\s+/);
+              if (secMatch) {
+                const secId = `subsubsection-${secMatch[1].replace(/\./g, '-')}`;
+                if (!claimedAnchorIds.has(secId)) {
+                  claimedAnchorIds.add(secId);
+                  secAnchor = `<a id="${secId}"></a>`;
+                }
+              }
+              pageMarkdownParts.push(`#### ${secAnchor}${text}`);
+              lastLine = null;
+            } else if (role === 'h4') {
+              flushAll();
+              pageMarkdownParts.push(`##### ${text}`);
               lastLine = null;
             } else if (role === 'caption') {
               flushAll();
