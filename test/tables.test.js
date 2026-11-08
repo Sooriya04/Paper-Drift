@@ -359,4 +359,53 @@ runTest('reconstructTables ignores non-table rules and returns empty list', () =
   assertEqual(reconstructTables(singleRule, [], 500, 700).length, 0, 'No lines returns empty');
 });
 
+runTest('reconstructTables isolates footnote divider rule and skips phantom single-column boxes', () => {
+  // Footnote divider line near bottom of page (y=709, length 144)
+  const footnoteRule = [{ left: 107.8, top: 709.2, right: 251.7, bottom: 709.5 }];
+  const fnLines = [
+    { left: 107.8, top: 715.0, right: 250.0, bottom: 722.0, text: '1 Equal contribution.' },
+    { left: 107.8, top: 724.0, right: 250.0, bottom: 731.0, text: '2 Work done while at Google.' }
+  ];
+  assertEqual(reconstructTables(footnoteRule, fnLines, 612, 792).length, 0, 'Footnote divider must not form table');
+
+  // Single-column tall text box (e.g. abstract between decorative rules)
+  const abstractRules = [
+    { left: 107.5, top: 128.2, right: 504.5, bottom: 128.6 },
+    { left: 107.5, top: 596.2, right: 504.5, bottom: 596.6 }
+  ];
+  const abstractLines = [
+    { left: 108.0, top: 135.0, right: 504.0, bottom: 145.0, text: 'Attention Is All You Need' },
+    { left: 108.0, top: 155.0, right: 504.0, bottom: 165.0, text: 'The dominant sequence transduction models...' }
+  ];
+  // Height = 468pt > 200pt with 1 column -> correctly excluded from being rendered as a phantom table!
+  assertEqual(reconstructTables(abstractRules, abstractLines, 612, 792).length, 0, 'Single-column text box must not form table');
+});
+
+runTest('reconstructTables preserves structured geometry representation (rows, cols, colBoundaries)', () => {
+  const rules = [
+    { left: 100, top: 50, right: 400, bottom: 50 },
+    { left: 100, top: 100, right: 400, bottom: 100 },
+    { left: 100, top: 150, right: 400, bottom: 150 },
+    { left: 200, top: 50, right: 200, bottom: 150 },
+    { left: 300, top: 50, right: 300, bottom: 150 }
+  ];
+  const lines = [
+    { left: 110, top: 60, right: 190, bottom: 75, text: 'Header 1' },
+    { left: 210, top: 60, right: 290, bottom: 75, text: 'Header 2' },
+    { left: 310, top: 60, right: 390, bottom: 75, text: 'Header 3' },
+    { left: 110, top: 110, right: 190, bottom: 125, text: 'Data 1' },
+    { left: 210, top: 110, right: 290, bottom: 125, text: 'Data 2' },
+    { left: 310, top: 110, right: 390, bottom: 125, text: 'Data 3' }
+  ];
+
+  const tables = reconstructTables(rules, lines, 500, 700);
+  assertEqual(tables.length, 1, 'Must reconstruct 1 table');
+  const t = tables[0];
+  assert(t.geometry !== undefined, 'Table must expose structured geometry metadata');
+  assertEqual(t.geometry.cols, 3, 'Geometry cols must be 3');
+  assertEqual(t.geometry.rows, 2, 'Geometry rows must be 2');
+  assert(Array.isArray(t.geometry.colBoundaries), 'colBoundaries must be an array');
+  assertEqual(t.geometry.colBoundaries.length, 4, '4 boundaries for 3 columns');
+});
+
 console.log('\n\x1b[1m\x1b[32m✔ All Table Geometry & Rendering tests passed successfully!\x1b[0m\n');
