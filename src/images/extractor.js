@@ -22,7 +22,7 @@ import {
   MAX_REPEAT_PAGES,
   SMALL_IMAGE_PAGE_SHARE
 } from './raster.js';
-import { detectPageFigures, renderFigureRegion } from './figures.js';
+import { detectPageFigures, renderFigureRegion, findFigureTitleOrCaption } from './figures.js';
 
 function boxOverlap(a, b) {
   return a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1];
@@ -282,7 +282,11 @@ export async function extractPdfImages(input, options = {}) {
             fs.writeFileSync(filePath, encoded.bytes);
           }
 
-          const altText = `Page ${pData.pageNumber} Image ${imageIndex}`;
+          // Search for associated caption for this raster figure/image
+          const captionMatch = findFigureTitleOrCaption(r.bbox, pData.lines || []);
+          const caption = captionMatch.caption || null;
+          const insideLines = captionMatch.captionLines || [];
+          const altText = caption ? caption : `Page ${pData.pageNumber} Image ${imageIndex}`;
 
           const assetInfo = {
             type: 'image',
@@ -293,12 +297,12 @@ export async function extractPdfImages(input, options = {}) {
             filePath,
             link,
             alt: altText,
-            caption: null,
+            caption,
             width: encoded.width,
             height: encoded.height,
             bytes: encoded.bytes,
             sizeKb: parseFloat((encoded.bytes.length / 1024).toFixed(1)),
-            insideLines: []
+            insideLines
           };
 
           assets.push(assetInfo);

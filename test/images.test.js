@@ -98,7 +98,7 @@ runTest('hashPixmap produces deterministic SHA-256 for pixmaps', () => {
   const hash2 = hashPixmap(pix2);
 
   assert.strictEqual(typeof hash1, 'string');
-  assert.strictEqual(hash1.length, 40);
+  assert.strictEqual(hash1.length, 64);
   assert.strictEqual(hash1, hash2);
 
   const pix3 = new mupdf.Pixmap(mupdf.ColorSpace.DeviceRGB, [0, 0, 8, 8], false);
@@ -142,7 +142,7 @@ runTest('encodePixmap encodes RGBA pixmap to PNG', () => {
 // -------------------------------------------------------------
 console.log('\n\x1b[1m2. Vector Figure Caption Matching & Rendering\x1b[0m');
 
-runTest('findFigureTitleOrCaption identifies figure captions', () => {
+runTest('findFigureTitleOrCaption identifies figure captions and collects multi-line continuations', () => {
   const lines = [
     { text: 'Prose text before diagram.', bbox: [50, 50, 400, 62], fontSize: 10 },
     { text: 'Figure 1: Overall architecture of the transformer model.', bbox: [50, 410, 450, 424], fontSize: 9 },
@@ -154,8 +154,8 @@ runTest('findFigureTitleOrCaption identifies figure captions', () => {
   const match = findFigureTitleOrCaption(figureBox, lines);
 
   assert.ok(match !== null);
-  assert.strictEqual(match.caption, 'Figure 1: Overall architecture of the transformer model.');
-  assert.strictEqual(match.captionLines.length, 1);
+  assert.strictEqual(match.caption, 'Figure 1: Overall architecture of the transformer model. The model consists of an encoder and decoder.');
+  assert.strictEqual(match.captionLines.length, 2);
 });
 
 await runAsyncTest('renderFigureRegion generates crisp cropped PNG from PDF page', async () => {

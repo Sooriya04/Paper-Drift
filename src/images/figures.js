@@ -20,7 +20,7 @@ export const MAX_BOX_PAGE_SHARE = 0.85;
 export const MAX_FIGURE_PAGE_SHARE = 0.8;
 export const CLUSTER_GAP = 6;
 export const TEXT_GAP = 4;
-export const TITLE_GAP = 24;
+export const TITLE_GAP = 36;
 export const TITLE_WIDTH_RATIO = 0.9;
 export const TITLE_CENTRE_RATIO = 0.1;
 export const MIN_BODY_LINE_WIDTH = 100;
@@ -167,6 +167,7 @@ function bodyLeftEdge(lines) {
 
 /**
  * Associates a title or caption line situated immediately above or below the figure.
+ * Prioritizes explicit figure/table caption labels and collects wrapped multi-line captions.
  */
 export function findFigureTitleOrCaption(box, lines) {
   let region = Array.isArray(box) ? boxOf(box) : box;
@@ -183,31 +184,58 @@ export function findFigureTitleOrCaption(box, lines) {
     return line;
   });
 
-  // Check line above
   const centre = (region.left + region.right) / 2;
-  const lineAbove = normLines
+
+  // 1. Look for explicit figure/table caption line below first
+  const candidateBelow = normLines
+    .filter(line => line.top >= region.bottom - 4 &&
+                    line.top <= region.bottom + TITLE_GAP &&
+                    CAPTION_START_REGEX.test((line.text || '').trim()))
+    .sort((a, b) => a.top - b.top)[0];
+
+  // 2. Look for explicit figure/table caption line above
+  const candidateAboveExplicit = normLines
+    .filter(line => line.bottom <= region.top + 4 &&
+                    line.bottom >= region.top - TITLE_GAP &&
+                    CAPTION_START_REGEX.test((line.text || '').trim()))
+    .sort((a, b) => b.bottom - a.bottom)[0];
+
+  // 3. Look for centered title line above
+  const candidateAboveTitle = normLines
     .filter(line => line.bottom <= region.top + 2 &&
                     line.bottom >= region.top - TITLE_GAP &&
                     width(line) <= width(region) * TITLE_WIDTH_RATIO &&
                     Math.abs((line.left + line.right) / 2 - centre) <= width(region) * TITLE_CENTRE_RATIO)
     .sort((a, b) => b.bottom - a.bottom)[0];
 
-  if (lineAbove) {
-    caption = lineAbove.text.trim();
-    region = union(region, lineAbove);
-    captionLines.push(lineAbove);
-  } else {
-    // Check line below
-    const lineBelow = normLines
-      .filter(line => line.top >= region.bottom - 2 &&
-                      line.top <= region.bottom + TITLE_GAP &&
-                      CAPTION_START_REGEX.test((line.text || '').trim()))
-      .sort((a, b) => a.top - b.top)[0];
+  const primaryCaptionLine = candidateBelow || candidateAboveExplicit || candidateAboveTitle;
 
-    if (lineBelow) {
-      caption = lineBelow.text.trim();
-      region = union(region, lineBelow);
-      captionLines.push(lineBelow);
+  if (primaryCaptionLine) {
+    caption = primaryCaptionLine.text.trim();
+    region = union(region, primaryCaptionLine);
+    captionLines.push(primaryCaptionLine);
+
+    // If caption starts with Figure/Table and was below, collect contiguous wrapped continuation lines
+    if (primaryCaptionLine === candidateBelow) {
+      let lastLine = primaryCaptionLine;
+      const sortedRemaining = normLines
+        .filter(l => l.top >= lastLine.bottom - 2 && l.top <= lastLine.bottom + 12 && l !== primaryCaptionLine)
+        .sort((a, b) => a.top - b.top);
+
+      for (const continuation of sortedRemaining) {
+        const text = (continuation.text || '').trim();
+        // Stop if line starts a new section, another caption, or is too far indented
+        if (CAPTION_START_REGEX.test(text) || /^\d+\.?\s+[A-Z]/.test(text)) break;
+        if (Math.abs(continuation.left - primaryCaptionLine.left) > 30 && Math.abs(continuation.right - primaryCaptionLine.right) > 30) {
+          // Gutter break or column mismatch
+          break;
+        }
+        caption += ' ' + text;
+        region = union(region, continuation);
+        captionLines.push(continuation);
+        lastLine = continuation;
+        if (captionLines.length >= 4) break; // Limit continuation to 3 extra lines
+      }
     }
   }
 
@@ -312,20 +340,25 @@ export function renderFigureRegion(page, bbox, targetScale = 2.0) {
   const wanted = Math.max(RENDER_TARGET_PIXELS / Math.max(w, h), targetScale);
   const scale = Math.max(1.5, Math.min(MAX_RENDER_SCALE, wanted));
 
-  const matrix = mupdf.Matrix.scale(scale, scale);
-  const transformed = mupdf.Rect.transform(bbox, matrix);
+  const scaleMatrix = mupdf.Matrix.scale(scale, scale);
+  const transformed = mupdf.Rect.transform(bbox, scaleMatrix);
 
-  const rect = [
-    Math.floor(transformed[0]),
-    Math.floor(transformed[1]),
-    Math.ceil(transformed[2]),
-    Math.ceil(transformed[3])
-  ];
+  const minX = Math.floor(transformed[0]);
+  const minY = Math.floor(transformed[1]);
+  const maxX = Math.ceil(transformed[2]);
+  const maxY = Math.ceil(transformed[3]);
+  const pixelWidth = Math.max(1, maxX - minX);
+  const pixelHeight = Math.max(1, maxY - minY);
+
+  // Fast clipping: translate to origin [0, 0, pixelWidth, pixelHeight]
+  // Allows DrawDevice to clip out-of-bounds vectors instantly and saves memory
+  const renderMatrix = mupdf.Matrix.concat(scaleMatrix, mupdf.Matrix.translate(-minX, -minY));
+  const rect = [0, 0, pixelWidth, pixelHeight];
 
   const pixmap = new mupdf.Pixmap(mupdf.ColorSpace.DeviceRGB, rect, false);
   pixmap.clear(255); // Opaque white background for figures
 
-  const device = new mupdf.DrawDevice(matrix, pixmap);
+  const device = new mupdf.DrawDevice(renderMatrix, pixmap);
   try {
     page.run(device, mupdf.Matrix.identity);
     device.close();
