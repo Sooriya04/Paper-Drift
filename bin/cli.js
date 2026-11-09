@@ -54,6 +54,26 @@ High-performance, zero-Chromium WebAssembly PDF to Image, Markdown (GFM), HTML, 
 `);
 }
 
+function validatePageRangeSyntax(rangeStr) {
+  if (typeof rangeStr !== 'string' || !rangeStr.trim()) return false;
+  const s = rangeStr.trim().toLowerCase();
+  if (s === 'all') return true;
+  const parts = s.split(',');
+  for (const part of parts) {
+    const p = part.trim();
+    if (!p) return false;
+    if (/^\d+$/.test(p)) {
+      if (parseInt(p, 10) < 1) return false;
+    } else if (/^\d+\s*-\s*\d+$/.test(p)) {
+      const [start, end] = p.split('-').map(x => parseInt(x.trim(), 10));
+      if (start < 1 || end < 1 || start > end) return false;
+    } else {
+      return false;
+    }
+  }
+  return true;
+}
+
 async function run() {
   const args = process.argv.slice(2);
 
@@ -79,13 +99,37 @@ async function run() {
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === '--format') {
-      format = (args[++i] || 'image').toLowerCase();
+      const val = args[++i];
+      if (!val || val.startsWith('-')) {
+        console.error('\x1b[31mError: Missing argument for --format\x1b[0m');
+        process.exit(1);
+      }
+      format = val.toLowerCase();
     } else if (arg === '--scale') {
-      scale = parseFloat(args[++i]) || 2.0;
+      const val = args[++i];
+      if (!val || val.startsWith('-')) {
+        console.error('\x1b[31mError: Missing argument for --scale\x1b[0m');
+        process.exit(1);
+      }
+      const parsedScale = parseFloat(val);
+      if (isNaN(parsedScale) || parsedScale <= 0) {
+        console.error(`\x1b[31mError: Invalid scale "${val}". Scale must be a positive number.\x1b[0m`);
+        process.exit(1);
+      }
+      scale = parsedScale;
     } else if (arg === '--no-bg') {
       withBg = false;
     } else if (arg === '--pages') {
-      pageRange = args[++i] || 'all';
+      const val = args[++i];
+      if (!val || val.startsWith('-')) {
+        console.error('\x1b[31mError: Missing argument for --pages\x1b[0m');
+        process.exit(1);
+      }
+      if (!validatePageRangeSyntax(val)) {
+        console.error(`\x1b[31mError: Invalid page range "${val}". Expected "all", a single page (e.g. 1), list (e.g. 1,3,5), or range (e.g. 1-5).\x1b[0m`);
+        process.exit(1);
+      }
+      pageRange = val;
     } else if (arg === '-i' || arg === '--extract-images') {
       const next = args[i + 1];
       if (next && !next.startsWith('-') && !next.toLowerCase().endsWith('.pdf') && !next.toLowerCase().endsWith('.md') && !next.toLowerCase().endsWith('.html') && !next.toLowerCase().endsWith('.json')) {
