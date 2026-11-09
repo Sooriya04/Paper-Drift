@@ -276,6 +276,17 @@ export function resolveReadingOrder(
 };
 
 /**
+ * Recursively partitions spatial bounding boxes into reading order via XY-Cut.
+ */
+export function recursiveXyCut(
+  blockList: Array<any>,
+  clipMinX: number,
+  clipMinY: number,
+  clipMaxX: number,
+  clipMaxY: number
+): Array<any>;
+
+/**
  * Extracts content images and drawn figures from a PDF document.
  */
 export function extractPdfImages(
@@ -358,7 +369,10 @@ declare const _default: {
   findDestinationAnchors: typeof findDestinationAnchors;
   formatDestinationSlug: typeof formatDestinationSlug;
   parsePageRange: typeof parsePageRange;
+  renderRegion: typeof renderRegion;
+  DisplayListCache: typeof DisplayListCache;
   resolveReadingOrder: typeof resolveReadingOrder;
+  recursiveXyCut: typeof recursiveXyCut;
   convertPdfToDocumentIR: typeof convertPdfToDocumentIR;
   validateDocumentIR: typeof validateDocumentIR;
   exportToJson: typeof exportToJson;
