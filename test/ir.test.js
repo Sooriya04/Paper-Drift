@@ -78,7 +78,9 @@ runTest('validateDocumentIR validates valid document IR schema', () => {
 runTest('validateDocumentIR rejects invalid document structures', () => {
   assert.strictEqual(validateDocumentIR(null), false);
   assert.strictEqual(validateDocumentIR({}), false);
+  assert.strictEqual(validateDocumentIR([]), false);
   assert.strictEqual(validateDocumentIR({ metadata: { title: 'Test', pageCount: 1 }, pages: 'not-array' }), false);
+  assert.strictEqual(validateDocumentIR({ metadata: { title: 'Test', pageCount: 1 }, pages: [] }), false, 'Should reject empty pages array');
   assert.strictEqual(validateDocumentIR({ metadata: { title: 'Test', pageCount: 1 }, pages: [{ page: 1, content: [{ type: 'paragraph', content: 'test' }] }] }), false, 'Should reject array content');
   // Rejects extra metadata fields or non-string content
   assert.strictEqual(validateDocumentIR({
@@ -92,6 +94,27 @@ runTest('validateDocumentIR rejects invalid document structures', () => {
       content: 'hello'
     }]
   }), false, 'Should reject metadata containing extra fields like author');
+  // Rejects extra top-level fields
+  assert.strictEqual(validateDocumentIR({
+    metadata: { title: 'Test', pageCount: 1 },
+    pages: [{ page: 1, content: 'hello' }],
+    extra: true
+  }), false, 'Should reject extra top-level fields');
+  // Rejects negative, zero, or non-integer pageCount
+  assert.strictEqual(validateDocumentIR({ metadata: { title: 'Test', pageCount: 0 }, pages: [{ page: 1, content: 'hi' }] }), false);
+  assert.strictEqual(validateDocumentIR({ metadata: { title: 'Test', pageCount: -1 }, pages: [{ page: 1, content: 'hi' }] }), false);
+  assert.strictEqual(validateDocumentIR({ metadata: { title: 'Test', pageCount: 1.5 }, pages: [{ page: 1, content: 'hi' }] }), false);
+  assert.strictEqual(validateDocumentIR({ metadata: { title: '', pageCount: 1 }, pages: [{ page: 1, content: 'hi' }] }), false);
+  // Rejects page number > pageCount or < 1
+  assert.strictEqual(validateDocumentIR({ metadata: { title: 'Test', pageCount: 2 }, pages: [{ page: 3, content: 'hi' }] }), false);
+  assert.strictEqual(validateDocumentIR({ metadata: { title: 'Test', pageCount: 2 }, pages: [{ page: 0, content: 'hi' }] }), false);
+  assert.strictEqual(validateDocumentIR({ metadata: { title: 'Test', pageCount: 2 }, pages: [{ page: 1.5, content: 'hi' }] }), false);
+  // Rejects duplicate pages or descending page order
+  assert.strictEqual(validateDocumentIR({ metadata: { title: 'Test', pageCount: 2 }, pages: [{ page: 1, content: 'a' }, { page: 1, content: 'b' }] }), false);
+  assert.strictEqual(validateDocumentIR({ metadata: { title: 'Test', pageCount: 2 }, pages: [{ page: 2, content: 'a' }, { page: 1, content: 'b' }] }), false);
+  // Rejects malformed page entry (extra fields or non-object)
+  assert.strictEqual(validateDocumentIR({ metadata: { title: 'Test', pageCount: 1 }, pages: [{ page: 1, content: 'a', extra: 123 }] }), false);
+  assert.strictEqual(validateDocumentIR({ metadata: { title: 'Test', pageCount: 1 }, pages: ['string-page'] }), false);
 });
 
 // -------------------------------------------------------------
@@ -145,6 +168,25 @@ runTest('exportToJson serializes Document IR to valid JSON string', () => {
   assert.strictEqual(parsed.pages[0].page, 1);
   assert.strictEqual(typeof parsed.pages[0].content, 'string');
   assert.deepStrictEqual(Object.keys(parsed.pages[0]).sort(), ['content', 'page'].sort());
+});
+
+runTest('exportToJson produces deterministic, canonically sorted output regardless of property insertion order', () => {
+  const doc1 = {
+    pages: [{ content: 'test body', page: 1 }],
+    metadata: { pageCount: 5, title: 'Alphabetical' }
+  };
+  const doc2 = {
+    metadata: { title: 'Alphabetical', pageCount: 5 },
+    pages: [{ page: 1, content: 'test body' }]
+  };
+
+  const json1 = exportToJson(doc1);
+  const json2 = exportToJson(doc2);
+  assert.strictEqual(json1, json2, 'exportToJson should produce byte-for-byte identical output');
+
+  // Verify non-null object check
+  assert.throws(() => exportToJson(null), TypeError);
+  assert.throws(() => exportToJson('string'), TypeError);
 });
 
 // -------------------------------------------------------------

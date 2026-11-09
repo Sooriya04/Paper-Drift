@@ -8,6 +8,7 @@
 import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import assert from 'assert';
 import { fileURLToPath } from 'url';
 import { convertPdfToHtml, convertPdfToImages, parsePageRange } from '../src/index.js';
 
@@ -112,6 +113,58 @@ try {
       failed = true;
     }
     if (!failed) throw new Error('CLI should have failed with invalid format');
+  });
+
+  // 7a. CLI argument validation tests
+  runTest('CLI rejects missing arguments for flags and invalid scales or page ranges', () => {
+    // Missing scale argument
+    assert.throws(() => {
+      execSync(`node bin/cli.js "${samplePdfPath}" --scale`, { stdio: 'pipe' });
+    });
+    // Non-positive or non-numeric scale argument
+    assert.throws(() => {
+      execSync(`node bin/cli.js "${samplePdfPath}" --scale abc`, { stdio: 'pipe' });
+    });
+    assert.throws(() => {
+      execSync(`node bin/cli.js "${samplePdfPath}" --scale 0`, { stdio: 'pipe' });
+    });
+    assert.throws(() => {
+      execSync(`node bin/cli.js "${samplePdfPath}" --scale -1.5`, { stdio: 'pipe' });
+    });
+    // Missing format argument
+    assert.throws(() => {
+      execSync(`node bin/cli.js "${samplePdfPath}" --format`, { stdio: 'pipe' });
+    });
+    // Missing pages argument
+    assert.throws(() => {
+      execSync(`node bin/cli.js "${samplePdfPath}" --pages`, { stdio: 'pipe' });
+    });
+    // Malformed page range syntax
+    assert.throws(() => {
+      execSync(`node bin/cli.js "${samplePdfPath}" --pages invalid-range`, { stdio: 'pipe' });
+    });
+    assert.throws(() => {
+      execSync(`node bin/cli.js "${samplePdfPath}" --pages 5-1`, { stdio: 'pipe' });
+    });
+    assert.throws(() => {
+      execSync(`node bin/cli.js "${samplePdfPath}" --pages 0`, { stdio: 'pipe' });
+    });
+    // Non-existent PDF input
+    assert.throws(() => {
+      execSync('node bin/cli.js non_existent_file.pdf', { stdio: 'pipe' });
+    });
+  });
+
+  // 7b. CLI JSON format export
+  const cliOutputJson = path.join(resultsOutputDir, 'sample-ir.json');
+  runTest('CLI exports Structured Document IR via --format json', () => {
+    if (fs.existsSync(cliOutputJson)) fs.unlinkSync(cliOutputJson);
+    execSync(`node bin/cli.js "${samplePdfPath}" "${cliOutputJson}" --format json`, { stdio: 'pipe' });
+    if (!fs.existsSync(cliOutputJson)) throw new Error('Output IR JSON was not created');
+    const parsed = JSON.parse(fs.readFileSync(cliOutputJson, 'utf-8'));
+    assert.strictEqual(typeof parsed.metadata.title, 'string');
+    assert.strictEqual(typeof parsed.metadata.pageCount, 'number');
+    assert.ok(Array.isArray(parsed.pages) && parsed.pages.length > 0);
   });
 
   // 8. CLI image conversion test
