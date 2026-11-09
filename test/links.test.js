@@ -356,6 +356,10 @@ await runAsyncTest('convertPdfToMarkdown generates figure anchors and wraps imag
 });
 
 await runAsyncTest('convertPdfToMarkdown weaves unlinked citations on PDFs without native PDF links (GAN)', async () => {
+  if (!fs.existsSync(ganPdf)) {
+    console.log('    ℹ Skipping GAN unlinked citation test (fixture not present)');
+    return;
+  }
   const result = await convertPdfToMarkdown(ganPdf, {
     pages: '1,8'
   });
