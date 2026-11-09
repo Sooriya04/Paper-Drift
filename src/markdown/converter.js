@@ -21,7 +21,8 @@ import {
   extractPageLinks,
   buildDocumentDestinations,
   applyLinksToLine,
-  findDestinationAnchors
+  findDestinationAnchors,
+  groupLinksByLine
 } from '../links/extractor.js';
 
 /**
@@ -71,65 +72,79 @@ export async function convertPdfToMarkdown(input, options = {}) {
       throw new Error(`No matching pages found for page range: "${pageRangeStr}" (Document has ${totalPages} pages).`);
     }
 
-    // Pre-scan document to index internal destination anchors (citations, figures, sections)
-    const documentDestinations = enableLinks ? buildDocumentDestinations(doc, targetIndices) : new Map();
+      // 1. First pass: Walk all target pages to collect text lines, vectors, and image candidates
+      const rawPagesData = [];
+      try {
+        for (let step = 0; step < targetIndices.length; step++) {
+          const pageIndex = targetIndices[step];
+          const pageNumber = pageIndex + 1;
 
-    // 1. First pass: Walk all target pages to collect text lines, vectors, and image candidates
-    const rawPagesData = [];
-    try {
-      for (let step = 0; step < targetIndices.length; step++) {
-        const pageIndex = targetIndices[step];
-        const pageNumber = pageIndex + 1;
-
-        if (typeof options.onProgress === 'function') {
-          options.onProgress({
-            phase: 'reading',
-            current: step + 1,
-            total: targetIndices.length,
-            pageNumber,
-            totalPages
-          });
-        }
-
-        const page = doc.loadPage(pageIndex);
-        try {
-          const bounds = page.getBounds();
-          const width = bounds[2] - bounds[0];
-          const height = bounds[3] - bounds[1];
-
-          const { lines, vectors } = extractPageVectorsAndText(page);
-          const links = enableLinks ? extractPageLinks(page, doc) : [];
-
-          const pageImages = shouldExtractImages ? readPageRasterImages(page, pageIndex) : [];
-          for (const img of pageImages) {
-            img.page = page;
-            img.bounds = bounds;
+          if (typeof options.onProgress === 'function') {
+            options.onProgress({
+              phase: 'reading',
+              current: step + 1,
+              total: targetIndices.length,
+              pageNumber,
+              totalPages
+            });
           }
 
-          const rules = [];
-          for (const v of vectors) {
-            rules.push(...rulesFromVector(v));
-          }
-
-          rawPagesData.push({
-            index: pageIndex,
-            pageIndex,
-            pageNumber,
-            bounds,
-            width,
-            height,
-            lines,
-            vectors,
-            rules,
-            links,
-            rasterImages: pageImages
-          });
-        } finally {
+          const page = doc.loadPage(pageIndex);
           try {
-            page.destroy();
-          } catch {}
+            const bounds = page.getBounds();
+            const width = bounds[2] - bounds[0];
+            const height = bounds[3] - bounds[1];
+
+            const { lines, vectors } = extractPageVectorsAndText(page);
+            const links = enableLinks ? extractPageLinks(page, doc) : [];
+
+            const pageImages = shouldExtractImages ? readPageRasterImages(page, pageIndex) : [];
+            for (const img of pageImages) {
+              img.page = page;
+              img.bounds = bounds;
+            }
+
+            const rules = [];
+            for (const v of vectors) {
+              rules.push(...rulesFromVector(v));
+            }
+
+            rawPagesData.push({
+              index: pageIndex,
+              pageIndex,
+              pageNumber,
+              bounds,
+              width,
+              height,
+              lines,
+              vectors,
+              rules,
+              links,
+              rasterImages: pageImages
+            });
+          } finally {
+            try {
+              page.destroy();
+            } catch {}
+          }
         }
-      }
+
+        // Build document destinations across target pages (with fallback to bibliography entries if native links missing)
+        const allPagesLines = new Map(rawPagesData.map(p => [p.index, p.lines]));
+        const documentDestinations = enableLinks
+          ? buildDocumentDestinations(doc, targetIndices, allPagesLines)
+          : new Map();
+
+        // Index known numbered citation anchors for fallback weaving
+        const knownCitations = new Map();
+        for (const list of documentDestinations.values()) {
+          for (const d of list) {
+            if (d.id.startsWith('cite-')) {
+              const numKey = d.id.replace('cite-', '');
+              knownCitations.set(numKey, `#${d.id}`);
+            }
+          }
+        }
 
       // Optional image and figure extraction reusing preloaded page data
       let imageExtractionResult = null;
@@ -186,6 +201,9 @@ export async function convertPdfToMarkdown(input, options = {}) {
           pageTables = reconstructTables(validRules, pData.lines, pData.width, pData.height);
           totalTablesCount += pageTables.length;
         }
+
+        // Pre-group links by line to eliminate vertical bounding-box overlap on tightly spaced text
+        const pageLinksByLine = enableLinks ? groupLinksByLine(pData.lines, pData.links) : new Map();
 
         // Extracted images and figures for this page
         const pageImages = (imageExtractionResult?.byPage.get(pData.pageNumber)) || [];
@@ -318,7 +336,8 @@ export async function convertPdfToMarkdown(input, options = {}) {
             const line = item.data;
             const pageDests = documentDestinations.get(pData.index) || [];
             const anchorTag = enableLinks ? findDestinationAnchors(line, pageDests, claimedAnchorIds) : '';
-            const formattedText = enableLinks ? applyLinksToLine(line, pData.links) : line.text;
+            const lineLinks = enableLinks ? (pageLinksByLine.get(line) || []) : [];
+            const formattedText = enableLinks ? applyLinksToLine(line, lineLinks, { knownCitations }) : line.text;
             const text = (anchorTag + formattedText).trim();
             if (!text) continue;
 

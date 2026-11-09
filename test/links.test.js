@@ -17,7 +17,8 @@ import {
   extractPageLinks,
   buildDocumentDestinations,
   applyLinksToLine,
-  findDestinationAnchors
+  findDestinationAnchors,
+  groupLinksByLine
 } from '../src/links/extractor.js';
 
 import { extractPageVectorsAndText } from '../src/vectors/walker.js';
@@ -29,6 +30,7 @@ const __dirname = path.dirname(__filename);
 const attentionPdf = path.resolve(__dirname, 'fixtures/benchmarks/01-attention-is-all-you-need.pdf');
 const resnetPdf = path.resolve(__dirname, 'fixtures/benchmarks/02-resnet-deep-residual-learning.pdf');
 const loraPdf = path.resolve(__dirname, 'fixtures/benchmarks/03-lora-low-rank-adaptation.pdf');
+const ganPdf = path.resolve(__dirname, 'fixtures/benchmarks/05-gan-generative-adversarial-nets.pdf');
 
 function runTest(name, fn) {
   try {
@@ -82,7 +84,7 @@ runTest('formatDestinationSlug normalizes internal named destinations to clean a
   );
 });
 
-runTest('formatDestinationSlug preserves external web URLs and emails', () => {
+runTest('formatDestinationSlug preserves external web URLs and emails and normalizes DOIs', () => {
   assert.strictEqual(
     formatDestinationSlug('https://github.com/microsoft/LoRA'),
     'https://github.com/microsoft/LoRA'
@@ -93,7 +95,15 @@ runTest('formatDestinationSlug preserves external web URLs and emails', () => {
   );
   assert.strictEqual(
     formatDestinationSlug('http://arxiv.org/abs/1706.03762'),
-    'http://arxiv.org/abs/1706.03762'
+    'https://arxiv.org/abs/1706.03762'
+  );
+  assert.strictEqual(
+    formatDestinationSlug('doi:10.1145/1234567.89'),
+    'https://doi.org/10.1145/1234567.89'
+  );
+  assert.strictEqual(
+    formatDestinationSlug('10.1145/1234567.89'),
+    'https://doi.org/10.1145/1234567.89'
   );
 });
 
@@ -218,6 +228,44 @@ runTest('findDestinationAnchors prepends HTML anchor tag matching line coordinat
   assert.strictEqual(secondCall, '');
 });
 
+runTest('groupLinksByLine maps link to unique best-matching line without vertical bleeding', () => {
+  const line1 = {
+    bbox: [50, 200, 300, 212],
+    chars: [{ char: 'a', x: 50, y: 210, size: 10 }]
+  };
+  const line2 = {
+    bbox: [50, 210, 300, 222], // Note overlapping vertical bbox with line1
+    chars: [{ char: 'b', x: 50, y: 220, size: 10 }]
+  };
+
+  const link = {
+    bbox: [100, 215, 120, 225],
+    midY: 220,
+    uri: '#cite-test'
+  };
+
+  const grouped = groupLinksByLine([line1, line2], [link]);
+  assert.strictEqual(grouped.has(line1), false);
+  assert.strictEqual(grouped.has(line2), true);
+  assert.strictEqual(grouped.get(line2)[0], link);
+});
+
+runTest('applyLinksToLine unlinked citation fallback weaves citations without matching math intervals', () => {
+  const knownCitations = new Map([
+    ['1', '#cite-1'],
+    ['19', '#cite-19']
+  ]);
+
+  const mathLine = { text: 'achieves its maximum in [0, 1] at conclusion' };
+  assert.strictEqual(applyLinksToLine(mathLine, [], { knownCitations }), 'achieves its maximum in [0, 1] at conclusion');
+
+  const citeLine = { text: 'introduced by earlier models [19, 1] successfully' };
+  assert.strictEqual(
+    applyLinksToLine(citeLine, [], { knownCitations }),
+    'introduced by earlier models [[19](#cite-19), [1](#cite-1)] successfully'
+  );
+});
+
 // -------------------------------------------------------------
 // 4. End-to-End Markdown Integration
 // -------------------------------------------------------------
@@ -305,6 +353,24 @@ await runAsyncTest('convertPdfToMarkdown generates figure anchors and wraps imag
       'Image links containing spaces should be enclosed in angle brackets'
     );
   }
+});
+
+await runAsyncTest('convertPdfToMarkdown weaves unlinked citations on PDFs without native PDF links (GAN)', async () => {
+  const result = await convertPdfToMarkdown(ganPdf, {
+    pages: '1,8'
+  });
+
+  assert.ok(result.markdown.length > 500);
+
+  // Check for synthesized citation anchors and interactive in-text citations
+  assert.ok(
+    result.markdown.includes('<a id="cite-1"></a>') || result.markdown.includes('<a id="cite-2"></a>'),
+    'Markdown should contain generated citation anchor <a id="cite-N"></a>'
+  );
+  assert.ok(
+    result.markdown.includes('](#cite-'),
+    'Markdown should contain woven in-text citations linking to #cite-N'
+  );
 });
 
 console.log('\n\x1b[32mAll Hyperlink & Citation Anchor tests passed successfully!\x1b[0m\n');
