@@ -14,9 +14,14 @@ import { extractScientificMetadata, validateScientificMetadata, SCIENTIFIC_METAD
 import { validateDocumentIRV2 } from '../src/metadata/schema.js';
 import { convertPdfToDocumentIR } from '../src/ir/schema.js';
 
-const SAMPLE_PDF = path.resolve('test/fixtures/sample.pdf');
-const ATTENTION_PDF = path.resolve('test/fixtures/benchmarks/arxiv/1706.03762v7.Attention_Is_All_You_Need.pdf');
-const RESNET_PDF = path.resolve('test/fixtures/benchmarks/cvpr/1512.03385v1.Deep_Residual_Learning_for_Image_Recognition.pdf');
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const SAMPLE_PDF = path.resolve(__dirname, 'fixtures/sample.pdf');
+const ATTENTION_PDF = path.resolve(__dirname, 'fixtures/benchmarks/01-attention-is-all-you-need.pdf');
+const RESNET_PDF = path.resolve(__dirname, 'fixtures/benchmarks/02-resnet-deep-residual-learning.pdf');
 
 test('Scientific Metadata Extraction Subsystem', async (t) => {
   await t.test('schema validation succeeds on valid metadata structure', () => {

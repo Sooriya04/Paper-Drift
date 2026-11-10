@@ -93,11 +93,11 @@ export function extractScientificHeader(rawPagesData, typographyMap) {
     const l = lines[i];
     const text = l.text.trim();
     if (!text) continue;
-    // Skip typical header notices or arXiv stamps at top
-    if (/arXiv:\d+\.\d+|preprint|under review|published in|conference/i.test(text) && l.top < 80) {
+    // Skip typical header notices, arXiv stamps, or email lines at top
+    if ((/arXiv:\d+\.\d+|preprint|under review|published in|conference/i.test(text) && l.top < 80) || (/@/.test(text) && /\.[a-z]{2,}/i.test(text))) {
       continue;
     }
-    const size = l.fontSize || l.height || 10;
+    const size = l.font?.size || l.fontSize || l.height || 10;
     if (size > maxFontSize) {
       maxFontSize = size;
     }
@@ -112,10 +112,10 @@ export function extractScientificHeader(rawPagesData, typographyMap) {
     const l = lines[i];
     const text = l.text.trim();
     if (!text) continue;
-    if (/arXiv:\d+\.\d+|preprint|under review|published in|conference/i.test(text) && l.top < 80) {
+    if ((/arXiv:\d+\.\d+|preprint|under review|published in|conference/i.test(text) && l.top < 80) || (/@/.test(text) && /\.[a-z]{2,}/i.test(text))) {
       continue;
     }
-    const size = l.fontSize || l.height || 10;
+    const size = l.font?.size || l.fontSize || l.height || 10;
     if (size >= maxFontSize * 0.85) {
       candidateTitleLines.push(text);
       if (l.bbox) titleBboxes.push(l.bbox);
