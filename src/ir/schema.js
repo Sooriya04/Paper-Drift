@@ -11,7 +11,7 @@ import path from 'path';
 import mupdf from 'mupdf';
 import { extractPageVectorsAndText } from '../vectors/walker.js';
 import { rulesFromVector, filterContentRules } from '../vectors/rules.js';
-import { reconstructTables } from '../tables/grid.js';
+import { reconstructTables, linkMultiPageTables } from '../tables/grid.js';
 import { parsePageRange } from '../converter.js';
 import { recursiveXyCut } from '../spatial/reading-order.js';
 import { extractPdfImages } from '../images/extractor.js';
@@ -24,30 +24,67 @@ import { normalizePageText, filterRunningHeadersFooters } from '../normalization
 /**
  * Validates a document IR object against the minimal page-based schema.
  * Enforces:
- * - Top-level `metadata` object with exactly `{ title: string, pageCount: number }`
- * - Top-level `pages` array: `[{ page: number, content: string }, ...]`
+ * - Exactly `{ metadata, pages }` top-level structure
+ * - Top-level `metadata` object with exactly `{ title: string, pageCount: number }` (pageCount is positive integer)
+ * - Top-level `pages` non-empty array: `[{ page: number, content: string, tables?: TableIR[] }, ...]`
+ * - Each page entry must have a valid positive integer `page` <= `metadata.pageCount` and `content` string
+ * - Pages must be unique and in ascending order without duplicate page numbers
+ * - If optional `tables` array is present on a page, validates each table structure
  *
  * @param {Object} doc - Document IR object to validate.
  * @returns {boolean} True if valid according to schema, false otherwise.
  */
 export function validateDocumentIR(doc) {
-  if (!doc || typeof doc !== 'object') return false;
-  if (!doc.metadata || typeof doc.metadata !== 'object') return false;
-  if (typeof doc.metadata.title !== 'string') return false;
-  if (typeof doc.metadata.pageCount !== 'number') return false;
+  if (!doc || typeof doc !== 'object' || Array.isArray(doc)) return false;
+
+  const topKeys = Object.keys(doc);
+  if (topKeys.length !== 2 || !topKeys.includes('metadata') || !topKeys.includes('pages')) {
+    return false;
+  }
+
+  if (!doc.metadata || typeof doc.metadata !== 'object' || Array.isArray(doc.metadata)) return false;
+  if (typeof doc.metadata.title !== 'string' || doc.metadata.title.trim().length === 0) return false;
+  if (typeof doc.metadata.pageCount !== 'number' || !Number.isInteger(doc.metadata.pageCount) || doc.metadata.pageCount < 1) {
+    return false;
+  }
+
   const metaKeys = Object.keys(doc.metadata);
   if (metaKeys.length !== 2 || !metaKeys.includes('title') || !metaKeys.includes('pageCount')) {
     return false;
   }
-  if (!Array.isArray(doc.pages)) return false;
+
+  if (!Array.isArray(doc.pages) || doc.pages.length === 0) return false;
+
+  const seenPages = new Set();
+  let prevPage = 0;
 
   for (const pageObj of doc.pages) {
-    if (!pageObj || typeof pageObj !== 'object') return false;
-    if (typeof pageObj.page !== 'number') return false;
-    if (typeof pageObj.content !== 'string') return false;
-    const pageKeys = Object.keys(pageObj);
-    if (pageKeys.length !== 2 || !pageKeys.includes('page') || !pageKeys.includes('content')) {
+    if (!pageObj || typeof pageObj !== 'object' || Array.isArray(pageObj)) return false;
+    if (typeof pageObj.page !== 'number' || !Number.isInteger(pageObj.page) || pageObj.page < 1 || pageObj.page > doc.metadata.pageCount) {
       return false;
+    }
+    if (typeof pageObj.content !== 'string') return false;
+
+    // Disallow duplicate pages and ensure ascending page order
+    if (seenPages.has(pageObj.page) || pageObj.page < prevPage) {
+      return false;
+    }
+    seenPages.add(pageObj.page);
+    prevPage = pageObj.page;
+
+    const pageKeys = Object.keys(pageObj);
+    const validPageKeys = ['page', 'content', 'tables'];
+    for (const k of pageKeys) {
+      if (!validPageKeys.includes(k)) return false;
+    }
+
+    if (pageObj.tables !== undefined) {
+      if (!Array.isArray(pageObj.tables)) return false;
+      for (const t of pageObj.tables) {
+        if (!t || typeof t !== 'object') return false;
+        if (typeof t.rows !== 'number' || typeof t.cols !== 'number') return false;
+        if (t.cells && !Array.isArray(t.cells)) return false;
+      }
     }
   }
 
@@ -55,13 +92,65 @@ export function validateDocumentIR(doc) {
 }
 
 /**
- * Serializes a Document IR object into a formatted JSON string.
+ * Serializes a Document IR object into a deterministic, formatted JSON string.
+ * Canonicalizes key ordering (metadata before pages; title before pageCount; page before content before tables)
+ * to ensure deterministic output for diffs, caching, and downstream LLM tools.
  *
  * @param {Object} docIR - Document IR object.
- * @returns {string} Pretty-printed JSON string representation.
+ * @returns {string} Pretty-printed, deterministically sorted JSON string representation.
  */
 export function exportToJson(docIR) {
-  return JSON.stringify(docIR, null, 2);
+  if (!docIR || typeof docIR !== 'object') {
+    throw new TypeError('Document IR must be a non-null object.');
+  }
+
+  function canonicalize(val) {
+    if (val === null || typeof val !== 'object') return val;
+    if (Array.isArray(val)) return val.map(canonicalize);
+    const sorted = {};
+    for (const k of Object.keys(val).sort()) {
+      sorted[k] = canonicalize(val[k]);
+    }
+    return sorted;
+  }
+
+  const ordered = {};
+  if (docIR.metadata && typeof docIR.metadata === 'object' && !Array.isArray(docIR.metadata)) {
+    ordered.metadata = {
+      title: docIR.metadata.title,
+      pageCount: docIR.metadata.pageCount,
+      ...canonicalize(Object.fromEntries(
+        Object.entries(docIR.metadata).filter(([k]) => k !== 'title' && k !== 'pageCount')
+      ))
+    };
+  }
+
+  if (Array.isArray(docIR.pages)) {
+    ordered.pages = docIR.pages.map(p => {
+      if (!p || typeof p !== 'object' || Array.isArray(p)) return p;
+      const pageEntry = {
+        page: p.page,
+        content: p.content
+      };
+      if (p.tables !== undefined) {
+        pageEntry.tables = canonicalize(p.tables);
+      }
+      for (const k of Object.keys(p).sort()) {
+        if (k !== 'page' && k !== 'content' && k !== 'tables') {
+          pageEntry[k] = canonicalize(p[k]);
+        }
+      }
+      return pageEntry;
+    });
+  }
+
+  for (const k of Object.keys(docIR).sort()) {
+    if (k !== 'metadata' && k !== 'pages') {
+      ordered[k] = canonicalize(docIR[k]);
+    }
+  }
+
+  return JSON.stringify(ordered, null, 2);
 }
 
 /**
@@ -252,10 +341,30 @@ export async function convertPdfToDocumentIR(input, options = {}) {
       const rawPageContent = pageTextParts.join('\n');
       const normalizedContent = options.normalize !== false ? normalizePageText(rawPageContent) : rawPageContent;
 
-      pages.push({
+      const pageEntry = {
         page: pData.pageNumber,
         content: normalizedContent
-      });
+      };
+
+      if (options.structuredTables && pageTables.length > 0) {
+        pageEntry.tables = pageTables.map((t, tIdx) => ({
+          id: `table-${pData.pageNumber}-${tIdx + 1}`,
+          bbox: t.bbox,
+          rows: t.geometry?.rows || t.matrix?.length || 0,
+          cols: t.geometry?.cols || t.matrix?.[0]?.length || 0,
+          markdown: t.markdown,
+          cells: t.cells || [],
+          headers: t.headers,
+          continuation: t.continuation
+        }));
+      }
+
+      pages.push(pageEntry);
+    }
+
+    // Link multi-page tables across pages if structuredTables enabled
+    if (options.structuredTables) {
+      linkMultiPageTables(pages);
     }
 
     const finalPages = (options.stripHeadersFooters !== false && pages.length > 1)

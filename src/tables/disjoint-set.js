@@ -111,7 +111,23 @@ export function getRuleBounds(rule) {
 }
 
 /**
+ * Checks whether two horizontal intervals overlap significantly.
+ *
+ * @param {{ left: number, right: number }} a
+ * @param {{ left: number, right: number }} b
+ * @param {number} [tolerance=2.0]
+ * @returns {boolean}
+ */
+export function intervalsOverlap(a, b, tolerance = 2.0) {
+  const overlap = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+  const minW = Math.min(a.right - a.left, b.right - b.left);
+  if (minW <= 0) return false;
+  return (overlap + tolerance) / minW >= 0.4;
+}
+
+/**
  * Checks whether two ruling lines intersect or abut within snapping distance.
+ * Supports T-junctions, cross intersections, and horizontal sub-rule alignment.
  *
  * @param {Object} ruleA
  * @param {Object} ruleB

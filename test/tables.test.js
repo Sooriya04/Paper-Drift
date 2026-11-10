@@ -7,7 +7,7 @@
 
 import { DisjointSet, connectedRules, rulesMeet, getRuleBounds } from '../src/tables/disjoint-set.js';
 import { renderPipeTable, escapeTableCell } from '../src/tables/pipe-renderer.js';
-import { reconstructTables, projectColumnGutters, groupLinesIntoRows } from '../src/tables/grid.js';
+import { reconstructTables, projectColumnGutters, groupLinesIntoRows, linkMultiPageTables } from '../src/tables/grid.js';
 
 function assert(condition, message) {
   if (!condition) {
@@ -406,6 +406,120 @@ runTest('reconstructTables preserves structured geometry representation (rows, c
   assertEqual(t.geometry.rows, 2, 'Geometry rows must be 2');
   assert(Array.isArray(t.geometry.colBoundaries), 'colBoundaries must be an array');
   assertEqual(t.geometry.colBoundaries.length, 4, '4 boundaries for 3 columns');
+});
+
+// ============================================================================
+// 4. Merged Cells, Hierarchical Headers, Borderless Tables & Continuity Tests
+// ============================================================================
+runTest('reconstructTables detects merged cells with colspan and builds cell models', () => {
+  const rules = [
+    { left: 100, top: 50, right: 400, bottom: 50 },
+    { left: 100, top: 100, right: 400, bottom: 100 },
+    { left: 100, top: 150, right: 400, bottom: 150 }
+  ];
+  const lines = [
+    // Row 0: Spanning header across columns 1 & 2
+    { left: 110, top: 60, right: 190, bottom: 75, text: 'Model' },
+    { left: 210, top: 60, right: 390, bottom: 75, text: 'Results (Metric A & B)' },
+    // Row 1: Subheaders or values
+    { left: 110, top: 80, right: 190, bottom: 95, text: 'Sub' },
+    { left: 210, top: 80, right: 290, bottom: 95, text: 'A' },
+    { left: 310, top: 80, right: 390, bottom: 95, text: 'B' },
+    // Row 2: Data
+    { left: 110, top: 120, right: 190, bottom: 135, text: 'ResNet' },
+    { left: 210, top: 120, right: 290, bottom: 135, text: '95.2' },
+    { left: 310, top: 120, right: 390, bottom: 135, text: '88.4' }
+  ];
+
+  const tables = reconstructTables(rules, lines, 500, 700);
+  assertEqual(tables.length, 1, 'Must reconstruct 1 table');
+  const t = tables[0];
+  assert(Array.isArray(t.cells), 'Table must contain structured cells array');
+  const spanningCell = t.cells.find(c => c.text.includes('Results') && c.colspan > 1);
+  assert(spanningCell !== undefined, 'Spanning cell must be detected with colspan > 1');
+  assertEqual(spanningCell.colspan, 2, 'Spanning cell must have colspan 2');
+});
+
+runTest('reconstructTables extracts multi-level hierarchical headers', () => {
+  const rules = [
+    { left: 100, top: 50, right: 400, bottom: 50 },
+    { left: 100, top: 200, right: 400, bottom: 200 }
+  ];
+  const lines = [
+    // Header Row 0
+    { left: 110, top: 60, right: 190, bottom: 75, text: 'Method' },
+    { left: 210, top: 60, right: 390, bottom: 75, text: 'Accuracy' },
+    // Header Row 1
+    { left: 110, top: 80, right: 190, bottom: 95, text: 'Baseline' },
+    { left: 210, top: 80, right: 290, bottom: 95, text: 'Top-1' },
+    { left: 310, top: 80, right: 390, bottom: 95, text: 'Top-5' },
+    // Data Row
+    { left: 110, top: 120, right: 190, bottom: 135, text: 'Ours' },
+    { left: 210, top: 120, right: 290, bottom: 135, text: '82.5' },
+    { left: 310, top: 120, right: 390, bottom: 135, text: '96.1' }
+  ];
+
+  const tables = reconstructTables(rules, lines, 500, 700);
+  assertEqual(tables.length, 1);
+  const t = tables[0];
+  assert(Array.isArray(t.headers), 'Headers hierarchy must be extracted');
+  assert(t.markdown.includes('Accuracy'), 'Markdown must preserve hierarchical header terms');
+});
+
+runTest('detectBorderlessTableCandidates discovers tables without vector rules near captions', () => {
+  const lines = [
+    { left: 100, top: 50, right: 300, bottom: 60, text: 'Table 1: Performance comparison across methods.' },
+    { left: 105, top: 70, right: 180, bottom: 82, text: 'Model' },
+    { left: 205, top: 70, right: 280, bottom: 82, text: 'Score' },
+    { left: 305, top: 70, right: 380, bottom: 82, text: 'Latency' },
+    { left: 105, top: 90, right: 180, bottom: 102, text: 'BERT' },
+    { left: 205, top: 90, right: 280, bottom: 102, text: '88.5' },
+    { left: 305, top: 90, right: 380, bottom: 102, text: '12ms' },
+    { left: 105, top: 110, right: 180, bottom: 122, text: 'RoBERTa' },
+    { left: 205, top: 110, right: 280, bottom: 122, text: '90.1' },
+    { left: 305, top: 110, right: 380, bottom: 122, text: '14ms' }
+  ];
+
+  // No vector rules provided!
+  const tables = reconstructTables([], lines, 612, 792);
+  assertEqual(tables.length, 1, 'Must detect borderless table from caption and column alignment');
+  assertEqual(tables[0].geometry.isBorderless, true, 'isBorderless flag must be set to true');
+  assert(tables[0].markdown.includes('Model'), 'Markdown must contain header');
+  assert(tables[0].markdown.includes('RoBERTa'), 'Markdown must contain data');
+});
+
+runTest('linkMultiPageTables links continuing tables across consecutive pages', () => {
+  const page1Table = {
+    bbox: [100, 500, 400, 750],
+    matrix: [
+      ['Col1', 'Col2', 'Col3'],
+      ['Row1A', 'Row1B', 'Row1C']
+    ],
+    geometry: { cols: 3, colBoundaries: [100, 200, 300, 400] }
+  };
+  const page2Table = {
+    bbox: [100, 50, 400, 300],
+    matrix: [
+      ['Col1', 'Col2', 'Col3'],
+      ['Row2A', 'Row2B', 'Row2C']
+    ],
+    geometry: { cols: 3, colBoundaries: [100, 200, 300, 400] }
+  };
+
+  const pages = [
+    { page: 1, tables: [page1Table] },
+    { page: 2, tables: [page2Table] }
+  ];
+
+  linkMultiPageTables(pages);
+  assert(page1Table.continuation !== undefined, 'Page 1 table must have continuation metadata');
+  assertEqual(page1Table.continuation.isContinuation, false);
+  assertEqual(page1Table.continuation.continuesToPage, 2);
+
+  assert(page2Table.continuation !== undefined, 'Page 2 table must have continuation metadata');
+  assertEqual(page2Table.continuation.isContinuation, true);
+  assertEqual(page2Table.continuation.continuesFromPage, 1);
+  assertEqual(page2Table.continuation.repeatedHeader, true, 'Repeated header must be flagged');
 });
 
 console.log('\n\x1b[1m\x1b[32m✔ All Table Geometry & Rendering tests passed successfully!\x1b[0m\n');

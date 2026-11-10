@@ -171,6 +171,28 @@ if (fs.existsSync(attentionPdf)) {
     assert.ok(doc.pages[0].content.includes('Attention Is All You Need'));
     assert.ok(doc.pages[1].content.includes('Introduction'));
   });
+
+  await runAsyncTest('convertPdfToDocumentIR extracts structured tables with cells and continuity when requested', async () => {
+    // Attention page 8-9 contains multi-page / complex tables (Table 2 & Table 3)
+    const doc = await convertPdfToDocumentIR(attentionPdf, { pages: '8-9', structuredTables: true });
+    assert.strictEqual(validateDocumentIR(doc), true);
+    assert.strictEqual(doc.pages.length, 2);
+
+    const hasTables = doc.pages.some(p => Array.isArray(p.tables) && p.tables.length > 0);
+    assert.ok(hasTables, 'Should extract structured tables from Attention paper');
+
+    const tablePage = doc.pages.find(p => Array.isArray(p.tables) && p.tables.length > 0);
+    const table = tablePage.tables[0];
+    assert.ok(table.rows >= 2, 'Table should have multiple rows');
+    assert.ok(table.cols >= 2, 'Table should have multiple columns');
+    assert.ok(Array.isArray(table.cells), 'Table should have cells array');
+
+    // Deterministic serialization check
+    const jsonOutput = exportToJson(doc);
+    assert.ok(jsonOutput.includes('"tables":'), 'Serialized JSON must include tables');
+    const reparsed = JSON.parse(jsonOutput);
+    assert.strictEqual(validateDocumentIR(reparsed), true);
+  });
 }
 
 if (fs.existsSync(resnetPdf)) {

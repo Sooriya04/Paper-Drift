@@ -316,8 +316,296 @@ export function groupLinesIntoRows(lines, snap) {
 }
 
 /**
+ * Assigns word tokens or lines to a structured 2D cell grid, detecting merged cells (rowspan, colspan).
+ * Uses horizontal bounding-box overlap ratio rather than just midpoints, and handles multi-line content.
+ *
+ * @param {Array<Object>} rowClusters - Grouped rows from groupLinesIntoRows
+ * @param {number[]} colBoundaries - Column divider boundaries [col0, col1, ..., colN]
+ * @param {number} snap - Snapping tolerance
+ * @returns {{ cells: Array<Object>, matrix: string[][], rowCount: number, colCount: number, headerRows: number }}
+ */
+export function buildTableCellsWithSpans(rowClusters, colBoundaries, snap = 2.0) {
+  const numCols = Math.max(1, colBoundaries.length - 1);
+  const numRows = rowClusters.length;
+
+  // Track occupied cells for rowspan handling: occupied[r][c] = true
+  const occupied = Array.from({ length: numRows }, () => new Array(numCols).fill(false));
+  const cells = [];
+  const matrix = Array.from({ length: numRows }, () => new Array(numCols).fill(''));
+
+  for (let r = 0; r < numRows; r++) {
+    const row = rowClusters[r];
+    const wordsInRow = [];
+    for (const line of row.lines) {
+      if (/\s{2,}|\t/.test(line.text || '')) {
+        wordsInRow.push(...getWordsFromLine(line));
+      } else {
+        wordsInRow.push({
+          text: (line.text || '').trim(),
+          left: line.left ?? (line.bbox ? line.bbox[0] : 0),
+          right: line.right ?? (line.bbox ? line.bbox[2] : 0),
+          top: line.top ?? (line.bbox ? line.bbox[1] : 0),
+          bottom: line.bottom ?? (line.bbox ? line.bbox[3] : 0)
+        });
+      }
+    }
+    wordsInRow.sort((a, b) => a.left - b.left);
+
+    // Group adjacent words belonging to the same column or span
+    // For each word, compute which column interval(s) it intersects
+    for (const w of wordsInRow) {
+      const wLeft = w.left;
+      const wRight = w.right;
+      const wWidth = Math.max(1, wRight - wLeft);
+
+      // Find all column intervals overlapping with this word
+      const overlappingCols = [];
+      for (let c = 0; c < numCols; c++) {
+        const cLeft = colBoundaries[c];
+        const cRight = colBoundaries[c + 1];
+        const overlap = Math.min(wRight, cRight) - Math.max(wLeft, cLeft);
+        if (overlap > 0) {
+          const ratio = overlap / wWidth;
+          // Overlap must be at least 20% of word or > 12pt
+          if (ratio >= 0.2 || overlap >= 12.0) {
+            overlappingCols.push(c);
+          }
+        }
+      }
+
+      // If no overlap passed ratio threshold, fallback to midpoint
+      if (overlappingCols.length === 0) {
+        const midX = (wLeft + wRight) / 2;
+        let cIdx = numCols - 1;
+        for (let c = 0; c < numCols; c++) {
+          if (midX >= colBoundaries[c] && midX < colBoundaries[c + 1]) {
+            cIdx = c;
+            break;
+          }
+        }
+        overlappingCols.push(cIdx);
+      }
+
+      const startCol = overlappingCols[0];
+      const endCol = overlappingCols[overlappingCols.length - 1];
+      const colspan = Math.max(1, endCol - startCol + 1);
+
+      // Append word text to matrix cell
+      if (matrix[r][startCol]) {
+        matrix[r][startCol] += ` ${w.text}`;
+      } else {
+        matrix[r][startCol] = w.text;
+      }
+
+      // Fill spanning columns in matrix to retain value across columns if needed
+      for (let c = startCol + 1; c <= endCol; c++) {
+        if (!matrix[r][c]) {
+          matrix[r][c] = w.text; // preserve in GFM matrix for downstream readability
+        }
+      }
+
+      // Find or create cell model in cells array
+      let existingCell = cells.find(cell => cell.row === r && cell.col === startCol);
+      if (existingCell) {
+        existingCell.text = matrix[r][startCol];
+        existingCell.bbox[2] = Math.max(existingCell.bbox[2], wRight);
+        existingCell.bbox[3] = Math.max(existingCell.bbox[3], w.bottom);
+        existingCell.colspan = Math.max(existingCell.colspan, colspan);
+      } else {
+        cells.push({
+          row: r,
+          col: startCol,
+          rowspan: 1,
+          colspan,
+          text: w.text,
+          bbox: [wLeft, row.top, wRight, row.bottom],
+          isHeader: r === 0
+        });
+      }
+    }
+  }
+
+  // Detect hierarchical header depth: if row 0 has spanning cells, row 1 is also part of header
+  let headerRows = 1;
+  const row0Spans = cells.filter(c => c.row === 0 && c.colspan > 1);
+  if (row0Spans.length > 0 && numRows > 2) {
+    headerRows = 2;
+  }
+
+  // Mark header flags for cells
+  for (const cell of cells) {
+    if (cell.row < headerRows) {
+      cell.isHeader = true;
+    }
+  }
+
+  return {
+    cells,
+    matrix: matrix.map(row => row.map(c => c.trim())),
+    rowCount: numRows,
+    colCount: numCols,
+    headerRows
+  };
+}
+
+/**
+ * Extracts hierarchical header parent-child relationships from multi-level header rows.
+ *
+ * @param {Array<Object>} cells - Extracted cells
+ * @param {number} headerRows - Number of header rows
+ * @param {number} colCount - Total column count
+ * @returns {Array<{ text: string, col: number, colspan: number, children?: string[] }>}
+ */
+export function buildHeaderHierarchy(cells, headerRows, colCount) {
+  if (headerRows <= 1) {
+    return cells.filter(c => c.row === 0).map(c => ({
+      text: c.text,
+      col: c.col,
+      colspan: c.colspan || 1
+    }));
+  }
+
+  const topHeaders = cells.filter(c => c.row === 0);
+  const subHeaders = cells.filter(c => c.row === 1);
+
+  return topHeaders.map(top => {
+    const startCol = top.col;
+    const endCol = top.col + (top.colspan || 1) - 1;
+    const childHeaders = subHeaders
+      .filter(sub => sub.col >= startCol && sub.col <= endCol)
+      .map(sub => sub.text)
+      .filter(Boolean);
+
+    return {
+      text: top.text,
+      col: top.col,
+      colspan: top.colspan || 1,
+      children: childHeaders.length > 0 ? childHeaders : undefined
+    };
+  });
+}
+
+/**
+ * Detects borderless table candidates using text alignment, repeated x-coordinates,
+ * baseline spacing, and proximity to table captions.
+ *
+ * @param {Array<Object>} lines - Text lines on page
+ * @param {number} [pageWidth=612]
+ * @param {number} [pageHeight=792]
+ * @returns {Array<{ rules: Array<Object>, isFullGrid: boolean, colBoundaries: number[], rowBoundaries: number[], isBorderless: boolean }>}
+ */
+export function detectBorderlessTableCandidates(lines, pageWidth = 612, pageHeight = 792) {
+  if (!lines || lines.length < 4) return [];
+
+  const candidates = [];
+  const snap = (pageWidth && pageWidth > 0) ? pageWidth * 0.004 : 2.0;
+
+  // Search for table caption lines (e.g. "Table 1:", "Table 2.")
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const text = (line.text || '').trim();
+    if (!/^Table\s+\d+[:.]/i.test(text)) continue;
+
+    const capTop = line.top ?? (line.bbox ? line.bbox[1] : 0);
+    const capBottom = line.bottom ?? (line.bbox ? line.bbox[3] : capTop);
+
+    // Caption itself may continue for 1-2 lines (same paragraph with small vertical gap <= 6pt)
+    const continuationCapLines = [line];
+    let curCapBottom = capBottom;
+    for (let j = i + 1; j < lines.length; j++) {
+      const l = lines[j];
+      const lTop = l.top ?? (l.bbox ? l.bbox[1] : 0);
+      const lBottom = l.bottom ?? (l.bbox ? l.bbox[3] : lTop);
+      const lLeft = l.left ?? (l.bbox ? l.bbox[0] : 0);
+      const vGap = lTop - curCapBottom;
+      if (vGap >= 0 && vGap <= 6 && Math.abs(lLeft - (line.left ?? 0)) <= 6) {
+        continuationCapLines.push(l);
+        curCapBottom = lBottom;
+      } else {
+        break;
+      }
+    }
+    const effectiveCapTop = Math.min(...continuationCapLines.map(l => l.top ?? capTop));
+    const effectiveCapBottom = Math.max(...continuationCapLines.map(l => l.bottom ?? capBottom));
+
+    // Check potential table blocks both ABOVE (caption below table) and BELOW (caption above table)
+    const regions = [
+      { top: effectiveCapBottom + 4, bottom: Math.min(pageHeight, effectiveCapBottom + 120), name: 'below' },
+      { top: Math.max(0, effectiveCapTop - 120), bottom: effectiveCapTop - 4, name: 'above' }
+    ];
+
+    for (const region of regions) {
+      // Collect non-prose lines in the region: table rows typically have multi-column words or short line length
+      const candidateLines = lines.filter(l => {
+        const lTop = l.top ?? (l.bbox ? l.bbox[1] : 0);
+        const lBottom = l.bottom ?? (l.bbox ? l.bbox[3] : lTop);
+        const lLeft = l.left ?? (l.bbox ? l.bbox[0] : 0);
+        const lRight = l.right ?? (l.bbox ? l.bbox[2] : lLeft);
+        const lWidth = lRight - lLeft;
+
+        // Skip full-width prose sentences (spanning > 80% of page)
+        const isProse = lWidth > pageWidth * 0.75 && !/\s{3,}|\t/.test(l.text || '');
+        return !isProse && lTop >= region.top && lBottom <= region.bottom && Math.abs(lBottom - lTop) < 25;
+      });
+
+      // Group candidate lines by vertical gap (stop when vertical gap between lines > 18pt)
+      const sortedCandLines = [...candidateLines].sort((a,b) => (a.top ?? 0) - (b.top ?? 0));
+      const contiguousLines = [];
+      for (let lIdx = 0; lIdx < sortedCandLines.length; lIdx++) {
+        const cur = sortedCandLines[lIdx];
+        if (lIdx === 0) {
+          contiguousLines.push(cur);
+        } else {
+          const prev = sortedCandLines[lIdx - 1];
+          const gap = (cur.top ?? 0) - (prev.bottom ?? prev.top ?? 0);
+          if (gap > 18.0) {
+            break; // Stop at large paragraph break
+          }
+          contiguousLines.push(cur);
+        }
+      }
+
+      if (contiguousLines.length < 2) continue;
+
+      // Group into rows
+      const rowClusters = groupLinesIntoRows(contiguousLines, snap);
+      if (rowClusters.length < 2) continue;
+
+      // Check whether rows exhibit multiple aligned columns
+      const allWords = contiguousLines.flatMap(getWordsFromLine);
+      if (allWords.length < 4) continue;
+
+      const left = Math.min(...allWords.map(w => w.left));
+      const right = Math.max(...allWords.map(w => w.right));
+      if (right - left < 50) continue;
+
+      const colBoundaries = projectColumnGutters(allWords, left, right, snap);
+      if (colBoundaries.length >= 3) {
+        // We found at least 2 columns across 2+ rows
+        const syntheticRules = [
+          { left, top: rowClusters[0].top, right, bottom: rowClusters[0].top },
+          { left, top: rowClusters[rowClusters.length - 1].bottom, right, bottom: rowClusters[rowClusters.length - 1].bottom }
+        ];
+
+        candidates.push({
+          rules: syntheticRules,
+          isFullGrid: false,
+          colBoundaries,
+          rowBoundaries: null,
+          isBorderless: true
+        });
+        break; // matched caption
+      }
+    }
+  }
+
+  return candidates;
+}
+
+/**
  * Reconstructs tables from vector rules and page text lines.
- * Supports both full-grid tables (vertical + horizontal rules) and
+ * Supports both full-grid tables (vertical + horizontal rules),
+ * academic Booktabs tables (horizontal rules only), and borderless academic tables.
  * academic Booktabs tables (horizontal rules only).
  *
  * @param {Array<Object>} rules - Vector ruling lines on the page
@@ -326,13 +614,13 @@ export function groupLinesIntoRows(lines, snap) {
  * @param {number} [pageHeight=792] - Page height in points
  * @returns {Array<{ bbox: number[], markdown: string, matrix: string[][], linesInside: Array<Object>, claimedLines: Array<Object>, geometry: Object }>}
  */
-export function reconstructTables(rules, lines, pageWidth = 612, pageHeight = 792) {
-  if (!rules || rules.length === 0 || !lines || lines.length === 0) return [];
+export function reconstructTables(rules = [], lines, pageWidth = 612, pageHeight = 792) {
+  if (!lines || lines.length === 0) return [];
 
   const snap = (pageWidth && pageWidth > 0) ? pageWidth * 0.004 : 2.0;
 
   // Filter out isolated footnote separator rules
-  const candidateRules = rules.filter(r => !isFootnoteDivider(r, pageHeight));
+  const candidateRules = (rules || []).filter(r => !isFootnoteDivider(r, pageHeight));
   const normalizedRules = candidateRules.map(r => ({ ...getRuleBounds(r), orig: r }));
 
   // Separate horizontal and vertical rules
@@ -392,10 +680,9 @@ export function reconstructTables(rules, lines, pageWidth = 612, pageHeight = 79
         // Table height between consecutive rules should be reasonable (<= 180pt max gap between rules)
         if (yDist < 4 || yDist > 180) continue;
 
-        // Group consecutive aligned rules
-        if (j === i + 1) {
-          dsu.union(i, j);
-        }
+        // Group with nearest overlapping successor rule
+        dsu.union(i, j);
+        break;
       }
     }
 
@@ -516,12 +803,21 @@ export function reconstructTables(rules, lines, pageWidth = 612, pageHeight = 79
       }
     }
 
-    // Booktabs or unstructured table reconstruction
+    // Booktabs, borderless, or unstructured table reconstruction
     if (colBoundaries && candidate.isFullGrid) {
       colBoundaries = cluster1D([left, ...colBoundaries, right], snap * 2);
     }
     if (!colBoundaries || colBoundaries.length < 2) {
-      const words = linesInside.flatMap(getWordsFromLine);
+      const rowClusters = groupLinesIntoRows(linesInside, snap);
+      let gutterLines = linesInside;
+      if (rowClusters.length >= 2) {
+        const counts = rowClusters.map(r => r.lines.length);
+        const maxLines = Math.max(...counts);
+        if (counts[0] < maxLines && maxLines >= 2) {
+          gutterLines = rowClusters.slice(1).flatMap(r => r.lines);
+        }
+      }
+      const words = gutterLines.flatMap(getWordsFromLine);
       colBoundaries = projectColumnGutters(words, left, right, snap);
     }
 
@@ -537,31 +833,9 @@ export function reconstructTables(rules, lines, pageWidth = 612, pageHeight = 79
     const rowClusters = groupLinesIntoRows(linesInside, snap);
     if (rowClusters.length < 2) continue;
 
-    // Map words/cells into 2D matrix
-    const matrix = [];
-    for (const row of rowClusters) {
-      const wordsInRow = row.lines.flatMap(getWordsFromLine);
-      wordsInRow.sort((a, b) => a.left - b.left);
-
-      const rowCells = new Array(numCols).fill('');
-      for (const w of wordsInRow) {
-        const midX = (w.left + w.right) / 2;
-        let colIdx = 0;
-        for (let c = 0; c < numCols; c++) {
-          if (midX >= colBoundaries[c] && midX < colBoundaries[c + 1]) {
-            colIdx = c;
-            break;
-          }
-        }
-        if (midX >= colBoundaries[numCols]) colIdx = numCols - 1;
-        rowCells[colIdx] = rowCells[colIdx] ? `${rowCells[colIdx]} ${w.text}` : w.text;
-      }
-
-      const trimmedCells = rowCells.map(c => c.trim());
-      if (trimmedCells.some(c => c.length > 0)) {
-        matrix.push(trimmedCells);
-      }
-    }
+    // Map words/cells into 2D cell matrix with merged cell detection
+    const cellModel = buildTableCellsWithSpans(rowClusters, colBoundaries, snap);
+    const matrix = cellModel.matrix;
 
     if (matrix.length < 2) continue;
 
@@ -572,18 +846,79 @@ export function reconstructTables(rules, lines, pageWidth = 612, pageHeight = 79
     }
 
     const alignments = buildAlignments(matrix, numCols);
-    const markdown = renderPipeTable(matrix, alignments);
+    const markdown = renderPipeTable(matrix, alignments, { headerRows: cellModel.headerRows });
+    const headers = buildHeaderHierarchy(cellModel.cells, cellModel.headerRows, numCols);
 
     tables.push({
       bbox: [left, top, right, bottom],
       markdown,
       matrix,
+      cells: cellModel.cells,
+      headers,
       linesInside,
       claimedLines: linesInside,
       geometry: {
         isFullGrid: false,
+        isBorderless: Boolean(candidate.isBorderless),
         rows: matrix.length,
         cols: numCols,
+        headerRows: cellModel.headerRows,
+        colBoundaries
+      }
+    });
+  }
+
+  // 4. If vector rules did not detect all tables, search for borderless tables
+  const claimedLinesSet = new Set(tables.flatMap(t => t.linesInside));
+  const remainingLines = lines.filter(l => !claimedLinesSet.has(l));
+  const borderlessCandidates = detectBorderlessTableCandidates(remainingLines, pageWidth, pageHeight);
+
+  for (const candidate of borderlessCandidates) {
+    const cRules = candidate.rules;
+    const left = Math.min(...cRules.map(r => r.left));
+    const right = Math.max(...cRules.map(r => r.right));
+    const top = Math.min(...cRules.map(r => r.top));
+    const bottom = Math.max(...cRules.map(r => r.bottom));
+
+    const linesInside = remainingLines.filter(l => {
+      const lLeft = l.left ?? (l.bbox ? l.bbox[0] : 0);
+      const lRight = l.right ?? (l.bbox ? l.bbox[2] : 0);
+      const lTop = l.top ?? (l.bbox ? l.bbox[1] : 0);
+      const lBottom = l.bottom ?? (l.bbox ? l.bbox[3] : lTop);
+      return lLeft >= left - snap * 2 && lRight <= right + snap * 2 && lTop >= top - snap * 2 && lBottom <= bottom + snap * 2;
+    });
+
+    if (linesInside.length < 3) continue;
+
+    const rowClusters = groupLinesIntoRows(linesInside, snap);
+    if (rowClusters.length < 3) continue;
+
+    const colBoundaries = candidate.colBoundaries;
+    const numCols = colBoundaries.length - 1;
+    if (numCols < 2) continue;
+
+    const cellModel = buildTableCellsWithSpans(rowClusters, colBoundaries, snap);
+    const matrix = cellModel.matrix;
+    if (matrix.length < 2) continue;
+
+    const alignments = buildAlignments(matrix, numCols);
+    const markdown = renderPipeTable(matrix, alignments, { headerRows: cellModel.headerRows });
+    const headers = buildHeaderHierarchy(cellModel.cells, cellModel.headerRows, numCols);
+
+    tables.push({
+      bbox: [left, top, right, bottom],
+      markdown,
+      matrix,
+      cells: cellModel.cells,
+      headers,
+      linesInside,
+      claimedLines: linesInside,
+      geometry: {
+        isFullGrid: false,
+        isBorderless: true,
+        rows: matrix.length,
+        cols: numCols,
+        headerRows: cellModel.headerRows,
         colBoundaries
       }
     });
@@ -611,4 +946,76 @@ function buildAlignments(matrix, numCols) {
   }
 
   return alignments;
+}
+
+/**
+ * Links multi-page tables continuing across consecutive pages.
+ * Matches column counts, relative column boundaries, and handles repeated headers.
+ * Populates continuation metadata: { isContinuation: boolean, continuesFromPage?: number, continuesToPage?: number }
+ *
+ * @param {Map<number, Array<Object>>|Array<{ page: number, tables: Array<Object> }>} tablesByPage - Tables grouped by 1-indexed page number
+ * @returns {void} Mutates table objects in-place with continuity metadata
+ */
+export function linkMultiPageTables(tablesByPage) {
+  const pageEntries = Array.isArray(tablesByPage)
+    ? tablesByPage
+    : Array.from(tablesByPage.entries()).map(([page, tables]) => ({ page, tables }));
+
+  pageEntries.sort((a, b) => a.page - b.page);
+
+  for (let i = 0; i < pageEntries.length - 1; i++) {
+    const curPage = pageEntries[i];
+    const nextPage = pageEntries[i + 1];
+
+    if (nextPage.page !== curPage.page + 1) continue; // Must be consecutive pages
+    if (!curPage.tables || curPage.tables.length === 0) continue;
+    if (!nextPage.tables || nextPage.tables.length === 0) continue;
+
+    // Check last table on current page and first table on next page
+    const curTable = curPage.tables[curPage.tables.length - 1];
+    const nextTable = nextPage.tables[0];
+
+    const curCols = curTable.geometry?.cols || curTable.matrix?.[0]?.length;
+    const nextCols = nextTable.geometry?.cols || nextTable.matrix?.[0]?.length;
+
+    if (!curCols || curCols < 2 || curCols !== nextCols) continue;
+
+    // Check relative column width profiles
+    const curBounds = curTable.geometry?.colBoundaries || [];
+    const nextBounds = nextTable.geometry?.colBoundaries || [];
+    let boundsMatch = false;
+
+    if (curBounds.length === nextBounds.length && curBounds.length >= 2) {
+      const curW = curBounds[curBounds.length - 1] - curBounds[0];
+      const nextW = nextBounds[nextBounds.length - 1] - nextBounds[0];
+      if (curW > 0 && nextW > 0 && Math.abs(curW - nextW) < 40) {
+        let maxRelDiff = 0;
+        for (let c = 0; c < curBounds.length - 1; c++) {
+          const w1 = (curBounds[c + 1] - curBounds[c]) / curW;
+          const w2 = (nextBounds[c + 1] - nextBounds[c]) / nextW;
+          maxRelDiff = Math.max(maxRelDiff, Math.abs(w1 - w2));
+        }
+        if (maxRelDiff < 0.15) {
+          boundsMatch = true;
+        }
+      }
+    }
+
+    // Check if nextTable repeats the header row of curTable
+    const curHeader = (curTable.matrix?.[0] || []).join('|').trim();
+    const nextHeader = (nextTable.matrix?.[0] || []).join('|').trim();
+    const headersIdentical = curHeader && nextHeader && curHeader === nextHeader;
+
+    if (boundsMatch || headersIdentical) {
+      curTable.continuation = {
+        isContinuation: false,
+        continuesToPage: nextPage.page
+      };
+      nextTable.continuation = {
+        isContinuation: true,
+        continuesFromPage: curPage.page,
+        repeatedHeader: headersIdentical
+      };
+    }
+  }
 }
