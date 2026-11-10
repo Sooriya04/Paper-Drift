@@ -346,6 +346,13 @@ export function filterRunningHeadersFooters<T extends { page: number; content: s
  */
 export function normalizePageText(rawText: string, options?: object): string;
 
+/**
+ * Scientific Metadata Extraction Subsystem.
+ */
+export const SCIENTIFIC_METADATA_VERSION: string;
+export function validateScientificMetadata(metadata: object): boolean;
+export function extractScientificMetadata(input: string | Buffer | Uint8Array, options?: object): Promise<object>;
+
 declare const _default: {
   convertPdfToImages: typeof convertPdfToImages;
   streamPdfPages: typeof streamPdfPages;
@@ -367,6 +374,9 @@ declare const _default: {
   normalizeWhitespace: typeof normalizeWhitespace;
   filterRunningHeadersFooters: typeof filterRunningHeadersFooters;
   normalizePageText: typeof normalizePageText;
+  extractScientificMetadata: typeof extractScientificMetadata;
+  validateScientificMetadata: typeof validateScientificMetadata;
+  SCIENTIFIC_METADATA_VERSION: typeof SCIENTIFIC_METADATA_VERSION;
 };
 
 export default _default;

@@ -27,6 +27,11 @@ import {
   filterRunningHeadersFooters,
   normalizePageText
 } from './normalization/text.js';
+import {
+  extractScientificMetadata,
+  validateScientificMetadata,
+  SCIENTIFIC_METADATA_VERSION
+} from './metadata/index.js';
 
 export {
   convertPdfToImages,
@@ -51,7 +56,10 @@ export {
   repairHyphenation,
   normalizeWhitespace,
   filterRunningHeadersFooters,
-  normalizePageText
+  normalizePageText,
+  extractScientificMetadata,
+  validateScientificMetadata,
+  SCIENTIFIC_METADATA_VERSION
 };
 
 export default {
@@ -77,5 +85,8 @@ export default {
   repairHyphenation,
   normalizeWhitespace,
   filterRunningHeadersFooters,
-  normalizePageText
+  normalizePageText,
+  extractScientificMetadata,
+  validateScientificMetadata,
+  SCIENTIFIC_METADATA_VERSION
 };
