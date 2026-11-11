@@ -3,7 +3,7 @@
  * @description Main library entrypoint for paper-drift.
  * High-performance WebAssembly PDF engine: high-res Image rendering (Base64/PNG),
  * standalone HTML export, publication-grade GFM Markdown conversion, spatial reading order layout analysis,
- * and Structured Document IR.
+ * Structured Document IR, and Mathematical Equation Reconstruction.
  * Part of paper-drift - https://github.com/Sooriya04/Paper-Drift
  */
 
@@ -32,6 +32,15 @@ import {
   validateScientificMetadata,
   SCIENTIFIC_METADATA_VERSION
 } from './metadata/index.js';
+import {
+  createMathNode,
+  validateMathIR,
+  toLaTeX,
+  toMathML,
+  toMarkdown,
+  parseTextToMathIR,
+  reconstructPageMath
+} from './math/index.js';
 
 export {
   convertPdfToImages,
@@ -59,7 +68,14 @@ export {
   normalizePageText,
   extractScientificMetadata,
   validateScientificMetadata,
-  SCIENTIFIC_METADATA_VERSION
+  SCIENTIFIC_METADATA_VERSION,
+  createMathNode,
+  validateMathIR,
+  toLaTeX,
+  toMathML,
+  toMarkdown,
+  parseTextToMathIR,
+  reconstructPageMath
 };
 
 export default {
@@ -88,5 +104,12 @@ export default {
   normalizePageText,
   extractScientificMetadata,
   validateScientificMetadata,
-  SCIENTIFIC_METADATA_VERSION
+  SCIENTIFIC_METADATA_VERSION,
+  createMathNode,
+  validateMathIR,
+  toLaTeX,
+  toMathML,
+  toMarkdown,
+  parseTextToMathIR,
+  reconstructPageMath
 };
