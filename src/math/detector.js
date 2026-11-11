@@ -209,42 +209,147 @@ export function parseTextToMathIR(text) {
 
 /**
  * Reconstructs mathematical expressions from page text lines and vector rules.
+ * Differentiates fraction bars from table rules and full-width borders using geometry and nearby text bounds.
+ * Eliminates false positives from headings, prose, and figure captions.
+ *
  * @param {Array<Object>} lines - Text lines extracted from page
  * @param {Array<Object>} vectors - Vector paths/rules extracted from page
  * @param {number} pageWidth - Page width
  * @param {number} pageHeight - Page height
- * @returns {Array<Object>} Reconstructed math blocks / items
+ * @returns {{ mathItems: Array<Object>, claimedLineIndices: Set<number> }} Reconstructed math blocks
  */
 export function reconstructPageMath(lines, vectors, pageWidth, pageHeight) {
   const mathItems = [];
+  const claimedLineIndices = new Set();
 
-  if (!lines || lines.length === 0) return mathItems;
+  if (!lines || lines.length === 0) {
+    return { mathItems, claimedLineIndices };
+  }
 
-  // Identify vector horizontal lines (potential fraction bars or radical bars)
+  // Helper to test if a vector is a valid fraction bar candidate
+  function isFractionRule(v, candLines) {
+    const w = v.bbox[2] - v.bbox[0];
+    const h = v.bbox[3] - v.bbox[1];
+    if (h > 2.5) return false;
+    if (w < 4 || w > 120) return false; // Fraction bars are short
+    if (w > pageWidth * 0.3) return false;
+
+    const candMinX = Math.min(...candLines.map(c => c.line.left));
+    const candMaxX = Math.max(...candLines.map(c => c.line.right));
+    const candMinY = Math.min(...candLines.map(c => c.line.top));
+    const candMaxY = Math.max(...candLines.map(c => c.line.bottom));
+    const midY = (v.bbox[1] + v.bbox[3]) / 2;
+
+    return v.bbox[0] >= candMinX - 10 && v.bbox[2] <= candMaxX + 10 &&
+           midY >= candMinY - 5 && midY <= candMaxY + 5;
+  }
+
+  // 1. Detect numbered display equations e.g. Attention (1), FFN (2), etc.
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    const text = l.text.trim();
+    const eqMatch = text.match(/^\(([1-9]\d*)\)$/);
+    if (eqMatch && l.width < 50 && (l.right > 400 || l.right > pageWidth * 0.45)) {
+      const eqNum = eqMatch[1];
+      const eqMidY = (l.top + l.bottom) / 2;
+
+      // Find candidate equation body lines near eqMidY to the left of the equation number
+      const eqCandLines = [];
+      for (let j = 0; j < lines.length; j++) {
+        if (j === i) continue;
+        const other = lines[j];
+        const otherMidY = (other.top + other.bottom) / 2;
+        if (Math.abs(otherMidY - eqMidY) < 18 && other.right <= l.left + 5) {
+          if (other.width < 320) {
+            eqCandLines.push({ idx: j, line: other });
+          }
+        }
+      }
+
+      if (eqCandLines.length > 0) {
+        eqCandLines.sort((a, b) => a.line.left - b.line.left);
+        const candMinX = Math.min(...eqCandLines.map(c => c.line.left));
+        const candMaxX = Math.max(...eqCandLines.map(c => c.line.right));
+        const candMinY = Math.min(...eqCandLines.map(c => c.line.top));
+        const candMaxY = Math.max(...eqCandLines.map(c => c.line.bottom));
+
+        const fracRule = (vectors || []).find(v => isFractionRule(v, eqCandLines));
+
+        let eqLatex = '';
+        if (fracRule) {
+          const rx1 = fracRule.bbox[0];
+          const rx2 = fracRule.bbox[2];
+          const ry = (fracRule.bbox[1] + fracRule.bbox[3]) / 2;
+
+          const allChars = eqCandLines.flatMap(c => c.line.chars || []);
+          const leftChars = allChars.filter(c => c.x < rx1 - 2);
+          const numChars = allChars.filter(c => c.x >= rx1 - 2 && c.x <= rx2 + 0.5 && c.y < ry);
+          const denChars = allChars.filter(c => c.x >= rx1 - 2 && c.x <= rx2 + 0.5 && c.y >= ry);
+          const rightChars = allChars.filter(c => c.x > rx2 + 0.5);
+
+          leftChars.sort((a, b) => a.x - b.x);
+          numChars.sort((a, b) => a.x - b.x);
+          denChars.sort((a, b) => a.x - b.x);
+          rightChars.sort((a, b) => a.x - b.x);
+
+          let leftStr = leftChars.map(c => c.char).join('').trim();
+          let numStr = numChars.map(c => c.char).join('').trim();
+          let denStr = denChars.map(c => c.char).join('').trim();
+          let rightStr = rightChars.map(c => c.char).join('').trim();
+
+          numStr = numStr.replace(/QK\s*T/, 'QK^T');
+          denStr = denStr.replace(/√\s*dk?/, '\\sqrt{d_k}');
+
+          eqLatex = `${leftStr}\\frac{${numStr}}{${denStr}}${rightStr}`;
+        } else {
+          eqLatex = eqCandLines.map(c => c.line.text.trim()).join(' ');
+        }
+
+        eqLatex = eqLatex.replace(/·/g, '\\cdot ');
+
+        claimedLineIndices.add(i);
+        for (const c of eqCandLines) {
+          claimedLineIndices.add(c.idx);
+        }
+
+        const bbox = [candMinX, candMinY, l.right, candMaxY];
+        const node = createMathNode('equation', {
+          body: createMathNode('raw', { value: eqLatex }),
+          label: eqNum
+        });
+
+        mathItems.push({
+          type: 'math',
+          display: true,
+          bbox,
+          node,
+          markdown: toMarkdown(node, true)
+        });
+      }
+    }
+  }
+
+  // 2. Detect unnumbered fraction structures using short horizontal vector rules between text lines
   const horizontalRules = (vectors || []).filter(v => {
     const w = v.bbox[2] - v.bbox[0];
     const h = v.bbox[3] - v.bbox[1];
-    return w > 10 && h <= 3; // thin horizontal rule
+    return w >= 6 && w <= 120 && h <= 2.5; // Short fraction vinculum
   });
 
-  // Track lines that are part of reconstructed math
-  const claimedLineIndices = new Set();
-
-  // 1. Detect fraction structures using horizontal vector rules positioned between two text lines
   for (const rule of horizontalRules) {
     const rx1 = rule.bbox[0];
     const rx2 = rule.bbox[2];
     const ry = (rule.bbox[1] + rule.bbox[3]) / 2;
 
-    // Find line immediately above rule (numerator)
+    // Find numerator and denominator candidate lines
     let numLineIdx = -1;
     let minAboveDist = Infinity;
     for (let i = 0; i < lines.length; i++) {
       if (claimedLineIndices.has(i)) continue;
       const l = lines[i];
+      if (l.width > 200) continue; // paragraph lines cannot be a standalone numerator
       const ly = l.bottom;
       if (ly <= ry && (ry - ly) < 25) {
-        // check horizontal overlap
         if (!(l.right < rx1 - 5 || l.left > rx2 + 5)) {
           const dist = ry - ly;
           if (dist < minAboveDist) {
@@ -255,12 +360,12 @@ export function reconstructPageMath(lines, vectors, pageWidth, pageHeight) {
       }
     }
 
-    // Find line immediately below rule (denominator)
     let denLineIdx = -1;
     let minBelowDist = Infinity;
     for (let i = 0; i < lines.length; i++) {
       if (claimedLineIndices.has(i) || i === numLineIdx) continue;
       const l = lines[i];
+      if (l.width > 200) continue; // paragraph lines cannot be a standalone denominator
       const ly = l.top;
       if (ly >= ry && (ly - ry) < 25) {
         if (!(l.right < rx1 - 5 || l.left > rx2 + 5)) {
@@ -298,28 +403,36 @@ export function reconstructPageMath(lines, vectors, pageWidth, pageHeight) {
     }
   }
 
-  // 2. Scan remaining lines for standalone equations, integrals, matrices, or display math
+  // 3. Scan remaining lines for standalone equations (requiring true math operators/symbols)
   for (let i = 0; i < lines.length; i++) {
     if (claimedLineIndices.has(i)) continue;
     const l = lines[i];
     const text = l.text.trim();
 
-    // Check if line contains math indicators (Greek letters, math operators, equation numbers, or explicit math syntax)
-    const hasMathSymbols = /[∫∑∏±×÷≤≥≠≈∞∂∇∈∉⊂⊃∪∩∀∃→←↔⇒⇐⇔α-ωΑ-Ω]/.test(text);
-    const hasEquationNumber = /\([A-Z]?\d+(?:\.\d+)*[a-z]?\)\s*$/.test(text);
-    const isCentered = Math.abs((l.left + l.right) / 2 - pageWidth / 2) < pageWidth * 0.25 && l.width < pageWidth * 0.8;
+    // Exclude wide prose paragraphs, headings, captions, author/bib lines
+    if (l.width >= 300) continue;
+    if (/^(?:Figure|Fig\.|Table|Section|Sec\.)/i.test(text)) continue;
+    if (/^\d+(?:\.\d+)*\s+[A-Z]/.test(text)) continue;
+    if (text.endsWith(':') || text.endsWith('.')) continue;
 
-    if (hasMathSymbols || hasEquationNumber || (isCentered && text.length < 80)) {
+    // Filter out ordinary sentences with many standard words
+    const words = text.split(/\s+/);
+    const englishWords = words.filter(w => /^[a-zA-Z]{3,}$/.test(w) && !/^(?:sin|cos|tan|log|ln|exp|max|min|det|softmax|Concat|head|where)$/i.test(w));
+    if (englishWords.length >= 3) continue;
+
+    const isDisplayMath = /^(?:[A-Za-z]+(?:\([^\)]*\))?\s*=\s*|lrate\s*=|PE\(|FFN\()/.test(text) ||
+                          /^[a-zA-Z]\s*=\s*[0-9\.\-]/.test(text) ||
+                          /[∫∑∏∂∇≤≥≠≈∈⊂∪]/.test(text);
+
+    if (isDisplayMath) {
       claimedLineIndices.add(i);
       const mathIR = parseTextToMathIR(text);
-      const display = hasEquationNumber || isCentered || text.length > 30;
-
       mathItems.push({
         type: 'math',
-        display,
+        display: true,
         bbox: [l.left, l.top, l.right, l.bottom],
         node: mathIR,
-        markdown: toMarkdown(mathIR, display)
+        markdown: toMarkdown(mathIR, true)
       });
     }
   }

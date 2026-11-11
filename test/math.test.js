@@ -7,6 +7,8 @@ Part of paper-drift - https://github.com/Sooriya04/Paper-Drift
 */
 
 import assert from 'assert';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import {
   createMathNode,
   validateMathIR,
@@ -16,6 +18,15 @@ import {
   parseTextToMathIR,
   reconstructPageMath
 } from '../src/math/index.js';
+import { convertPdfToMarkdown } from '../src/markdown/converter.js';
+import { convertPdfToDocumentIR } from '../src/ir/schema.js';
+import { extractPageVectorsAndText } from '../src/vectors/walker.js';
+import mupdf from 'mupdf';
+import fs from 'fs';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const attentionPdf = path.resolve(__dirname, 'fixtures/benchmarks/01-attention-is-all-you-need.pdf');
 
 function runTest(name, fn) {
   try {
@@ -111,6 +122,70 @@ runTest('reconstructPageMath reconstructs fractions from vector rules and text l
   assert.strictEqual(claimedLineIndices.has(0), true);
   assert.strictEqual(claimedLineIndices.has(1), true);
   assert.strictEqual(mathItems[0].markdown.includes('\\frac'), true);
+});
+
+// 4. Real Academic PDF Equation Reconstruction (Attention Is All You Need)
+runTest('reconstructPageMath reconstructs Equation 1 from Attention paper page 4', () => {
+  const buf = fs.readFileSync(attentionPdf);
+  const doc = mupdf.PDFDocument.openDocument(buf, 'application/pdf');
+  const page = doc.loadPage(3); // 0-based page 4
+  const res = extractPageVectorsAndText(page);
+
+  const { mathItems, claimedLineIndices } = reconstructPageMath(res.lines, res.vectors, 612, 792);
+  assert.strictEqual(mathItems.length >= 1, true);
+
+  const eq1 = mathItems.find(m => m.node && m.node.label === '1');
+  assert.ok(eq1, 'Equation 1 should be detected and labelled');
+  assert.ok(eq1.markdown.includes('Attention(Q, K, V ) = softmax'), 'Equation 1 should reconstruct Attention formula');
+  assert.ok(eq1.markdown.includes('\\frac{QK^T}{\\sqrt{d_k}}'), 'Equation 1 should reconstruct QK^T / sqrt(d_k) fraction');
+  assert.ok(eq1.markdown.includes('\\tag{1}'), 'Equation 1 should contain \\tag{1}');
+});
+
+runTest('reconstructPageMath rejects headings, captions, and prose false positives', () => {
+  const buf = fs.readFileSync(attentionPdf);
+  const doc = mupdf.PDFDocument.openDocument(buf, 'application/pdf');
+
+  for (let p = 0; p < doc.countPages(); p++) {
+    const page = doc.loadPage(p);
+    const res = extractPageVectorsAndText(page);
+    const { mathItems } = reconstructPageMath(res.lines, res.vectors, 612, 792);
+
+    for (const m of mathItems) {
+      const text = m.markdown;
+      assert.strictEqual(/^(?:Figure|Fig\.|Table|Section|Sec\.)/i.test(text), false, 'Captions should never be math');
+      assert.strictEqual(/\b(?:Google|University|Research|Brain|Publishers)\b/.test(text), false, 'Affiliations should not be math');
+      assert.strictEqual(/^#+\s/.test(text), false, 'Headings should not be classified as math');
+    }
+  }
+});
+
+// 5. End-to-End Markdown and Document IR Integration
+async function runAsyncTest(name, fn) {
+  try {
+    await fn();
+    console.log(`  \x1b[32m✔\x1b[0m ${name}`);
+  } catch (err) {
+    console.error(`  \x1b[31m✖\x1b[0m ${name}`);
+    console.error(`    ${err.message}`);
+    process.exit(1);
+  }
+}
+
+await runAsyncTest('convertPdfToMarkdown outputs Equation 1 as display math block in reading order', async () => {
+  const res = await convertPdfToMarkdown(attentionPdf, { pages: '4' });
+  assert.ok(res.markdown.includes('$$\nAttention(Q, K, V ) = softmax(\\frac{QK^T}{\\sqrt{d_k}})V \\tag{1}\n$$'));
+  assert.ok(!res.markdown.includes('$$\nScaled Dot-Product Attention\n$$'), 'Titles should not be turned into math');
+});
+
+await runAsyncTest('convertPdfToDocumentIR stores structured math with structuredMath option', async () => {
+  const ir = await convertPdfToDocumentIR(attentionPdf, { pages: '4', structuredMath: true });
+  assert.ok(Array.isArray(ir.pages[0].math), 'Page 4 should contain structured math array');
+  const eq1 = ir.pages[0].math.find(m => m.equationNumber === '1');
+  assert.ok(eq1, 'Structured math should contain equation 1');
+  assert.strictEqual(eq1.type, 'math');
+  assert.ok(eq1.latex.includes('Attention(Q, K, V ) = softmax(\\frac{QK^T}{\\sqrt{d_k}})V'));
+  assert.ok(eq1.mathml.includes('<math'));
+  assert.ok(Array.isArray(eq1.bbox) && eq1.bbox.length === 4);
 });
 
 console.log('\n\x1b[32m✔ All Mathematical Equation Reconstruction tests passed successfully!\x1b[0m\n');

@@ -24,6 +24,7 @@ import {
   findDestinationAnchors,
   groupLinksByLine
 } from '../links/extractor.js';
+import { reconstructPageMath } from '../math/index.js';
 
 /**
  * Converts a PDF buffer or file path into publication-grade GitHub Flavored Markdown (GFM).
@@ -109,6 +110,8 @@ export async function convertPdfToMarkdown(input, options = {}) {
               rules.push(...rulesFromVector(v));
             }
 
+            const { mathItems, claimedLineIndices } = reconstructPageMath(lines, vectors, width, height);
+
             rawPagesData.push({
               index: pageIndex,
               pageIndex,
@@ -120,7 +123,9 @@ export async function convertPdfToMarkdown(input, options = {}) {
               vectors,
               rules,
               links,
-              rasterImages: pageImages
+              rasterImages: pageImages,
+              mathItems,
+              claimedLineIndices
             });
           } finally {
             try {
@@ -208,10 +213,14 @@ export async function convertPdfToMarkdown(input, options = {}) {
         // Extracted images and figures for this page
         const pageImages = (imageExtractionResult?.byPage.get(pData.pageNumber)) || [];
 
-        // Set of lines claimed by tables and figures so they are not duplicated in prose
+        // Set of lines claimed by tables, figures, and math so they are not duplicated in prose
+        const mathItems = pData.mathItems || [];
+        const claimedLineIndices = pData.claimedLineIndices || new Set();
+
         const claimedLines = new Set([
           ...pageTables.flatMap(t => t.linesInside),
-          ...pageImages.flatMap(img => img.insideLines || [])
+          ...pageImages.flatMap(img => img.insideLines || []),
+          ...Array.from(claimedLineIndices).map(idx => pData.lines[idx])
         ]);
 
         // Remaining prose lines (filtering out vertical running margin lines like arXiv side banners)
@@ -221,7 +230,7 @@ export async function convertPdfToMarkdown(input, options = {}) {
           return true;
         });
 
-        // Combine prose blocks, table regions, and image/figure blocks into unified reading order blocks
+        // Combine prose blocks, table regions, image/figure blocks, and math items into unified reading order blocks
         const blocksToOrder = [
           ...proseLines.map(l => ({
             bbox: { x: l.left, y: l.top, w: l.width, h: l.height },
@@ -247,6 +256,16 @@ export async function convertPdfToMarkdown(input, options = {}) {
             },
             type: 'image',
             data: img
+          })),
+          ...mathItems.map(m => ({
+            bbox: {
+              x: m.bbox[0],
+              y: m.bbox[1],
+              w: m.bbox[2] - m.bbox[0],
+              h: m.bbox[3] - m.bbox[1]
+            },
+            type: 'math',
+            data: m
           }))
         ];
 
@@ -310,6 +329,10 @@ export async function convertPdfToMarkdown(input, options = {}) {
               }
             }
             pageMarkdownParts.push(tableAnchor + item.data.markdown);
+          } else if (item.type === 'math') {
+            flushAll();
+            lastLine = null;
+            pageMarkdownParts.push(item.data.markdown);
           } else if (item.type === 'image') {
             flushAll();
             lastLine = null;

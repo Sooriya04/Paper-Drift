@@ -216,7 +216,7 @@ export function toMathML(node) {
 export function toMarkdown(node, display = false) {
   const latex = toLaTeX(node);
   if (display) {
-    const label = node.label ? ` \\tag{${node.label}}` : '';
+    const label = (node.label && !latex.includes(`\\tag{${node.label}}`)) ? ` \\tag{${node.label}}` : '';
     return `$$\n${latex}${label}\n$$`;
   }
   return `$${latex}$`;
