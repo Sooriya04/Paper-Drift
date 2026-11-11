@@ -15,8 +15,8 @@ import { validateDocumentIRV2 } from '../src/metadata/schema.js';
 import { convertPdfToDocumentIR } from '../src/ir/schema.js';
 
 const SAMPLE_PDF = path.resolve('test/fixtures/sample.pdf');
-const ATTENTION_PDF = path.resolve('test/fixtures/benchmarks/arxiv/1706.03762v7.Attention_Is_All_You_Need.pdf');
-const RESNET_PDF = path.resolve('test/fixtures/benchmarks/cvpr/1512.03385v1.Deep_Residual_Learning_for_Image_Recognition.pdf');
+const ATTENTION_PDF = path.resolve('test/fixtures/benchmarks/01-attention-is-all-you-need.pdf');
+const RESNET_PDF = path.resolve('test/fixtures/benchmarks/02-resnet-deep-residual-learning.pdf');
 
 test('Scientific Metadata Extraction Subsystem', async (t) => {
   await t.test('schema validation succeeds on valid metadata structure', () => {
@@ -37,7 +37,7 @@ test('Scientific Metadata Extraction Subsystem', async (t) => {
   });
 
   await t.test('extracts frontmatter, sections, and references from Attention paper', async () => {
-    if (!fs.existsSync(ATTENTION_PDF)) return;
+    assert.ok(fs.existsSync(ATTENTION_PDF), 'Attention PDF fixture exists');
 
     const meta = await extractScientificMetadata(ATTENTION_PDF, { maxPages: 5 });
     assert.ok(validateScientificMetadata(meta), 'Attention metadata schema validation');
@@ -46,6 +46,14 @@ test('Scientific Metadata Extraction Subsystem', async (t) => {
     assert.ok(meta.title.value && meta.title.value.toLowerCase().includes('attention is all you need'), 'Title extraction');
     assert.equal(meta.title.source, 'extracted');
     assert.equal(meta.title.page, 1);
+
+    // Authors verification
+    assert.ok(Array.isArray(meta.authors), 'Authors is an array');
+    assert.ok(meta.authors.length >= 8, 'Extracted at least 8 authors');
+    const firstAuthor = meta.authors[0];
+    assert.ok(firstAuthor.name.includes('Ashish Vaswani'), 'First author name matches Ashish Vaswani');
+    assert.ok(firstAuthor.affiliations.some(aff => aff.includes('Google Brain')), 'First author affiliation matches Google Brain');
+    assert.equal(firstAuthor.email, 'avaswani@google.com');
 
     // Abstract verification
     assert.ok(meta.abstract.value && meta.abstract.value.toLowerCase().includes('sequence transduction'), 'Abstract extraction');
@@ -68,11 +76,24 @@ test('Scientific Metadata Extraction Subsystem', async (t) => {
   });
 
   await t.test('extracts section hierarchy and publisher details from ResNet paper', async () => {
-    if (!fs.existsSync(RESNET_PDF)) return;
+    assert.ok(fs.existsSync(RESNET_PDF), 'ResNet PDF fixture exists');
 
     const meta = await extractScientificMetadata(RESNET_PDF, { maxPages: 4 });
     assert.ok(validateScientificMetadata(meta), 'ResNet schema validation');
     assert.ok(meta.title.value && meta.title.value.toLowerCase().includes('deep residual learning'), 'ResNet title');
     assert.equal(meta.title.source, 'extracted');
+
+    // Authors verification
+    assert.ok(Array.isArray(meta.authors), 'ResNet authors is an array');
+    assert.equal(meta.authors.length, 4, 'ResNet has 4 authors');
+    assert.equal(meta.authors[0].name, 'Kaiming He');
+    assert.equal(meta.authors[0].email, 'kahe@microsoft.com');
+    assert.ok(meta.authors[0].affiliations.includes('Microsoft Research'));
+    assert.equal(meta.authors[1].name, 'Xiangyu Zhang');
+    assert.equal(meta.authors[1].email, 'v-xiangz@microsoft.com');
+    assert.equal(meta.authors[2].name, 'Shaoqing Ren');
+    assert.equal(meta.authors[2].email, 'v-shren@microsoft.com');
+    assert.equal(meta.authors[3].name, 'Jian Sun');
+    assert.equal(meta.authors[3].email, 'jiansun@microsoft.com');
   });
 });
