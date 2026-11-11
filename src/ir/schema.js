@@ -20,6 +20,7 @@ import {
   applyLinksToLine
 } from '../links/extractor.js';
 import { normalizePageText, filterRunningHeadersFooters } from '../normalization/text.js';
+import { reconstructPageMath, toLaTeX, toMathML } from '../math/index.js';
 
 /**
  * Validates a document IR object against the minimal page-based schema.
@@ -73,7 +74,7 @@ export function validateDocumentIR(doc) {
     prevPage = pageObj.page;
 
     const pageKeys = Object.keys(pageObj);
-    const validPageKeys = ['page', 'content', 'tables'];
+    const validPageKeys = ['page', 'content', 'tables', 'math'];
     for (const k of pageKeys) {
       if (!validPageKeys.includes(k)) return false;
     }
@@ -84,6 +85,14 @@ export function validateDocumentIR(doc) {
         if (!t || typeof t !== 'object') return false;
         if (typeof t.rows !== 'number' || typeof t.cols !== 'number') return false;
         if (t.cells && !Array.isArray(t.cells)) return false;
+      }
+    }
+
+    if (pageObj.math !== undefined) {
+      if (!Array.isArray(pageObj.math)) return false;
+      for (const m of pageObj.math) {
+        if (!m || typeof m !== 'object') return false;
+        if (typeof m.type !== 'string' || typeof m.latex !== 'string' || typeof m.mathml !== 'string') return false;
       }
     }
   }
@@ -267,13 +276,17 @@ export async function convertPdfToDocumentIR(input, options = {}) {
         pageTables = reconstructTables(validRules, pData.lines, pData.width, pData.height);
       }
 
+      // Reconstruct page math
+      const { mathItems, claimedLineIndices } = reconstructPageMath(pData.lines, pData.vectors, pData.width, pData.height);
+
       // Extracted images and figures for this page
       const pageImages = (imageExtractionResult?.byPage.get(pData.pageNumber)) || [];
 
-      // Claim lines belonging to tables and vector figures so prose does not duplicate them
+      // Claim lines belonging to tables, vector figures, and math so prose does not duplicate them
       const claimedLines = new Set([
         ...pageTables.flatMap(t => t.linesInside),
-        ...pageImages.flatMap(img => img.insideLines || [])
+        ...pageImages.flatMap(img => img.insideLines || []),
+        ...Array.from(claimedLineIndices).map(idx => pData.lines[idx])
       ]);
 
       const proseLines = pData.lines.filter(l => !claimedLines.has(l));
@@ -304,6 +317,16 @@ export async function convertPdfToDocumentIR(input, options = {}) {
           },
           type: 'image',
           data: img
+        })),
+        ...mathItems.map(m => ({
+          bbox: {
+            x: m.bbox[0],
+            y: m.bbox[1],
+            w: m.bbox[2] - m.bbox[0],
+            h: m.bbox[3] - m.bbox[1]
+          },
+          type: 'math',
+          data: m
         }))
       ];
 
@@ -319,6 +342,11 @@ export async function convertPdfToDocumentIR(input, options = {}) {
             if (tableMd) {
               pageTextParts.push(tableMd);
             }
+          }
+        } else if (item.type === 'math') {
+          const m = item.data;
+          if (m && m.markdown) {
+            pageTextParts.push(m.markdown);
           }
         } else if (item.type === 'image') {
           const img = item.data;
@@ -356,6 +384,16 @@ export async function convertPdfToDocumentIR(input, options = {}) {
           cells: t.cells || [],
           headers: t.headers,
           continuation: t.continuation
+        }));
+      }
+
+      if (options.structuredMath && mathItems.length > 0) {
+        pageEntry.math = mathItems.map(m => ({
+          type: 'math',
+          latex: toLaTeX(m.node),
+          mathml: toMathML(m.node),
+          bbox: m.bbox,
+          equationNumber: m.node.label || null
         }));
       }
 
