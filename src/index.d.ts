@@ -364,6 +364,22 @@ export const SCIENTIFIC_METADATA_VERSION: string;
 export function validateScientificMetadata(metadata: object): boolean;
 export function extractScientificMetadata(input: string | Buffer | Uint8Array, options?: object): Promise<object>;
 
+/**
+ * Mathematical Equation Reconstruction Subsystem.
+ */
+export function createMathNode(type: string, props?: Record<string, any>): Record<string, any>;
+export function validateMathIR(node: any): boolean;
+export function toLaTeX(node: Record<string, any>): string;
+export function toMathML(node: Record<string, any>): string;
+export function toMarkdown(node: Record<string, any>, display?: boolean): string;
+export function parseTextToMathIR(text: string): Record<string, any>;
+export function reconstructPageMath(
+  lines: Array<any>,
+  vectors: Array<any>,
+  pageWidth?: number,
+  pageHeight?: number
+): { mathItems: Array<any>; claimedLineIndices: Set<number> };
+
 declare const _default: {
   convertPdfToImages: typeof convertPdfToImages;
   streamPdfPages: typeof streamPdfPages;
@@ -391,6 +407,13 @@ declare const _default: {
   extractScientificMetadata: typeof extractScientificMetadata;
   validateScientificMetadata: typeof validateScientificMetadata;
   SCIENTIFIC_METADATA_VERSION: typeof SCIENTIFIC_METADATA_VERSION;
+  createMathNode: typeof createMathNode;
+  validateMathIR: typeof validateMathIR;
+  toLaTeX: typeof toLaTeX;
+  toMathML: typeof toMathML;
+  toMarkdown: typeof toMarkdown;
+  parseTextToMathIR: typeof parseTextToMathIR;
+  reconstructPageMath: typeof reconstructPageMath;
 };
 
 export default _default;

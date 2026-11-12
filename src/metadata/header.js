@@ -94,10 +94,14 @@ export function extractScientificHeader(rawPagesData, typographyMap) {
     const text = l.text.trim();
     if (!text) continue;
     // Skip typical header notices or arXiv stamps at top
-    if (/arXiv:\d+\.\d+|preprint|under review|published in|conference/i.test(text) && l.top < 80) {
+    if (/arXiv:\d+\.\d+|preprint|under review|published in|conference|permission to|proceedings/i.test(text) && l.top < 110) {
       continue;
     }
-    const size = l.fontSize || l.height || 10;
+    // Filter out email addresses and tall bracketed blocks from title candidates
+    if (/@/.test(text) || /\{[^}]+\}/.test(text) || /\{[^}]*$/.test(text)) {
+      continue;
+    }
+    const size = l.font?.size || l.fontSize || l.height || 10;
     if (size > maxFontSize) {
       maxFontSize = size;
     }
@@ -112,11 +116,19 @@ export function extractScientificHeader(rawPagesData, typographyMap) {
     const l = lines[i];
     const text = l.text.trim();
     if (!text) continue;
-    if (/arXiv:\d+\.\d+|preprint|under review|published in|conference/i.test(text) && l.top < 80) {
+    if (/arXiv:\d+\.\d+|preprint|under review|published in|conference|permission to|proceedings/i.test(text) && l.top < 110) {
       continue;
     }
-    const size = l.fontSize || l.height || 10;
-    if (size >= maxFontSize * 0.85) {
+    // Filter out email addresses and tall bracketed blocks from title candidates
+    if (/@/.test(text) || /\{[^}]+\}/.test(text) || /\{[^}]*$/.test(text)) {
+      continue;
+    }
+    const size = l.font?.size || l.fontSize || l.height || 10;
+    // Check if line continues a hyphenated title or is within 85% of max font size
+    const prevText = candidateTitleLines.length > 0 ? candidateTitleLines[candidateTitleLines.length - 1] : '';
+    const isHyphenContinuation = prevText.endsWith('-') && size >= maxFontSize * 0.75;
+
+    if (size >= maxFontSize * 0.85 || isHyphenContinuation) {
       candidateTitleLines.push(text);
       if (l.bbox) titleBboxes.push(l.bbox);
       else if (l.left !== undefined) titleBboxes.push([l.left, l.top, l.left + l.width, l.top + l.height]);
@@ -161,7 +173,7 @@ export function extractScientificHeader(rawPagesData, typographyMap) {
     const l = lines[i];
     const text = l.text.trim();
     if (!text) continue;
-    authorRegionLines.push(text);
+    authorRegionLines.push(l);
     if (l.bbox) authorBboxes.push(l.bbox);
     else if (l.left !== undefined) authorBboxes.push([l.left, l.top, l.left + l.width, l.top + l.height]);
   }
@@ -192,73 +204,239 @@ export function extractScientificHeader(rawPagesData, typographyMap) {
 }
 
 /**
+ * Matches an author name to their email candidate.
+ */
+function matchAuthorEmail(name, emails) {
+  const normalized = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter(Boolean);
+  if (normalized.length === 0) return null;
+  const firstInitial = normalized[0][0];
+  const firstName = normalized[0];
+  const lastName = normalized[normalized.length - 1];
+  const lastInitial = lastName[0];
+
+  // 1. Exact matches: full name or initial + lastname
+  const fullConcat = firstName + lastName;
+  let match = emails.find(e => {
+    const prefix = e.split('@')[0].toLowerCase().replace(/^v-/, '');
+    return prefix === fullConcat || prefix === (firstInitial + lastName);
+  });
+  if (match) return match;
+
+  // 2. Syllable / prefix combo: e.g. 'yeshe' for 'yelong shen', 'kristout' for 'kristina toutanova'
+  match = emails.find(e => {
+    const prefix = e.split('@')[0].toLowerCase().replace(/^v-/, '');
+    for (let len = 2; len <= Math.min(firstName.length, prefix.length - 2); len++) {
+      if (prefix.startsWith(firstName.slice(0, len)) && lastName.startsWith(prefix.slice(len))) {
+        return true;
+      }
+    }
+    return false;
+  });
+  if (match) return match;
+
+  // 3. First name + last initial (e.g. zeyuana, yuanzhil) OR prefix of first + last initial (e.g. xiangz)
+  match = emails.find(e => {
+    const prefix = e.split('@')[0].toLowerCase().replace(/^v-/, '');
+    return (prefix.endsWith(lastInitial) && (firstName.startsWith(prefix.slice(0, -1)) || prefix.slice(0, -1).startsWith(firstName)));
+  });
+  if (match) return match;
+
+  // 4. Standard abbreviations / initials
+  match = emails.find(e => {
+    const prefix = e.split('@')[0].toLowerCase().replace(/^v-/, '');
+    return (prefix.startsWith(firstInitial) && prefix.endsWith(lastInitial) && lastName.startsWith(prefix.slice(1, -1))) ||
+           (prefix.startsWith(firstInitial) && lastName.startsWith(prefix.slice(1))) ||
+           prefix === (firstInitial + lastInitial);
+  });
+  if (match) return match;
+
+  // 5. General substring match
+  match = emails.find(e => {
+    const prefix = e.split('@')[0].toLowerCase().replace(/^v-/, '');
+    return prefix.includes(lastName) || lastName.includes(prefix) || prefix.includes(firstName);
+  });
+  return match || null;
+}
+
+/**
+ * Splits a single text line into multiple author names if separated by large horizontal gaps.
+ */
+function splitLineByGaps(lineObj) {
+  if (typeof lineObj === 'string') return [lineObj];
+  if (!lineObj.chars || lineObj.chars.length === 0) return [lineObj.text.trim()];
+  const fontSize = lineObj.font?.size || 10;
+  const segments = [];
+  let cur = '';
+  for (let i = 0; i < lineObj.chars.length; i++) {
+    cur += lineObj.chars[i].char;
+    if (i < lineObj.chars.length - 1) {
+      const dx = lineObj.chars[i + 1].x - lineObj.chars[i].x;
+      if (dx > fontSize * 1.3) {
+        segments.push(cur.trim());
+        cur = '';
+      }
+    }
+  }
+  if (cur.trim()) segments.push(cur.trim());
+  return segments;
+}
+
+/**
  * Parses author lines into structured authors, affiliations, and emails.
  */
 function parseAuthorBlock(lines, bboxes) {
   const emails = [];
   const affiliations = [];
-  const rawAuthors = [];
+  const rawAuthorEntries = [];
 
-  const affilKeywords = /\b(university|institute|college|department|laboratory|lab|technologies|inc\.|ltd\.|corp\.|google|microsoft|meta|openai|deepmind|amazon|research|center|centre|faculty)\b/i;
+  const affilKeywords = /\b(university|universite|institute|institut|college|department|departement|laboratory|laboratoire|lab|technologies|inc\.|ltd\.|corp\.|google|microsoft|meta|openai|deepmind|amazon|research|recherche|center|centre|faculty|faculte)\b/i;
 
-  for (const line of lines) {
+  function isAffiliationLine(str) {
+    const norm = str.normalize('NFD').replace(/[\u0300-\u036f´`]/g, '');
+    return affilKeywords.test(norm) || /\b(?:montr[eé]al|quebec|toronto|california|stanford|cambridge|oxford|beijing|zurich|london|boston)\b/i.test(norm) || /^[A-Z]{2}\s+[A-Z0-9]{3}\s+[A-Z0-9]{3}$/i.test(norm.trim());
+  }
+
+  // 1. Pre-process and combine multi-line bracket emails
+  const processedLines = [];
+  for (let i = 0; i < lines.length; i++) {
+    const item = lines[i];
+    const text = typeof item === 'string' ? item : (item.text || '').trim();
+    if (/\{[^}]*$/.test(text) && i + 1 < lines.length) {
+      let mergedText = text;
+      let j = i + 1;
+      while (j < lines.length && !/\}/.test(mergedText)) {
+        const nextText = typeof lines[j] === 'string' ? lines[j] : (lines[j].text || '').trim();
+        mergedText += ' ' + nextText;
+        j++;
+      }
+      processedLines.push({
+        text: mergedText,
+        left: typeof item === 'object' ? item.left : undefined,
+        top: typeof item === 'object' ? item.top : undefined,
+        chars: item.chars,
+        font: item.font
+      });
+      i = j - 1;
+    } else {
+      processedLines.push(item);
+    }
+  }
+
+  // 2. Classify lines into emails, affiliations, or raw author candidates
+  const affilLineObjects = [];
+  const emailLineObjects = [];
+
+  for (const lineObj of processedLines) {
+    const line = typeof lineObj === 'string' ? lineObj : (lineObj.text || '').trim();
+    if (!line) continue;
+
     // Check bracket emails: {a, b}@c.com
     let match;
+    let hasBracketEmail = false;
     while ((match = BRACKET_EMAIL_REGEX.exec(line)) !== null) {
+      hasBracketEmail = true;
       const names = match[1].split(',').map(n => n.trim());
       const domain = match[2].trim();
-      names.forEach(n => emails.push(`${n}@${domain}`));
+      names.forEach(n => {
+        const fullEmail = `${n}@${domain}`;
+        if (!emails.includes(fullEmail)) emails.push(fullEmail);
+      });
     }
 
     // Check normal emails
+    let hasNormalEmail = false;
     while ((match = EMAIL_REGEX.exec(line)) !== null) {
+      hasNormalEmail = true;
       if (!emails.includes(match[1])) {
         emails.push(match[1]);
       }
     }
 
+    if (hasBracketEmail || hasNormalEmail) {
+      emailLineObjects.push(lineObj);
+      continue;
+    }
+
+    // Skip version stamps or stray bracket lines
+    if (/^\(version|\{/i.test(line)) {
+      continue;
+    }
+
     // Check affiliation
-    if (affilKeywords.test(line)) {
-      // Strip superscript markers (*, numbers)
+    if (isAffiliationLine(line)) {
       const cleanedAffil = clean(line.replace(/^[\d*†‡§\s,]+/, ''));
       if (cleanedAffil.length > 3 && !affiliations.includes(cleanedAffil)) {
         affiliations.push(cleanedAffil);
       }
-    } else if (!/@/.test(line)) {
-      // Possible author line
-      rawAuthors.push(line);
+      affilLineObjects.push(lineObj);
+    } else {
+      rawAuthorEntries.push(lineObj);
     }
   }
 
-  // Parse structured author names
+  // 3. Parse structured author names & associate with spatially nearest affiliations / emails
   const authorList = [];
   let order = 1;
 
-  for (const authorLine of rawAuthors) {
-    // Split by comma or 'and'
-    const parts = authorLine
-      .replace(/\band\b/gi, ',')
-      .split(',')
-      .map(p => p.trim())
-      .filter(Boolean);
+  for (const authorEntry of rawAuthorEntries) {
+    const rawLine = typeof authorEntry === 'string' ? authorEntry : (authorEntry.text || '').trim();
+    if (!rawLine || /abstract/i.test(rawLine)) continue;
 
-    for (const p of parts) {
-      // Remove footnote marks like 1, 2, *, †, ‡
-      const name = clean(p.replace(/[\d*†‡§^]/g, ''));
-      if (name.length > 2 && !affilKeywords.test(name) && !/abstract/i.test(name)) {
-        // Link any matching email or affiliation if possible
-        const authorEmails = emails.filter(e => {
-          const prefix = e.split('@')[0].toLowerCase();
-          const nameParts = name.toLowerCase().split(' ');
-          return nameParts.some(part => part.length > 2 && prefix.includes(part));
-        });
+    // Split line by large gaps if available (e.g. BERT, LoRA multi-column author lines)
+    const gapSegments = splitLineByGaps(authorEntry);
 
-        authorList.push({
-          name,
-          order: order++,
-          affiliations: affiliations.length > 0 ? [affiliations[0]] : [],
-          email: authorEmails[0] || null
-        });
+    for (const segment of gapSegments) {
+      const parts = segment
+        .replace(/\band\b/gi, ',')
+        .split(',')
+        .map(p => p.trim())
+        .filter(Boolean);
+
+      for (const p of parts) {
+        // Remove footnote marks like 1, 2, *, †, ‡
+        const name = clean(p.replace(/[\d*†‡§^]/g, ''));
+        if (name.length > 2 && !isAffiliationLine(name) && !/abstract/i.test(name) && !/^\(version/i.test(name)) {
+          // Spatial proximity lookup if coordinates are present
+          let matchedAffil = null;
+          let matchedEmail = null;
+
+          if (typeof authorEntry === 'object' && authorEntry.left !== undefined && authorEntry.top !== undefined) {
+            const aLeft = authorEntry.left;
+            const aTop = authorEntry.top;
+
+            const nearbyAffil = affilLineObjects.find(aff =>
+              aff.top >= aTop && aff.top <= aTop + 40 && Math.abs((aff.left || 0) - aLeft) < 80
+            );
+            if (nearbyAffil) {
+              matchedAffil = clean(nearbyAffil.text.replace(/^[\d*†‡§\s,]+/, ''));
+            }
+
+            const nearbyEmail = emailLineObjects.find(em =>
+              em.top >= aTop && em.top <= aTop + 50 && Math.abs((em.left || 0) - aLeft) < 80
+            );
+            if (nearbyEmail) {
+              const emailText = nearbyEmail.text;
+              const found = emails.find(e => emailText.includes(e));
+              if (found) matchedEmail = found;
+            }
+          }
+
+          // Fallback to name heuristic matching if spatial match not found
+          if (!matchedEmail) {
+            matchedEmail = matchAuthorEmail(name, emails);
+          }
+
+          const authorAffiliations = matchedAffil
+            ? [matchedAffil]
+            : (affiliations.length > 0 ? [affiliations[0]] : []);
+
+          authorList.push({
+            name,
+            order: order++,
+            affiliations: authorAffiliations,
+            email: matchedEmail || null
+          });
+        }
       }
     }
   }
