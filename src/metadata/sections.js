@@ -7,11 +7,12 @@
  */
 
 import { mergeBboxes } from './provenance.js';
+import { calculateBodyFontSizeMode } from '../markdown/typography.js';
 
 // Matches "1", "1.1", "1.1.1", "I", "II.A", "Appendix A", "Appendices"
-const SECTION_REGEX = /^(?:([0-9]+|[IVXLCDM]+)\.?\s+|appendix(?:\s+[a-z0-9]+)?[:.\s]+)/i;
-const SUBSECTION_REGEX = /^([0-9]+\.[0-9]+)\.?\s+/;
-const SUBSUBSECTION_REGEX = /^([0-9]+\.[0-9]+\.[0-9]+)\.?\s+/;
+const SECTION_REGEX = /^(?:([1-9]\d*|[IVXLCDM]+)\.?\s+(\p{Lu}.*)|appendix(?:\s+([a-z0-9]+))?[:.\s]+(.*))$/iu;
+const SUBSECTION_REGEX = /^([0-9]+\.[0-9]+)\.?\s+(\p{Lu}.*)$/u;
+const SUBSUBSECTION_REGEX = /^([0-9]+\.[0-9]+\.[0-9]+)\.?\s+(\p{Lu}.*)$/u;
 
 const SPECIAL_HEADINGS = [
   'abstract',
@@ -44,6 +45,8 @@ const SPECIAL_HEADINGS = [
  */
 export function reconstructSectionHierarchy(rawPagesData, typographyMap) {
   const flatHeadings = [];
+  const allLines = rawPagesData ? rawPagesData.flatMap(p => p.lines || []) : [];
+  const bodyMode = calculateBodyFontSizeMode(allLines);
 
   for (const page of rawPagesData) {
     const pageNum = page.pageNumber;
@@ -57,6 +60,14 @@ export function reconstructSectionHierarchy(rawPagesData, typographyMap) {
       if (/^\d+$/.test(text)) continue;
       if (line.top < 50 || line.top > page.height - 50) continue;
 
+      const size = line.font?.size || line.fontSize || line.height || bodyMode;
+      const ratio = size / bodyMode;
+      const isBold = Boolean(line.font?.isBold);
+      const words = text.split(/\s+/).filter(Boolean);
+
+      // Headings must be concise (<= 14 words) and not end with a colon
+      if (words.length > 14 || text.endsWith(':')) continue;
+
       // Evaluate typography heading or pattern
       let level = null;
       let number = null;
@@ -64,28 +75,28 @@ export function reconstructSectionHierarchy(rawPagesData, typographyMap) {
 
       // Check subsubsection: 1.1.1
       const subsubMatch = SUBSUBSECTION_REGEX.exec(text);
-      if (subsubMatch) {
+      if (subsubMatch && (ratio >= 0.95 || isBold)) {
         level = 3;
         number = subsubMatch[1];
-        title = text.replace(SUBSUBSECTION_REGEX, '').trim();
+        title = subsubMatch[2].trim();
       } else {
         // Check subsection: 1.1
         const subMatch = SUBSECTION_REGEX.exec(text);
-        if (subMatch) {
+        if (subMatch && (ratio >= 0.95 || isBold)) {
           level = 2;
           number = subMatch[1];
-          title = text.replace(SUBSECTION_REGEX, '').trim();
+          title = subMatch[2].trim();
         } else {
           // Check top-level section: 1. or I. or Appendix
           const secMatch = SECTION_REGEX.exec(text);
-          if (secMatch) {
+          if (secMatch && (ratio >= 1.05 || isBold || text.toLowerCase().startsWith('appendix'))) {
             level = 1;
-            number = secMatch[1] || 'Appendix';
-            title = text.replace(SECTION_REGEX, '').trim();
+            number = secMatch[1] || secMatch[3] || 'Appendix';
+            title = (secMatch[2] || secMatch[4] || '').trim();
           } else {
             // Unnumbered special sections (e.g. "References", "Acknowledgements", "Abstract")
             const lower = text.toLowerCase().replace(/[:.]/g, '').trim();
-            if (SPECIAL_HEADINGS.includes(lower)) {
+            if (SPECIAL_HEADINGS.includes(lower) && (isBold || ratio >= 1.05)) {
               level = 1;
               number = null;
               title = text.replace(/[:.]/g, '').trim();

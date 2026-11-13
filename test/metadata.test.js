@@ -33,6 +33,7 @@ test('Scientific Metadata Extraction Subsystem', async (t) => {
     assert.ok(meta, 'Metadata returned');
     assert.equal(meta.version, '2.0.0');
     assert.ok(validateScientificMetadata(meta), 'Metadata validates against schema v2.0.0');
+    assert.equal(meta.authors.length, 0, 'sample.pdf prose must not be classified as authors');
     assert.ok(duration < 2000, `Execution took ${duration}ms (target < 2000ms)`);
   });
 
@@ -65,6 +66,9 @@ test('Scientific Metadata Extraction Subsystem', async (t) => {
     const intro = meta.sections.find(s => s.title.toLowerCase().includes('introduction'));
     assert.ok(intro, 'Identified Introduction section');
     assert.equal(intro.level, 1);
+    // Reject table cell numbers and math subindices from sections
+    assert.ok(!meta.sections.some(s => s.title === '512 512' || s.title === '128 128'), 'Must not classify table cells as sections');
+    assert.ok(!meta.sections.some(s => s.number === '2014'), 'Must not classify dataset year as section');
 
     // Document IR compatibility verification
     const docIR = {

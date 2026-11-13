@@ -167,15 +167,23 @@ export function extractScientificHeader(rawPagesData, typographyMap) {
   const authorRegionLines = [];
   const authorBboxes = [];
   const authorStart = titleEndIndex !== -1 ? titleEndIndex + 1 : 1;
-  const authorEnd = abstractStartIndex !== -1 ? abstractStartIndex : Math.min(lines.length, 18);
+  const authorEnd = abstractStartIndex !== -1 ? abstractStartIndex : Math.min(lines.length, authorStart + 5);
 
-  for (let i = authorStart; i < authorEnd; i++) {
-    const l = lines[i];
-    const text = l.text.trim();
-    if (!text) continue;
-    authorRegionLines.push(l);
-    if (l.bbox) authorBboxes.push(l.bbox);
-    else if (l.left !== undefined) authorBboxes.push([l.left, l.top, l.left + l.width, l.top + l.height]);
+  const hasAuthorClues = abstractStartIndex !== -1 || lines.slice(authorStart, authorEnd).some(l =>
+    /@|\b(university|institute|lab|laboratory|google|microsoft|research|meta|apple|amazon|deepmind|corp|inc)\b/i.test(l.text || '')
+  );
+
+  if (hasAuthorClues) {
+    for (let i = authorStart; i < authorEnd; i++) {
+      const l = lines[i];
+      const text = l.text.trim();
+      if (!text) continue;
+      // Skip prose sentences, bullet points, or list items
+      if (/^[-*•]/.test(text) || text.endsWith('.') || text.endsWith('!') || text.endsWith(':')) continue;
+      authorRegionLines.push(l);
+      if (l.bbox) authorBboxes.push(l.bbox);
+      else if (l.left !== undefined) authorBboxes.push([l.left, l.top, l.left + l.width, l.top + l.height]);
+    }
   }
 
   const { authors, affiliations, emails } = parseAuthorBlock(authorRegionLines, authorBboxes);
@@ -395,7 +403,11 @@ function parseAuthorBlock(lines, bboxes) {
       for (const p of parts) {
         // Remove footnote marks like 1, 2, *, †, ‡
         const name = clean(p.replace(/[\d*†‡§^]/g, ''));
-        if (name.length > 2 && !isAffiliationLine(name) && !/abstract/i.test(name) && !/^\(version/i.test(name)) {
+        const nameWords = name.split(/\s+/).filter(Boolean);
+        const hasProseWords = /\b(the|and|or|was|were|is|are|via|with|for|from|notice|this|document|rendered|parsed|intact)\b/i.test(name);
+        const isNameLike = name.length > 2 && nameWords.length <= 5 && !hasProseWords;
+
+        if (isNameLike && !isAffiliationLine(name) && !/abstract/i.test(name) && !/^\(version/i.test(name)) {
           // Spatial proximity lookup if coordinates are present
           let matchedAffil = null;
           let matchedEmail = null;
