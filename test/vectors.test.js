@@ -523,6 +523,35 @@ runTest('Real PDF LoRA Page 26 filters out heatmap strips and extracts clean rul
     // Previously extracted 14,095 false rules from heatmap strips. Now correctly extracts <= 50 structural rules!
     assert(rules.length <= 50, `Expected <= 50 structural rules on LoRA page 26, got ${rules.length}`);
     assert(elapsed < 1000, `Processing should complete quickly, took ${elapsed.toFixed(1)}ms`);
+    page.destroy();
+    doc.destroy();
+  }
+});
+
+runTest('extractPageVectorsAndText properly disposes StructuredText WASM allocations', () => {
+  const loraPdfPath = path.resolve(__dirname, 'fixtures/benchmarks/03-lora-low-rank-adaptation.pdf');
+  if (fs.existsSync(loraPdfPath)) {
+    const data = fs.readFileSync(loraPdfPath);
+    const doc = mupdf.Document.openDocument(data, 'application/pdf');
+    const page = doc.loadPage(0);
+
+    let destroyed = false;
+    const origToStructuredText = page.toStructuredText;
+    page.toStructuredText = function(...args) {
+      const st = origToStructuredText.apply(this, args);
+      const origDestroy = st.destroy;
+      st.destroy = function(...dArgs) {
+        destroyed = true;
+        return origDestroy.apply(this, dArgs);
+      };
+      return st;
+    };
+
+    extractPageVectorsAndText(page);
+    assert(destroyed, 'page.toStructuredText() instance must have .destroy() called');
+
+    page.destroy();
+    doc.destroy();
   }
 });
 

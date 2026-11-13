@@ -215,18 +215,27 @@ export function readPageRasterImages(page, pageIndex) {
   const images = [];
 
   try {
-    page.toStructuredText('preserve-images').walk({
-      onImageBlock(bbox, transform, image) {
-        images.push({
-          pageIndex,
-          pageNumber: pageIndex + 1,
-          bbox: [bbox[0], bbox[1], bbox[2], bbox[3]],
-          widthPt: bbox[2] - bbox[0],
-          heightPt: bbox[3] - bbox[1],
-          image
+    const st = typeof page.toStructuredText === 'function' ? page.toStructuredText('preserve-images') : null;
+    if (st) {
+      try {
+        st.walk({
+          onImageBlock(bbox, transform, image) {
+            images.push({
+              pageIndex,
+              pageNumber: pageIndex + 1,
+              bbox: [bbox[0], bbox[1], bbox[2], bbox[3]],
+              widthPt: bbox[2] - bbox[0],
+              heightPt: bbox[3] - bbox[1],
+              image
+            });
+          }
         });
+      } finally {
+        try {
+          st.destroy();
+        } catch {}
       }
-    });
+    }
   } catch {
     // Ignore structured walk failure on unusual pages
   }

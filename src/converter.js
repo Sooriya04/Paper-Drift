@@ -191,7 +191,7 @@ export function renderRegion(target, rect, options = {}) {
 
     if (format === 'raw') {
       const pixels = pixmap.getPixels();
-      const rawBuffer = Buffer.from(pixels.buffer, pixels.byteOffset, pixels.byteLength);
+      const rawBuffer = Buffer.from(pixels);
       return {
         raw: rawBuffer,
         buffer: rawBuffer,
@@ -396,7 +396,7 @@ export async function* streamPdfPages(input, options = {}) {
 
       if (requestedFormat === 'raw') {
         const pixels = pixmap.getPixels();
-        const rawBuffer = Buffer.from(pixels.buffer, pixels.byteOffset, pixels.byteLength);
+        const rawBuffer = Buffer.from(pixels);
         try {
           pixmap.destroy();
         } catch {}

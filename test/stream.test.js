@@ -149,6 +149,10 @@ await runAsyncTest('streamPdfPages supports raw Buffer and Pixmap formats withou
     if (page.raw.length !== expectedBytes) {
       throw new Error(`Raw buffer size mismatch: got ${page.raw.length}, expected ${expectedBytes}`);
     }
+    // Verify raw buffer is a detached Node.js Buffer copy, not sharing freed WASM heap
+    if (page.raw.buffer === mupdf.HEAPU8?.buffer) {
+      throw new Error('Raw buffer must be an independent copy, not directly pointing to WASM heap memory');
+    }
   }
 
   // Test pixmap format
