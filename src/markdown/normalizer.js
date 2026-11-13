@@ -32,6 +32,7 @@ const processor = unified()
  * @param {string} markdown - Raw input markdown
  * @param {Object} [options={}]
  * @param {boolean} [options.transliterate=true]
+ * @param {boolean} [options.ast=true] - Set to false to bypass remark AST parsing
  * @returns {Promise<string>} Standardized GFM Markdown
  */
 export async function normalizeMarkdown(markdown, options = {}) {
@@ -39,6 +40,10 @@ export async function normalizeMarkdown(markdown, options = {}) {
 
   const cleanedInput = cleanText(markdown, options);
   if (!cleanedInput.trim()) return '';
+
+  if (options.ast === false) {
+    return cleanedInput.trim();
+  }
 
   try {
     const vfile = await processor.process(cleanedInput);

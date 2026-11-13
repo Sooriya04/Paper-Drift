@@ -225,6 +225,10 @@ Some text with &amp; entity and \u201Cquotes\u201D.
   // Handles empty inputs gracefully
   assert.strictEqual(await normalizeMarkdown(''), '');
   assert.strictEqual(await normalizeMarkdown(null), '');
+
+  // Supports bypassing AST normalization when options.ast === false
+  const fastBypass = await normalizeMarkdown('# Fast Header\n\n- item', { ast: false });
+  assert.strictEqual(fastBypass, '# Fast Header\n\n- item');
 });
 
 // -------------------------------------------------------------

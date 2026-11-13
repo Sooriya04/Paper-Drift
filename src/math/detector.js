@@ -297,8 +297,8 @@ export function reconstructPageMath(lines, vectors, pageWidth, pageHeight) {
           let denStr = denChars.map(c => c.char).join('').trim();
           let rightStr = rightChars.map(c => c.char).join('').trim();
 
-          numStr = numStr.replace(/QK\s*T/, 'QK^T');
-          denStr = denStr.replace(/√\s*dk?/, '\\sqrt{d_k}');
+          numStr = numStr.replace(/([A-Z]{1,3})\s*([TH])\b/g, '$1^$2');
+          denStr = denStr.replace(/√\s*([a-zA-Z])([a-zA-Z0-9])\b/g, '\\sqrt{$1_$2}').replace(/√\s*(\w+)/g, '\\sqrt{$1}');
 
           eqLatex = `${leftStr}\\frac{${numStr}}{${denStr}}${rightStr}`;
         } else {
@@ -420,7 +420,7 @@ export function reconstructPageMath(lines, vectors, pageWidth, pageHeight) {
     const englishWords = words.filter(w => /^[a-zA-Z]{3,}$/.test(w) && !/^(?:sin|cos|tan|log|ln|exp|max|min|det|softmax|Concat|head|where)$/i.test(w));
     if (englishWords.length >= 3) continue;
 
-    const isDisplayMath = /^(?:[A-Za-z]+(?:\([^\)]*\))?\s*=\s*|lrate\s*=|PE\(|FFN\()/.test(text) ||
+    const isDisplayMath = /^[A-Za-z]+(?:\([^\)]*\))?\s*=\s*/.test(text) ||
                           /^[a-zA-Z]\s*=\s*[0-9\.\-]/.test(text) ||
                           /[∫∑∏∂∇≤≥≠≈∈⊂∪]/.test(text);
 

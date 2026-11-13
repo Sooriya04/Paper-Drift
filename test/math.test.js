@@ -70,6 +70,11 @@ runTest('toMathML exports valid MathML XML string', () => {
   const mathml = toMathML(node);
   assert.strictEqual(mathml.includes('<math'), true);
   assert.strictEqual(mathml.includes('<mn>42</mn>'), true);
+
+  const greekNode = createMathNode('greek', { name: 'alpha', value: 'α' });
+  const greekMathml = toMathML(greekNode);
+  assert.strictEqual(greekMathml.includes('<mi>α</mi>'), true);
+  assert.strictEqual(greekMathml.includes('&alpha;'), false);
 });
 
 runTest('toMarkdown exports inline and display math properly', () => {

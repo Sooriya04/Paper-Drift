@@ -156,7 +156,7 @@ export function toMathML(node) {
       case 'identifier':
         return `<mi>${n.value || ''}</mi>`;
       case 'greek':
-        return `<mi>&${n.name || n.value || ''};</mi>`;
+        return `<mi>${n.value || n.name || ''}</mi>`;
       case 'operator':
         return `<mo>${n.value || ''}</mo>`;
       case 'superscript':

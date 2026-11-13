@@ -472,7 +472,7 @@ export async function convertPdfToMarkdown(input, options = {}) {
       const rawDocumentMarkdown = documentMarkdownBlocks.join('\n\n');
 
       // 4. Normalize through Unified / Remark AST
-      const normalizedMarkdown = await normalizeMarkdown(rawDocumentMarkdown);
+      const normalizedMarkdown = await normalizeMarkdown(rawDocumentMarkdown, options);
 
       return {
         markdown: normalizedMarkdown,
