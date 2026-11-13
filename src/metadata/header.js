@@ -526,26 +526,28 @@ function extractPublicationDetails(rawPagesData) {
         if (!publisher) publisher = 'arXiv';
       }
 
-      // Venue / Conference / Publisher check
-      if (/NeurIPS|Neural Information Processing Systems/i.test(text)) {
-        venue = 'NeurIPS';
-        publisher = 'Curran Associates, Inc.';
-        docType = 'conference_paper';
-      } else if (/ICLR|International Conference on Learning Representations/i.test(text)) {
-        venue = 'ICLR';
-        docType = 'conference_paper';
-      } else if (/ICML|International Conference on Machine Learning/i.test(text)) {
-        venue = 'ICML';
-        docType = 'conference_paper';
-      } else if (/CVPR|Computer Vision and Pattern Recognition/i.test(text)) {
-        venue = 'CVPR';
-        publisher = 'IEEE';
-        docType = 'conference_paper';
-      } else if (/IEEE/i.test(text) && !publisher) {
-        publisher = 'IEEE';
-        docType = 'journal_article';
-      } else if (/ACM/i.test(text) && !publisher) {
-        publisher = 'ACM';
+      // Venue / Conference / Publisher check (scoped strictly to Page 1)
+      if (p.pageNumber === 1) {
+        if (/NeurIPS|Neural Information Processing Systems/i.test(text)) {
+          venue = 'NeurIPS';
+          publisher = 'Curran Associates, Inc.';
+          docType = 'conference_paper';
+        } else if (/ICLR|International Conference on Learning Representations/i.test(text)) {
+          venue = 'ICLR';
+          docType = 'conference_paper';
+        } else if (/ICML|International Conference on Machine Learning/i.test(text)) {
+          venue = 'ICML';
+          docType = 'conference_paper';
+        } else if (/CVPR|Computer Vision and Pattern Recognition/i.test(text)) {
+          venue = 'CVPR';
+          publisher = 'IEEE';
+          docType = 'conference_paper';
+        } else if (/IEEE/i.test(text) && !publisher) {
+          publisher = 'IEEE';
+          docType = 'journal_article';
+        } else if (/ACM/i.test(text) && !publisher) {
+          publisher = 'ACM';
+        }
       }
 
       // Year extraction from publication headers

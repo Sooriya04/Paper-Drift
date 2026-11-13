@@ -25,6 +25,7 @@ import {
   groupLinksByLine
 } from '../links/extractor.js';
 import { reconstructPageMath } from '../math/index.js';
+import { repairHyphenation } from '../normalization/text.js';
 
 /**
  * Converts a PDF buffer or file path into publication-grade GitHub Flavored Markdown (GFM).
@@ -279,21 +280,10 @@ export async function convertPdfToMarkdown(input, options = {}) {
         let lastLine = null;
 
         function joinParagraphLines(lines) {
-          let result = '';
-          for (let j = 0; j < lines.length; j++) {
-            const lineText = lines[j];
-            if (j === 0) {
-              result = lineText;
-              continue;
-            }
-            // De-hyphenate if previous line ended with a hyphen and next line starts with lowercase
-            if (/(\p{L}+)-$/u.test(result) && /^\p{Ll}/u.test(lineText)) {
-              result = result.slice(0, -1) + lineText;
-            } else {
-              result += ' ' + lineText;
-            }
-          }
-          return result;
+          if (!lines || lines.length === 0) return '';
+          const rawJoined = lines.join('\n');
+          const repaired = repairHyphenation(rawJoined);
+          return repaired.split('\n').join(' ');
         }
 
         function flushParagraph() {

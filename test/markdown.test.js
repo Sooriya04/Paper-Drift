@@ -357,4 +357,14 @@ await runAsyncTest('Academic PDFs preserve accurate Title, H1, H2, and H3 hierar
   }
 });
 
+await runAsyncTest('Markdown paragraph joining preserves legitimate compound words and joins split words', async () => {
+  const attentionPdf = path.resolve(__dirname, 'fixtures/benchmarks/01-attention-is-all-you-need.pdf');
+  if (fs.existsSync(attentionPdf)) {
+    const res = await convertPdfToMarkdown(attentionPdf, { pages: '1-2' });
+    // Legitimate compounds preserved
+    assert.ok(!res.markdown.includes('stateof-the-art'), 'Must not mangle state-of-the-art into stateof-the-art');
+    assert.ok(!res.markdown.includes('re-sults'), 'Typographic wrap must rejoin results');
+  }
+});
+
 console.log('\n\x1b[32m✔ All Markdown, Typography & CLI tests passed successfully!\x1b[0m\n');

@@ -100,4 +100,12 @@ test('Scientific Metadata Extraction Subsystem', async (t) => {
     assert.equal(meta.authors[3].name, 'Jian Sun');
     assert.equal(meta.authors[3].email, 'jiansun@microsoft.com');
   });
+
+  await t.test('does not overwrite document venue with citations mentioned on later pages', async () => {
+    assert.ok(fs.existsSync(ATTENTION_PDF), 'Attention PDF fixture exists');
+    // Processing full Attention paper where references cite IEEE & CVPR papers
+    const meta = await extractScientificMetadata(ATTENTION_PDF, { maxPages: 11 });
+    assert.equal(meta.venue.value, 'NeurIPS', 'Attention venue must remain NeurIPS despite cited papers');
+    assert.equal(meta.publisher.value, 'Curran Associates, Inc.');
+  });
 });
