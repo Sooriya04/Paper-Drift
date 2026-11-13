@@ -217,6 +217,18 @@ await runAsyncTest('DisplayListCache caches, evicts oldest entry, and clears all
 
     cache.clear();
     if (cache.cache.size !== 0) throw new Error('Expected empty cache after clear');
+
+    // Test replacing an existing key destroys previous entry
+    let replacedDestroyed = false;
+    const dummyOld = {
+      displayList: {
+        destroy: () => { replacedDestroyed = true; }
+      }
+    };
+    cache.set(99, dummyOld);
+    const dummyNew = { displayList: null };
+    cache.set(99, dummyNew);
+    if (!replacedDestroyed) throw new Error('Replacing an existing key must destroy previous displayList');
   } finally {
     doc.destroy();
   }

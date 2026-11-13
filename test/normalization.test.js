@@ -122,6 +122,12 @@ runTest('normalizeWhitespace collapses 3+ consecutive newlines down to 2 and tri
   assert.strictEqual(normalizeWhitespace(input), expected);
 });
 
+runTest('normalizeWhitespace preserves markdown nested list indentation', () => {
+  const input = '- Item 1\n  - Nested Subitem\n    - Deep subitem\n1. Numbered Item\n   2. Nested Numbered';
+  const expected = '- Item 1\n  - Nested Subitem\n    - Deep subitem\n1. Numbered Item\n   2. Nested Numbered';
+  assert.strictEqual(normalizeWhitespace(input), expected);
+});
+
 // 4. Header & Footer Detection and Filtering
 runTest('filterRunningHeadersFooters detects and strips repeating headers and footers across pages', () => {
   const pages = [

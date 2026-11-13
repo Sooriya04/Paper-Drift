@@ -148,8 +148,10 @@ export function repairHyphenation(text) {
  * @param {string} text - Input text.
  * @returns {string} Cleaned text with normalized whitespace.
  */
-export function normalizeWhitespace(text) {
+export function normalizeWhitespace(text, options = {}) {
   if (!text || typeof text !== 'string') return '';
+
+  const preserveIndent = options.preserveIndent === true;
 
   return text
     // Replace Unicode space variants, zero-width spaces/BOM, line separators (U+2028/U+2029)
@@ -158,12 +160,27 @@ export function normalizeWhitespace(text) {
     })
     // Strip zero-width non-joiner / joiner if not needed or zero-width spaces
     .replace(/[\u200B-\u200D]/g, '')
-    // Collapse horizontal whitespace (spaces/tabs) to a single space per line
-    .replace(/[^\S\r\n]+/g, ' ')
-    // Trim leading and trailing spaces from each line
-    .replace(/^[^\S\r\n]+|[^\S\r\n]+$/gm, '')
     // Collapse 3 or more consecutive newlines down to 2
     .replace(/\n{3,}/g, '\n\n')
+    .split('\n')
+    .map(line => {
+      if (preserveIndent) {
+        const indentMatch = line.match(/^([^\S\r\n]*)(.*)$/);
+        const indent = indentMatch ? indentMatch[1] : '';
+        const rest = indentMatch ? indentMatch[2].replace(/[^\S\r\n]+/g, ' ').trim() : '';
+        return rest ? indent + rest : '';
+      }
+      // Preserve list indentation (e.g. "  - Subitem")
+      const listIndentMatch = line.match(/^([^\S\r\n]{2,})([-*•]|\d+\.)\s+(.*)$/);
+      if (listIndentMatch) {
+        const indent = listIndentMatch[1];
+        const marker = listIndentMatch[2];
+        const rest = listIndentMatch[3].replace(/[^\S\r\n]+/g, ' ').trim();
+        return `${indent}${marker} ${rest}`;
+      }
+      return line.replace(/[^\S\r\n]+/g, ' ').trim();
+    })
+    .join('\n')
     .trim();
 }
 
@@ -255,7 +272,7 @@ export function normalizePageText(rawText, options = {}) {
 
   let text = cleanLigatures(rawText);
   text = repairHyphenation(text);
-  text = normalizeWhitespace(text);
+  text = normalizeWhitespace(text, options);
 
   return text;
 }

@@ -112,7 +112,13 @@ export class DisplayListCache {
    */
   set(pageIndex, entry) {
     if (this.cache.has(pageIndex)) {
+      const existing = this.cache.get(pageIndex);
       this.cache.delete(pageIndex);
+      if (existing && existing !== entry && existing.displayList) {
+        try {
+          existing.displayList.destroy();
+        } catch {}
+      }
     } else if (this.cache.size >= this.maxSize) {
       const oldestKey = this.cache.keys().next().value;
       const oldest = this.cache.get(oldestKey);
