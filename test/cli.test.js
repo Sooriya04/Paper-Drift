@@ -104,6 +104,20 @@ try {
     }
   });
 
+  // 4a. CLI auto-creates non-existent destination directory
+  runTest('CLI auto-creates non-existent destination directory for HTML and JSON outputs', () => {
+    const nestedDir = path.join(resultsOutputDir, 'nested', 'deep', 'dir');
+    const nestedHtml = path.join(nestedDir, 'out.html');
+    const nestedJson = path.join(nestedDir, 'out.json');
+    if (fs.existsSync(nestedDir)) fs.rmSync(nestedDir, { recursive: true, force: true });
+
+    execSync(`node bin/cli.js "${samplePdfPath}" "${nestedHtml}"`, { stdio: 'pipe' });
+    if (!fs.existsSync(nestedHtml)) throw new Error('Nested output HTML was not created');
+
+    execSync(`node bin/cli.js "${samplePdfPath}" "${nestedJson}" --format json`, { stdio: 'pipe' });
+    if (!fs.existsSync(nestedJson)) throw new Error('Nested output JSON was not created');
+  });
+
   // 7. CLI format validation test
   runTest('CLI rejects unsupported --format and exits with non-zero code', () => {
     let failed = false;

@@ -377,4 +377,28 @@ await runAsyncTest('convertPdfToMarkdown weaves unlinked citations on PDFs witho
   );
 });
 
+runTest('buildDocumentDestinations does not create citation destination anchors before References heading', () => {
+  const fakePages = new Map([
+    [0, [
+      { text: 'In prior work [1], the authors showed results.', top: 100 },
+      { text: '[1] was an influential approach.', top: 120 }
+    ]],
+    [1, [
+      { text: 'References', top: 50 },
+      { text: '[1] Vaswani et al., Attention is all you need.', top: 70 }
+    ]]
+  ]);
+  const mockDoc = { loadPage: () => { throw new Error('Not used'); } };
+  const dests = buildDocumentDestinations(mockDoc, [0, 1], fakePages);
+
+  // Page 0 (before References) must NOT contain cite-1 anchor
+  const page0Dests = dests.get(0) || [];
+  assert.strictEqual(page0Dests.length, 0, 'Page 0 should not contain citation anchors');
+
+  // Page 1 (in References) must contain cite-1 anchor
+  const page1Dests = dests.get(1) || [];
+  assert.strictEqual(page1Dests.length, 1, 'Page 1 should contain cite-1 anchor');
+  assert.strictEqual(page1Dests[0].id, 'cite-1');
+});
+
 console.log('\n\x1b[32mAll Hyperlink & Citation Anchor tests passed successfully!\x1b[0m\n');

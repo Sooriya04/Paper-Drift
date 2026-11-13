@@ -266,6 +266,11 @@ async function run() {
         destFile += '.json';
       }
 
+      const destDir = path.dirname(destFile);
+      if (!fs.existsSync(destDir)) {
+        fs.mkdirSync(destDir, { recursive: true });
+      }
+
       const outputJson = {
         document: parsedInput.base,
         scale,
@@ -298,6 +303,11 @@ async function run() {
       let destFile = outputFile ? path.resolve(process.cwd(), outputFile) : path.join(process.cwd(), `${parsedInput.name}-ir.json`);
       if (!destFile.endsWith('.json')) {
         destFile += '.json';
+      }
+
+      const destDir = path.dirname(destFile);
+      if (!fs.existsSync(destDir)) {
+        fs.mkdirSync(destDir, { recursive: true });
       }
 
       const jsonStr = exportToJson(irDoc);
@@ -398,6 +408,11 @@ async function run() {
       const ext = format === 'text' ? 'txt' : 'html';
       if (!destFile) {
         destFile = path.join(process.cwd(), `${parsedInput.name}.${ext}`);
+      }
+
+      const destDir = path.dirname(destFile);
+      if (!fs.existsSync(destDir)) {
+        fs.mkdirSync(destDir, { recursive: true });
       }
 
       const result = await convertPdfToHtml(resolvedInput, {

@@ -192,9 +192,7 @@ export function buildDocumentDestinations(doc, pageIndices, allPagesLines = null
           continue;
         }
         const numMatch = text.match(/^\[(\d+)\]\s+/);
-        if (numMatch && (inReferences || Number(numMatch[1]) > 0)) {
-          // If we see numbered bibliography patterns like [1], [2], activate references context
-          inReferences = true;
+        if (numMatch && inReferences) {
           const id = `cite-${numMatch[1]}`;
           if (!seenIds.has(id)) {
             seenIds.add(id);
