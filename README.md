@@ -95,7 +95,11 @@ paper-drift research-paper.pdf -i assets/
 
 Install in your project:
 ```bash
+# From npm
 npm install paper-drift
+
+# From GitHub Packages
+npm install @sooriya04/paper-drift --registry=https://npm.pkg.github.com
 ```
 
 ### Direct PDF to Images & Base64
