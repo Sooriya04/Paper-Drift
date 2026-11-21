@@ -182,6 +182,23 @@
 - Handled HTTP `OPTIONS` preflight requests for `/api/convert-markdown` in `playground/server.js`, returning `204 No Content` with appropriate CORS headers (`Access-Control-Allow-Origin`, `Access-Control-Allow-Methods`, `Access-Control-Allow-Headers`) to support cross-origin frontend integrations.
 - Fixed directory-targeted multi-page image exports in `bin/cli.js`: uses `parsedInput.name` as prefix fallback instead of static `'page'`, preventing batch exports from overwriting pages across different documents.
 
+### release: v0.1.5 - complete audit fixes, memory safety, and dual registry release
+- Bumped package version to `0.1.5`.
+- Prevented raw buffer use-after-free in `src/converter.js` by defensively copying pixel buffers before pixmap destruction.
+- Wrapped MuPDF `StructuredText` instances in `try ... finally` in `src/vectors/walker.js` and `src/images/raster.js` to plug linear memory leaks.
+- Auto-created non-existent destination directory hierarchies in `bin/cli.js` for all output formats.
+- Scoped bibliography anchor IDs in `src/links/extractor.js` strictly within the references section.
+- Eliminated heading false positives from table cells, dataset years, and math indices in `src/metadata/sections.js`.
+- Prevented non-academic document body prose from misclassifying as author names in `src/metadata/header.js`.
+- Preserved legitimate hyphenated compound words across markdown paragraph line joins in `src/markdown/converter.js`.
+- Scoped publication venue/publisher detection to page 1 in `src/metadata/header.js`.
+- Preserved nested markdown list indentation in `src/normalization/text.js`.
+- Destroyed overwritten WASM display lists in `DisplayListCache.set()` in `src/converter.js`.
+- Replaced undefined MathML named XML entities with direct Unicode glyphs in `src/math/schema.js`.
+- Generalized equation detection and mathematical fraction transpose/sqrt patterns in `src/math/detector.js`.
+- Added `options.ast === false` fast-path bypass in `src/markdown/normalizer.js`.
+- Added GitHub Packages publish step to CI pipeline alongside npm registry.
+
 ### release: v0.1.4 - memory leak fixes, academic headings, api docs, and cors preflight
 - Bumped package version to `0.1.4`.
 - Eliminated WebAssembly page handle accumulation in `convertPdfToMarkdown` and `extractPdfImages` by freeing page handles per pass.

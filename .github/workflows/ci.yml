@@ -66,6 +66,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      packages: write
 
     steps:
       - name: Checkout repository
@@ -120,3 +121,21 @@ jobs:
           npm publish --access public --provenance || npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish to GitHub Packages
+        if: steps.check_version.outputs.should_publish == 'true'
+        run: |
+          echo "🚀 Publishing package to GitHub Packages..."
+          node -e '
+            const fs = require("fs");
+            const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+            const owner = (process.env.GITHUB_REPOSITORY_OWNER || "sooriya04").toLowerCase();
+            pkg.name = `@${owner}/paper-drift`;
+            pkg.publishConfig = { registry: "https://npm.pkg.github.com", access: "public" };
+            fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2) + "\n");
+          '
+          echo "//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}" > ~/.npmrc
+          npm publish || echo "ℹ GitHub Packages publish warning: skipping or already published."
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
