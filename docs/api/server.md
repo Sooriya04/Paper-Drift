@@ -171,5 +171,8 @@ The server supports CORS preflight requests from browser applications running on
 
 | Status Code | Description | Example Response |
 | :--- | :--- | :--- |
+| `400 Bad Request` | Invalid query parameter (e.g. non-positive scale or invalid page range). | `{"success": false, "error": "Invalid scale parameter: \"-5\". Scale must be a positive number."}` |
+| `405 Method Not Allowed` | Unsupported HTTP method on API endpoint (header `Allow: POST, OPTIONS`). | `{"success": false, "error": "Method Not Allowed"}` |
 | `413 Payload Too Large` | PDF binary exceeds 50 MB limit. | `{"success": false, "error": "Payload too large. Maximum PDF size is 50MB."}` |
-| `500 Internal Server Error` | PDF file corrupt or parsing failed. | `{"success": false, "error": "cannot open document"}` |
+| `500 Internal Server Error` | PDF file corrupt or unhandled engine failure. | `{"success": false, "error": "cannot open document"}` |
+| `503 Service Unavailable` | Maximum concurrent request capacity reached (includes `Retry-After: 5` header). | `{"success": false, "error": "Server busy: maximum concurrent parsing capacity reached. Please retry shortly."}` |
