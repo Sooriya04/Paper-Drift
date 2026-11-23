@@ -13,20 +13,73 @@ npm start
 
 Or run directly:
 ```bash
-node playground/server.js
+node server/server.js
 ```
 
 By default, the server binds to `http://localhost:3000` (or the port defined in the `PORT` environment variable). If the port is in use, it automatically increments to the next available port.
 
 ```bash
-PORT=8080 node playground/server.js
+PORT=8080 node server/server.js
 ```
 
 ---
 
 ## Endpoints
 
-### 1. Direct PDF to Markdown Conversion
+### 1. Unified "All-in-One" Bundle (`/api/parse-full`)
+
+Loads the PDF document in a single WebAssembly pass and returns a consolidated bundle: scientific metadata, GFM Markdown, reader page assets (Base64 PNG `dataUrl` and text), and RAG-ready section chunks.
+
+- **URL:** `/api/parse-full`
+- **Method:** `POST`
+- **Query Parameters:**
+  - `pages` (*optional*, default: `"all"`): Page range to process (e.g. `pages=1`, `pages=1-5`).
+  - `scale` (*optional*, default: `1.5`): Render scale for page image data URLs.
+  - `images` (*optional*, default: `"true"`): Set to `"false"` to omit page `dataUrl` generation for pure text/metadata speed.
+- **Headers:**
+  - `Content-Type`: `application/pdf` (or `application/octet-stream`)
+- **Body:** Raw PDF binary buffer (up to 50 MB)
+
+#### cURL Example
+
+```bash
+curl -X POST "http://localhost:3000/api/parse-full?pages=1-2" \
+  -H "Content-Type: application/pdf" \
+  --data-binary "@paper.pdf"
+```
+
+#### Response (`200 OK`)
+
+```json
+{
+  "success": true,
+  "metadata": {
+    "title": "Attention Is All You Need",
+    "authors": ["Ashish Vaswani", "Noam Shazeer"],
+    "abstract": "The dominant sequence transduction models...",
+    "doi": null,
+    "arxiv_id": "1706.03762"
+  },
+  "markdown": "# Attention Is All You Need\n\n## 1 Introduction...",
+  "pages": [
+    {
+      "pageNumber": 1,
+      "width": 612,
+      "height": 792,
+      "dataUrl": "data:image/png;base64,iVBORw0KGgoAAA...",
+      "text": "..."
+    }
+  ],
+  "sections": [
+    { "title": "Introduction", "level": 1, "page": 1, "content": "..." },
+    { "title": "Model Architecture", "level": 1, "page": 2, "content": "..." }
+  ]
+}
+```
+
+---
+
+### 2. Direct PDF to Markdown Conversion (`/api/convert-markdown`)
 
 Converts an uploaded PDF binary stream directly into clean, publication-grade GitHub Flavored Markdown (GFM).
 

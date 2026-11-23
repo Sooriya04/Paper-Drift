@@ -3,7 +3,7 @@ node_modules/
 
 # Build and test artifacts
 *.html
-!playground/index.html
+!server/index.html
 !docs/*.html
 .tmp-test/
 test/results/

@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>paper-drift | WebAssembly Document Studio</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <!-- KaTeX CSS for LaTeX Math Equations -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+  <!-- PDF.js WebAssembly / Worker engine -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <!-- Marked.js for GitHub Flavored Markdown parsing -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <!-- KaTeX JS and Auto-Render extension -->
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    <header class="app-header">
+      <div class="header-badge">
+        <svg class="icon-inline" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+        <span>WebAssembly Document Engine &bull; Zero Server Dependencies</span>
+      </div>
+      <h1>paper-drift</h1>
+      <p class="subtitle">High-fidelity WebAssembly PDF converter: GFM Markdown, LaTeX math formulas, vector tables, and unified RAG bundles.</p>
+      <div class="header-links">
+        <a href="https://github.com/Sooriya04/Paper-Drift" target="_blank" rel="noopener noreferrer" class="link-github">
+          <svg class="icon-inline" width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          <span>GitHub: Sooriya04/Paper-Drift</span>
+        </a>
+      </div>
+    </header>
+
+    <main class="converter-panel">
+      <!-- Upload Zone -->
+      <section class="upload-section">
+        <div class="drop-zone" id="dropZone">
+          <input type="file" id="fileInput" accept="application/pdf" hidden>
+          <div class="drop-icon">
+            <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+          </div>
+          <h3>Drag and drop your PDF here</h3>
+          <p>or <button type="button" class="btn-link" id="browseBtn">browse files</button></p>
+          <span class="file-info" id="fileInfo">Supports any standard PDF document (processed locally and privately)</span>
+        </div>
+      </section>
+
+      <!-- Options Grid -->
+      <section class="options-grid">
+        <div class="option-card">
+          <label for="outputTarget" class="option-title">Processing Pipeline</label>
+          <select id="outputTarget" class="input-select">
+            <option value="bundle" selected>Unified Bundle (Metadata + Markdown + RAG Sections + Images)</option>
+            <option value="markdown">Publication Markdown + LaTeX Tables</option>
+            <option value="dual">Pixel-Perfect HTML (Dual Layer)</option>
+            <option value="both">All Formats Preview</option>
+          </select>
+          <span class="option-hint">The Unified Bundle extracts all document layers in a single WASM pass.</span>
+        </div>
+
+        <div class="option-card">
+          <label for="renderScale" class="option-title">Image Scale / DPI</label>
+          <select id="renderScale" class="input-select">
+            <option value="1.5" selected>1.5x (Fast &bull; 108 DPI)</option>
+            <option value="2.0">2.0x (Retina &bull; 144 DPI)</option>
+            <option value="3.0">3.0x (Ultra &bull; 216 DPI)</option>
+          </select>
+          <span class="option-hint">Resolution for embedded reader image assets and raster layers.</span>
+        </div>
+
+        <div class="option-card">
+          <label for="pageRange" class="option-title">Page Scope</label>
+          <input type="text" id="pageRange" class="input-text" placeholder="e.g. all or 1-5, 8">
+          <span class="option-hint">Specify pages to process, or leave blank for all pages.</span>
+        </div>
+      </section>
+
+      <!-- Action Controls -->
+      <div class="action-bar">
+        <button id="convertBtn" class="btn-primary" disabled>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+          <span>Run Document Pipeline</span>
+        </button>
+        <button id="downloadBundleBtn" class="btn-secondary btn-accent" disabled>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          <span>Download Bundle (.json)</span>
+        </button>
+        <button id="downloadMdBtn" class="btn-secondary" disabled>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          <span>Download Markdown</span>
+        </button>
+        <button id="downloadHtmlBtn" class="btn-secondary" disabled>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          <span>Download HTML</span>
+        </button>
+      </div>
+
+      <!-- Progress Tracking -->
+      <div class="progress-bar-container" id="progressContainer" style="display: none;">
+        <div class="progress-info">
+          <span id="progressStatus">Initializing WebAssembly engine...</span>
+          <span id="progressPercent">0%</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+      </div>
+
+      <!-- Token Efficiency Metric -->
+      <div class="token-savings-banner" id="tokenSavingsBanner" style="display: none;">
+        <div class="token-savings-header">
+          <span class="token-savings-title">AI Token Efficiency Metric</span>
+          <span class="token-savings-pct" id="tokenSavingsPct">91.4% Saved</span>
+        </div>
+        <div class="token-savings-grid">
+          <div class="token-stat-item">
+            <span class="stat-label">Multimodal Vision Cost</span>
+            <span class="stat-val red" id="statVisionTokens">~16,000 tokens</span>
+          </div>
+          <div class="token-stat-divider">&rarr;</div>
+          <div class="token-stat-item">
+            <span class="stat-label">Markdown / Text Ingestion</span>
+            <span class="stat-val green" id="statMarkdownTokens">~1,380 tokens</span>
+          </div>
+          <div class="token-stat-divider">&bull;</div>
+          <div class="token-stat-item">
+            <span class="stat-label">Ingestion Acceleration</span>
+            <span class="stat-val blue" id="statSpeedup">12x Faster</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Preview Section -->
+      <section class="preview-section" id="previewSection" style="display: none;">
+        <div class="preview-header">
+          <div class="tabs">
+            <button class="tab-btn active" data-tab="bundle">Unified Bundle (JSON &amp; RAG)</button>
+            <button class="tab-btn" data-tab="markdown">Rendered Markdown &amp; Math</button>
+            <button class="tab-btn" data-tab="md-code">Markdown Source</button>
+            <button class="tab-btn" data-tab="rendered">Rendered HTML</button>
+          </div>
+          <div class="preview-actions">
+            <button id="copyBtn" class="btn-small" title="Copy Content">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+              <span>Copy</span>
+            </button>
+            <div class="preview-stats" id="previewStats"></div>
+          </div>
+        </div>
+
+        <!-- Tab 1: Unified Bundle & RAG Chunks -->
+        <div class="tab-content" id="tabBundle">
+          <div class="bundle-preview-container">
+            <div class="metadata-overview-card" id="metadataCard">
+              <div class="meta-row"><span class="meta-label">Title</span><span class="meta-value" id="metaTitle">&mdash;</span></div>
+              <div class="meta-row"><span class="meta-label">Authors</span><span class="meta-value" id="metaAuthors">&mdash;</span></div>
+              <div class="meta-row"><span class="meta-label">Identifier</span><span class="meta-value" id="metaArxiv">&mdash;</span></div>
+              <div class="meta-row"><span class="meta-label">Abstract</span><p class="meta-abstract" id="metaAbstract">&mdash;</p></div>
+            </div>
+
+            <div class="sections-accordion-container">
+              <h4 class="sections-heading">RAG Section Chunks</h4>
+              <div class="sections-list" id="sectionsList"></div>
+            </div>
+
+            <div class="json-code-container">
+              <h4 class="sections-heading">Bundle JSON Payload</h4>
+              <pre class="code-viewer"><code id="bundleJsonViewer"></code></pre>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 2: Rendered Markdown with KaTeX & Tables -->
+        <div class="tab-content" id="tabMarkdown" style="display: none;">
+          <div class="markdown-rendered-viewport" id="markdownRendered"></div>
+        </div>
+
+        <!-- Tab 3: Markdown Source -->
+        <div class="tab-content" id="tabMdCode" style="display: none;">
+          <pre class="code-viewer"><code id="mdCodeViewer"></code></pre>
+        </div>
+
+        <!-- Tab 4: Rendered HTML -->
+        <div class="tab-content" id="tabRendered" style="display: none;">
+          <div class="preview-viewport" id="previewContainer"></div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <div class="tech-note">
+        <strong>Architecture:</strong> WebAssembly document pipeline. Multi-column spatial layouts are resolved via projection profile XY-Cut. Formulas are parsed into LaTeX ($...$ / $$...$$), tables reconstructed into GFM pipes, and metadata extracted without server dependencies.
+      </div>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

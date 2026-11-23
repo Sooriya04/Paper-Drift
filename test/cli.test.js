@@ -204,6 +204,21 @@ try {
     if (!jsonContent.pages[0].dataUrl.startsWith('data:image/png;base64,')) throw new Error('Invalid dataUrl format');
   });
 
+  // 9b. CLI bundle export test
+  const cliOutputBundle = path.join(resultsOutputDir, 'sample-bundle.json');
+  runTest('CLI exports Unified Bundle JSON via --format bundle', () => {
+    if (fs.existsSync(cliOutputBundle)) fs.unlinkSync(cliOutputBundle);
+    execSync(`node bin/cli.js "${samplePdfPath}" "${cliOutputBundle}" --format bundle`, { stdio: 'pipe' });
+
+    if (!fs.existsSync(cliOutputBundle)) throw new Error('Output Bundle JSON was not created');
+    const jsonContent = JSON.parse(fs.readFileSync(cliOutputBundle, 'utf-8'));
+    assert.strictEqual(jsonContent.success, true);
+    assert.ok(jsonContent.metadata);
+    assert.ok(Array.isArray(jsonContent.pages) && jsonContent.pages.length === 1);
+    assert.ok(Array.isArray(jsonContent.sections));
+    assert.ok(typeof jsonContent.markdown === 'string');
+  });
+
   // 10. Programmatic convertPdfToImages API test
   await runAsyncTest('Programmatic convertPdfToImages API returns PNG buffer and base64', async () => {
     const result = await convertPdfToImages(samplePdfPath, { scale: 1.0 });

@@ -65,7 +65,8 @@ export async function convertPdfToMarkdown(input, options = {}) {
     throw new TypeError('Input must be a valid file path string, Buffer, or Uint8Array.');
   }
 
-  const doc = mupdf.Document.openDocument(pdfBuffer, 'application/pdf');
+  const doc = options.doc || mupdf.Document.openDocument(pdfBuffer, 'application/pdf');
+  const shouldDestroyDoc = !options.doc;
   try {
     const totalPages = doc.countPages();
     const targetIndices = parsePageRange(pageRangeStr, totalPages);
@@ -75,63 +76,65 @@ export async function convertPdfToMarkdown(input, options = {}) {
     }
 
       // 1. First pass: Walk all target pages to collect text lines, vectors, and image candidates
-      const rawPagesData = [];
+      const rawPagesData = options.pagesData || [];
       try {
-        for (let step = 0; step < targetIndices.length; step++) {
-          const pageIndex = targetIndices[step];
-          const pageNumber = pageIndex + 1;
+        if (!options.pagesData) {
+          for (let step = 0; step < targetIndices.length; step++) {
+            const pageIndex = targetIndices[step];
+            const pageNumber = pageIndex + 1;
 
-          if (typeof options.onProgress === 'function') {
-            options.onProgress({
-              phase: 'reading',
-              current: step + 1,
-              total: targetIndices.length,
-              pageNumber,
-              totalPages
-            });
-          }
-
-          const page = doc.loadPage(pageIndex);
-          try {
-            const bounds = page.getBounds();
-            const width = bounds[2] - bounds[0];
-            const height = bounds[3] - bounds[1];
-
-            const { lines, vectors } = extractPageVectorsAndText(page);
-            const links = enableLinks ? extractPageLinks(page, doc) : [];
-
-            const pageImages = shouldExtractImages ? readPageRasterImages(page, pageIndex) : [];
-            for (const img of pageImages) {
-              img.page = page;
-              img.bounds = bounds;
+            if (typeof options.onProgress === 'function') {
+              options.onProgress({
+                phase: 'reading',
+                current: step + 1,
+                total: targetIndices.length,
+                pageNumber,
+                totalPages
+              });
             }
 
-            const rules = [];
-            for (const v of vectors) {
-              rules.push(...rulesFromVector(v));
-            }
-
-            const { mathItems, claimedLineIndices } = reconstructPageMath(lines, vectors, width, height);
-
-            rawPagesData.push({
-              index: pageIndex,
-              pageIndex,
-              pageNumber,
-              bounds,
-              width,
-              height,
-              lines,
-              vectors,
-              rules,
-              links,
-              rasterImages: pageImages,
-              mathItems,
-              claimedLineIndices
-            });
-          } finally {
+            const page = doc.loadPage(pageIndex);
             try {
-              page.destroy();
-            } catch {}
+              const bounds = page.getBounds();
+              const width = bounds[2] - bounds[0];
+              const height = bounds[3] - bounds[1];
+
+              const { lines, vectors } = extractPageVectorsAndText(page);
+              const links = enableLinks ? extractPageLinks(page, doc) : [];
+
+              const pageImages = shouldExtractImages ? readPageRasterImages(page, pageIndex) : [];
+              for (const img of pageImages) {
+                img.page = page;
+                img.bounds = bounds;
+              }
+
+              const rules = [];
+              for (const v of vectors) {
+                rules.push(...rulesFromVector(v));
+              }
+
+              const { mathItems, claimedLineIndices } = reconstructPageMath(lines, vectors, width, height);
+
+              rawPagesData.push({
+                index: pageIndex,
+                pageIndex,
+                pageNumber,
+                bounds,
+                width,
+                height,
+                lines,
+                vectors,
+                rules,
+                links,
+                rasterImages: pageImages,
+                mathItems,
+                claimedLineIndices
+              });
+            } finally {
+              try {
+                page.destroy();
+              } catch {}
+            }
           }
         }
 
@@ -487,8 +490,10 @@ export async function convertPdfToMarkdown(input, options = {}) {
       // Pages are destroyed immediately during pass 1
     }
   } finally {
-    try {
-      doc.destroy();
-    } catch {}
+    if (shouldDestroyDoc) {
+      try {
+        doc.destroy();
+      } catch {}
+    }
   }
 }
