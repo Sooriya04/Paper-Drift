@@ -244,6 +244,7 @@ const server = http.createServer(async (req, res) => {
 
     res.writeHead(200, {
       'Content-Type': contentType,
+      'Cache-Control': 'public, max-age=3600',
       'Cross-Origin-Opener-Policy': 'same-origin',
       'Cross-Origin-Embedder-Policy': 'require-corp',
       'Access-Control-Allow-Origin': '*'
@@ -258,28 +259,39 @@ const server = http.createServer(async (req, res) => {
   });
 });
 
-let port = parseInt(process.env.PORT, 10) || 3000;
+const DEFAULT_PORT = parseInt(process.env.PORT, 10) || 3000;
+const MAX_PORT_RETRIES = parseInt(process.env.MAX_PORT_RETRIES, 10) || 10;
+let basePort = DEFAULT_PORT;
+let currentPort = DEFAULT_PORT;
 
-function startServer(p) {
-  server.listen(p, () => {
+function startServer(p = DEFAULT_PORT, isRetry = false) {
+  if (!isRetry) {
+    basePort = p;
+    currentPort = p;
+  }
+  server.listen(currentPort, () => {
     console.log(`\n======================================================`);
     console.log(`[INFO] paper-drift Server running at:`);
-    console.log(`       http://localhost:${p}`);
+    console.log(`       http://localhost:${currentPort}`);
     console.log(`======================================================\n`);
   });
 }
 
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
-    port++;
-    startServer(port);
+    if (currentPort >= basePort + MAX_PORT_RETRIES) {
+      console.error(`[ERROR] Ports ${basePort} to ${currentPort} are all in use (max retries: ${MAX_PORT_RETRIES}). Exiting.`);
+      process.exit(1);
+    }
+    currentPort++;
+    startServer(currentPort, true);
   } else {
     console.error('Server error:', err);
   }
 });
 
-export { server, startServer, MAX_CONCURRENT_REQUESTS, getActiveRequests };
+export { server, startServer, MAX_CONCURRENT_REQUESTS, getActiveRequests, MAX_PORT_RETRIES };
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  startServer(port);
+  startServer(DEFAULT_PORT);
 }
