@@ -256,14 +256,16 @@ await runAsyncTest('Static file server enforces strict path boundary check and b
   const port = server.address().port;
 
   try {
-    // 1. Valid static file requests return 200
+    // 1. Valid static file requests return 200 with Cache-Control header
     const resRoot = await fetch(`http://localhost:${port}/`);
     assert.strictEqual(resRoot.status, 200);
+    assert.strictEqual(resRoot.headers.get('cache-control'), 'public, max-age=3600');
     const htmlRoot = await resRoot.text();
     assert.ok(htmlRoot.includes('paper-drift') || htmlRoot.includes('<!DOCTYPE html>'));
 
     const resIndex = await fetch(`http://localhost:${port}/index.html`);
     assert.strictEqual(resIndex.status, 200);
+    assert.strictEqual(resIndex.headers.get('cache-control'), 'public, max-age=3600');
 
     // 2. Traversal attempt out of server directory returns 403 Access denied
     const resTraversal = await fetch(`http://localhost:${port}/..%2fpackage.json`);
@@ -283,6 +285,30 @@ await runAsyncTest('Static file server enforces strict path boundary check and b
   } finally {
     await new Promise(resolve => server.close(resolve));
   }
+});
+
+await runAsyncTest('startServer caps port retries at base port + MAX_PORT_RETRIES on repeated EADDRINUSE', async () => {
+  const { spawn } = await import('child_process');
+  const testScript = `
+    import { server, startServer } from './server/server.js';
+    server.listen = (port, cb) => {
+      const err = new Error('listen EADDRINUSE: address already in use :::' + port);
+      err.code = 'EADDRINUSE';
+      server.emit('error', err);
+    };
+    startServer(4000);
+  `;
+  const child = spawn(process.execPath, ['--input-type=module', '-e', testScript], {
+    cwd: path.resolve(__dirname, '..'),
+    stdio: ['ignore', 'pipe', 'pipe']
+  });
+
+  let stderr = '';
+  child.stderr.on('data', chunk => { stderr += chunk.toString(); });
+
+  const exitCode = await new Promise(resolve => child.on('exit', resolve));
+  assert.strictEqual(exitCode, 1, 'Expected process to exit with code 1 when retries exceeded');
+  assert.ok(stderr.includes('max retries: 10'), `Expected max retries error log in stderr, got: ${stderr}`);
 });
 
 console.log('\n\x1b[32m✔ All Unified PDF Bundle Parser tests passed successfully!\x1b[0m\n');
