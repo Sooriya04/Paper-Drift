@@ -41,8 +41,10 @@ import {
   parseTextToMathIR,
   reconstructPageMath
 } from './math/index.js';
+import { parsePdfBundle } from './bundle/index.js';
 
 export {
+  parsePdfBundle,
   convertPdfToImages,
   streamPdfPages,
   convertPdfToHtml,

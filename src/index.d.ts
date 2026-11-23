@@ -380,7 +380,51 @@ export function reconstructPageMath(
   pageHeight?: number
 ): { mathItems: Array<any>; claimedLineIndices: Set<number> };
 
+export interface ParsePdfBundleOptions {
+  pages?: string;
+  scale?: number;
+  includeImages?: boolean;
+  tables?: boolean;
+  links?: boolean;
+  math?: boolean;
+}
+
+export interface BundlePage {
+  pageNumber: number;
+  width: number;
+  height: number;
+  dataUrl?: string | null;
+  text: string;
+}
+
+export interface BundleSection {
+  title: string;
+  level: number;
+  page: number;
+  content: string;
+}
+
+export interface ParsePdfBundleResult {
+  success: boolean;
+  metadata: {
+    title: string | null;
+    authors: string[];
+    abstract: string | null;
+    doi: string | null;
+    arxiv_id: string | null;
+  };
+  markdown: string;
+  pages: BundlePage[];
+  sections: BundleSection[];
+}
+
+export function parsePdfBundle(
+  input: string | Buffer | Uint8Array,
+  options?: ParsePdfBundleOptions
+): Promise<ParsePdfBundleResult>;
+
 declare const _default: {
+  parsePdfBundle: typeof parsePdfBundle;
   convertPdfToImages: typeof convertPdfToImages;
   streamPdfPages: typeof streamPdfPages;
   convertPdfToHtml: typeof convertPdfToHtml;

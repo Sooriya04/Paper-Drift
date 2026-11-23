@@ -10,7 +10,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { convertPdfToImages, streamPdfPages, convertPdfToHtml, convertPdfToMarkdown, extractPdfImages, convertPdfToDocumentIR, exportToJson } from '../src/index.js';
+import { convertPdfToImages, streamPdfPages, convertPdfToHtml, convertPdfToMarkdown, extractPdfImages, convertPdfToDocumentIR, exportToJson, parsePdfBundle } from '../src/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -33,7 +33,7 @@ High-performance, zero-Chromium WebAssembly PDF to Image, Markdown (GFM), HTML, 
   output           (Optional) Destination file or directory path
 
 \x1b[1mOPTIONS:\x1b[0m
-  --format <fmt>       Output format: image (png) | base64 | html | markdown (md) | text | json | ir | extract-images (default: image)
+  --format <fmt>       Output format: image (png) | base64 | html | markdown (md) | text | json | ir | bundle (default: image)
   -i, --extract-images [dir] Extract embedded raster images & vector figures (optional directory)
   --scale <num>        DPI resolution scale factor (default: 2.0 = Retina 144 DPI, 3.0 = 216 DPI)
   --pages <range>      Target pages to convert (e.g. "1-5", "2,4,6", 1, default: "all")
@@ -47,6 +47,7 @@ High-performance, zero-Chromium WebAssembly PDF to Image, Markdown (GFM), HTML, 
   $ paper-drift paper.pdf images/ --format image         # Export pages into an images/ directory
   $ paper-drift paper.pdf --format base64                # Export pages as Base64 JSON
   $ paper-drift paper.pdf --format json                  # Export Structured Document IR JSON
+  $ paper-drift paper.pdf bundle.json --format bundle    # Export Unified All-in-One Bundle JSON
   $ paper-drift paper.pdf output.html --format html      # Export standalone HTML viewer
   $ paper-drift paper.pdf output.md --format markdown    # Convert to publication-grade GFM Markdown
   $ paper-drift paper.pdf output.md -i                   # Markdown with embedded images & figures
@@ -177,9 +178,9 @@ async function run() {
     process.exit(1);
   }
 
-  const validFormats = ['image', 'png', 'img', 'base64', 'html', 'text', 'json', 'ir', 'markdown', 'md', 'extract-images', 'images', 'assets'];
+  const validFormats = ['image', 'png', 'img', 'base64', 'html', 'text', 'json', 'ir', 'markdown', 'md', 'extract-images', 'images', 'assets', 'bundle', 'full'];
   if (!validFormats.includes(format)) {
-    console.error(`\x1b[31mError: Unsupported format "${format}". Supported: image (png) | base64 | html | markdown (md) | text | json | ir | extract-images\x1b[0m`);
+    console.error(`\x1b[31mError: Unsupported format "${format}". Supported: image (png) | base64 | html | markdown (md) | text | json | ir | bundle | extract-images\x1b[0m`);
     process.exit(1);
   }
 
@@ -187,6 +188,7 @@ async function run() {
   const isBase64Mode = format === 'base64';
   const isJsonMode = format === 'json' || format === 'ir';
   const isMarkdownMode = format === 'markdown' || format === 'md';
+  const isBundleMode = format === 'bundle' || format === 'full';
   const isExtractImagesMode = format === 'extract-images' || format === 'images' || format === 'assets';
 
   console.log(`\x1b[36mpaper-drift\x1b[0m v${packageJson.version}`);
@@ -317,6 +319,37 @@ async function run() {
       const durationMs = Date.now() - startTime;
       console.log(`\n\x1b[32m[OK] Exported Structured Document IR (${irDoc.pages.length} pages) in ${durationMs}ms\x1b[0m`);
       console.log(`Output: ${destFile} (${kb} KB)`);
+      console.log(`File path: file://${destFile}\n`);
+    } else if (isBundleMode) {
+      const startTime = Date.now();
+      const result = await parsePdfBundle(resolvedInput, {
+        scale,
+        pages: pageRange,
+        includeImages: true
+      });
+
+      let destFile = outputFile ? path.resolve(process.cwd(), outputFile) : path.join(process.cwd(), `${parsedInput.name}-bundle.json`);
+      if (!destFile.endsWith('.json')) {
+        destFile += '.json';
+      }
+
+      const destDir = path.dirname(destFile);
+      if (!fs.existsSync(destDir)) {
+        fs.mkdirSync(destDir, { recursive: true });
+      }
+
+      fs.writeFileSync(destFile, JSON.stringify(result, null, 2), 'utf-8');
+      const stats = fs.statSync(destFile);
+      const kb = (stats.size / 1024).toFixed(1);
+      const durationMs = Date.now() - startTime;
+
+      console.log(`\n\x1b[32m[OK] Unified Bundle exported in ${durationMs}ms\x1b[0m`);
+      console.log(`  - Title:    ${result.metadata.title || 'Untitled'}`);
+      console.log(`  - Authors:  ${result.metadata.authors.join(', ') || 'Unknown'}`);
+      if (result.metadata.arxiv_id) console.log(`  - arXiv:    ${result.metadata.arxiv_id}`);
+      console.log(`  - Pages:    ${result.pages.length} page(s) with dataUrls`);
+      console.log(`  - Sections: ${result.sections.length} RAG chunk(s)`);
+      console.log(`  - Output:   ${path.relative(process.cwd(), destFile) || destFile} (${kb} KB)`);
       console.log(`File path: file://${destFile}\n`);
     } else if (isMarkdownMode) {
       let destFile = outputFile ? path.resolve(process.cwd(), outputFile) : path.join(process.cwd(), `${parsedInput.name}.md`);

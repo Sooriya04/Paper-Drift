@@ -535,3 +535,151 @@ body {
   text-align: left;
   padding-left: 1rem;
 }
+
+/* Inline and Button SVGs */
+.icon-inline {
+  vertical-align: middle;
+  display: inline-block;
+}
+
+.btn-primary, .btn-secondary, .btn-small {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.link-github {
+  color: #38bdf8;
+  text-decoration: none;
+  font-size: 0.88rem;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: color 0.15s ease;
+}
+
+.link-github:hover {
+  color: #7dd3fc;
+}
+
+/* Bundle Overview & Sections */
+.bundle-preview-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.metadata-overview-card {
+  background: #090d16;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.meta-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+@media (min-width: 640px) {
+  .meta-row {
+    flex-direction: row;
+    gap: 1rem;
+  }
+}
+
+.meta-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+  min-width: 90px;
+}
+
+.meta-value {
+  font-size: 0.95rem;
+  color: #f1f5f9;
+  font-weight: 500;
+}
+
+.meta-abstract {
+  font-size: 0.88rem;
+  color: #cbd5e1;
+  line-height: 1.6;
+}
+
+.sections-accordion-container, .json-code-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.sections-heading {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.sections-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.section-item {
+  background: #090d16;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.section-item-header {
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(30, 41, 59, 0.4);
+  cursor: pointer;
+  user-select: none;
+}
+
+.section-item-title {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.section-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.section-tag {
+  font-size: 0.72rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-weight: 600;
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+}
+
+.section-item-body {
+  padding: 0.9rem 1rem;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: #cbd5e1;
+  border-top: 1px solid rgba(51, 65, 85, 0.5);
+  white-space: pre-wrap;
+  max-height: 250px;
+  overflow-y: auto;
+}
