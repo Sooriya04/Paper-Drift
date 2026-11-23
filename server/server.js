@@ -219,10 +219,17 @@ const server = http.createServer(async (req, res) => {
 
   // Static files
   if (reqPath === '/') reqPath = '/index.html';
-  const filePath = path.join(__dirname, reqPath);
+  let decodedPath = reqPath;
+  try {
+    decodedPath = decodeURIComponent(reqPath);
+  } catch {
+    res.writeHead(400, { 'Content-Type': 'text/plain' });
+    return res.end('Bad Request');
+  }
+  const filePath = path.normalize(path.join(__dirname, decodedPath));
 
-  if (!filePath.startsWith(__dirname)) {
-    res.writeHead(403);
+  if (filePath !== __dirname && !filePath.startsWith(__dirname + path.sep)) {
+    res.writeHead(403, { 'Content-Type': 'text/plain' });
     return res.end('Access denied');
   }
 

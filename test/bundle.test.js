@@ -249,4 +249,40 @@ await runAsyncTest('API endpoints reject concurrent requests exceeding capacity 
   }
 });
 
+await runAsyncTest('Static file server enforces strict path boundary check and blocks traversal attempts with 403', async () => {
+  const { server } = await import('../server/server.js');
+
+  await new Promise(resolve => server.listen(0, resolve));
+  const port = server.address().port;
+
+  try {
+    // 1. Valid static file requests return 200
+    const resRoot = await fetch(`http://localhost:${port}/`);
+    assert.strictEqual(resRoot.status, 200);
+    const htmlRoot = await resRoot.text();
+    assert.ok(htmlRoot.includes('paper-drift') || htmlRoot.includes('<!DOCTYPE html>'));
+
+    const resIndex = await fetch(`http://localhost:${port}/index.html`);
+    assert.strictEqual(resIndex.status, 200);
+
+    // 2. Traversal attempt out of server directory returns 403 Access denied
+    const resTraversal = await fetch(`http://localhost:${port}/..%2fpackage.json`);
+    assert.strictEqual(resTraversal.status, 403);
+    const textTraversal = await resTraversal.text();
+    assert.strictEqual(textTraversal, 'Access denied');
+
+    // 3. Sibling prefix directory traversal attempt returns 403 Access denied
+    const resSibling = await fetch(`http://localhost:${port}/..%2fserver-secrets%2fconfig.json`);
+    assert.strictEqual(resSibling.status, 403);
+    const textSibling = await resSibling.text();
+    assert.strictEqual(textSibling, 'Access denied');
+
+    // 4. Non-existent file within directory boundary returns 404
+    const res404 = await fetch(`http://localhost:${port}/nonexistent.xyz`);
+    assert.strictEqual(res404.status, 404);
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+  }
+});
+
 console.log('\n\x1b[32m✔ All Unified PDF Bundle Parser tests passed successfully!\x1b[0m\n');
