@@ -53,6 +53,13 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type'
 };
 
+const MAX_CONCURRENT_REQUESTS = parseInt(process.env.MAX_CONCURRENT_REQUESTS, 10) || 4;
+let activeRequests = 0;
+
+function getActiveRequests() {
+  return activeRequests;
+}
+
 const server = http.createServer(async (req, res) => {
   const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   let reqPath = urlObj.pathname;
@@ -65,6 +72,19 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'POST') {
+      if (activeRequests >= MAX_CONCURRENT_REQUESTS) {
+        res.writeHead(503, {
+          'Content-Type': 'application/json',
+          'Retry-After': '5',
+          'Access-Control-Allow-Origin': '*'
+        });
+        return res.end(JSON.stringify({
+          success: false,
+          error: 'Server busy: maximum concurrent parsing capacity reached. Please retry shortly.'
+        }));
+      }
+
+      activeRequests++;
       try {
         if (urlObj.searchParams.has('scale')) {
           const rawScale = urlObj.searchParams.get('scale');
@@ -81,6 +101,11 @@ const server = http.createServer(async (req, res) => {
         const scale = !isNaN(scaleParam) && scaleParam > 0 ? scaleParam : 1.5;
         const includeImages = urlObj.searchParams.get('images') !== 'false';
 
+        // SHORTCUT: MuPDF WebAssembly parsing is executed synchronously on the Node.js main event loop.
+        // In local development / playground mode, single-user synchronous execution is optimal to
+        // avoid worker thread IPC and serialization overhead. For multi-tenant production traffic,
+        // offload parsePdfBundle calls to a Node.js worker_threads pool (e.g. Piscina or a 2-4 worker
+        // thread pool) so heavy multi-page PDF parsing does not block event loop I/O or static file serving.
         const result = await parsePdfBundle(buffer, {
           pages: pageRange,
           scale,
@@ -100,6 +125,8 @@ const server = http.createServer(async (req, res) => {
         const status = err.message.includes('Payload too large') ? 413 : (isClientError ? 400 : 500);
         res.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
         return res.end(JSON.stringify({ success: false, error: err.message }));
+      } finally {
+        activeRequests--;
       }
     }
 
@@ -119,10 +146,28 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'POST') {
+      if (activeRequests >= MAX_CONCURRENT_REQUESTS) {
+        res.writeHead(503, {
+          'Content-Type': 'application/json',
+          'Retry-After': '5',
+          'Access-Control-Allow-Origin': '*'
+        });
+        return res.end(JSON.stringify({
+          success: false,
+          error: 'Server busy: maximum concurrent parsing capacity reached. Please retry shortly.'
+        }));
+      }
+
+      activeRequests++;
       try {
         const buffer = await readRequestBody(req);
         const pageRange = urlObj.searchParams.get('pages') || 'all';
 
+        // SHORTCUT: MuPDF WebAssembly parsing is executed synchronously on the Node.js main event loop.
+        // In local development / playground mode, single-user synchronous execution is optimal to
+        // avoid worker thread IPC and serialization overhead. For multi-tenant production traffic,
+        // offload convertPdfToMarkdown calls to a Node.js worker_threads pool (e.g. Piscina or a 2-4 worker
+        // thread pool) so heavy multi-page PDF parsing does not block event loop I/O or static file serving.
         const result = await convertPdfToMarkdown(buffer, { pageRange });
         const visionTokens = result.pagesProcessed * 1600;
         const markdownTokens = Math.max(1, Math.round(result.markdown.length / 4));
@@ -150,6 +195,8 @@ const server = http.createServer(async (req, res) => {
         const status = err.message.includes('Payload too large') ? 413 : (isClientError ? 400 : 500);
         res.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
         return res.end(JSON.stringify({ success: false, error: err.message }));
+      } finally {
+        activeRequests--;
       }
     }
 
@@ -224,7 +271,7 @@ server.on('error', (err) => {
   }
 });
 
-export { server, startServer };
+export { server, startServer, MAX_CONCURRENT_REQUESTS, getActiveRequests };
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   startServer(port);

@@ -186,4 +186,67 @@ await runAsyncTest('API endpoints return 405 Method Not Allowed with Allow heade
   }
 });
 
+await runAsyncTest('API endpoints reject concurrent requests exceeding capacity with 503 Service Unavailable', async () => {
+  const { server, MAX_CONCURRENT_REQUESTS, getActiveRequests } = await import('../server/server.js');
+
+  await new Promise(resolve => server.listen(0, resolve));
+  const port = server.address().port;
+
+  try {
+    const heldClients = [];
+
+    // Hold MAX_CONCURRENT_REQUESTS in-flight
+    for (let i = 0; i < MAX_CONCURRENT_REQUESTS; i++) {
+      const clientReq = http.request({
+        hostname: 'localhost',
+        port,
+        path: '/api/parse-full',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Length': '1024'
+        }
+      });
+      clientReq.write('part');
+      clientReq.on('error', () => {});
+      heldClients.push(clientReq);
+    }
+
+    // Wait briefly for in-flight requests to enter readRequestBody
+    await new Promise(resolve => setTimeout(resolve, 50));
+    assert.strictEqual(getActiveRequests(), MAX_CONCURRENT_REQUESTS);
+
+    // Exceeding request should be rejected with 503 and Retry-After
+    const res503 = await fetch(`http://localhost:${port}/api/parse-full`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/pdf' },
+      body: 'overflow'
+    });
+    assert.strictEqual(res503.status, 503);
+    assert.strictEqual(res503.headers.get('retry-after'), '5');
+    const json503 = await res503.json();
+    assert.strictEqual(json503.success, false);
+    assert.ok(json503.error.includes('Server busy'));
+
+    // Also verify /api/convert-markdown is rejected with 503
+    const resMarkdown503 = await fetch(`http://localhost:${port}/api/convert-markdown`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/pdf' },
+      body: 'overflow'
+    });
+    assert.strictEqual(resMarkdown503.status, 503);
+
+    // Release held requests
+    for (const clientReq of heldClients) {
+      clientReq.destroy();
+    }
+
+    // Wait for cleanup
+    await new Promise(resolve => setTimeout(resolve, 50));
+    assert.strictEqual(getActiveRequests(), 0, 'Active requests must decrement back to 0');
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+  }
+});
+
 console.log('\n\x1b[32m✔ All Unified PDF Bundle Parser tests passed successfully!\x1b[0m\n');
