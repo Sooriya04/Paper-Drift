@@ -12,6 +12,7 @@ import {
   normalizeChunkOptions,
   isValidChunk
 } from '../src/rag/constants.js';
+import { extractPageAtomicBlocks } from '../src/rag/blocks.js';
 
 console.log('\nRunning RAG Semantic Chunking Subsystem Test Suite');
 
@@ -71,6 +72,66 @@ console.log('\nRunning RAG Semantic Chunking Subsystem Test Suite');
   assert.strictEqual(isValidChunk('chunk'), false);
 
   console.log('  ✔ isValidChunk accurately validates chunk schema without external libraries');
+}
+
+// Test 4: extractPageAtomicBlocks partitions headings, paragraphs, tables, and math
+{
+  const mockPageData = {
+    pageNumber: 3,
+    width: 600,
+    height: 800,
+    lines: [
+      { text: '3.2 Multi-Head Attention', top: 100, left: 50, width: 250, height: 14, font: { isBold: true, size: 14 } },
+      { text: 'Multi-head attention allows the model to attend', top: 130, left: 50, width: 300, height: 10, font: { isBold: false, size: 10 } },
+      { text: 'to information at different positions.', top: 145, left: 50, width: 280, height: 10, font: { isBold: false, size: 10 } }
+    ],
+    mathItems: [
+      {
+        bbox: [50, 180, 450, 220],
+        markdown: '$$\\text{Attention}(Q, K, V) = \\text{softmax}\\left(\\frac{QK^T}{\\sqrt{d_k}}\\right)V$$'
+      }
+    ],
+    tables: [
+      {
+        bbox: [50, 240, 500, 320],
+        markdown: '| Model | BLEU |\n|---|---|\n| Transformer | 28.4 |',
+        linesInside: []
+      }
+    ]
+  };
+
+  const blocks = extractPageAtomicBlocks(mockPageData);
+  assert.strictEqual(blocks.length, 4);
+
+  // 1. Heading block
+  assert.strictEqual(blocks[0].type, BLOCK_TYPES.HEADING);
+  assert.strictEqual(blocks[0].content, '3.2 Multi-Head Attention');
+  assert.strictEqual(blocks[0].level, 2);
+  assert.strictEqual(blocks[0].page, 3);
+  assert.strictEqual(blocks[0].isAtomic, true);
+
+  // 2. Paragraph block
+  assert.strictEqual(blocks[1].type, BLOCK_TYPES.PARAGRAPH);
+  assert.ok(blocks[1].content.includes('Multi-head attention allows'));
+  assert.strictEqual(blocks[1].page, 3);
+  assert.strictEqual(blocks[1].has_math, false);
+  assert.strictEqual(blocks[1].has_table, false);
+
+  // 3. Math block (Atomic)
+  assert.strictEqual(blocks[2].type, BLOCK_TYPES.MATH);
+  assert.ok(blocks[2].content.includes('\\text{Attention}'));
+  assert.strictEqual(blocks[2].isAtomic, true);
+  assert.strictEqual(blocks[2].has_math, true);
+  assert.strictEqual(blocks[2].has_table, false);
+
+  // 4. Table block (Atomic)
+  assert.strictEqual(blocks[3].type, BLOCK_TYPES.TABLE);
+  assert.ok(blocks[3].content.includes('| Model | BLEU |'));
+  assert.strictEqual(blocks[3].isAtomic, true);
+  assert.strictEqual(blocks[3].has_table, true);
+  assert.strictEqual(blocks[3].has_math, false);
+
+  console.log('  ✔ extractPageAtomicBlocks accurately structures headings, prose, math, and tables');
 }
 
 console.log('\n\x1b[32m✔ All Phase 1 RAG tests passed successfully!\x1b[0m\n');
