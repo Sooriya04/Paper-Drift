@@ -70,6 +70,53 @@ function getActiveRequests() {
   return activeRequests;
 }
 
+async function handleApiPost(req, res, handler) {
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204, CORS_HEADERS);
+    return res.end();
+  }
+
+  if (req.method !== 'POST') {
+    res.writeHead(405, {
+      'Content-Type': 'application/json',
+      'Allow': 'POST, OPTIONS',
+      'Access-Control-Allow-Origin': '*'
+    });
+    return res.end(JSON.stringify({ success: false, error: 'Method Not Allowed' }));
+  }
+
+  if (activeRequests >= MAX_CONCURRENT_REQUESTS) {
+    res.writeHead(503, {
+      'Content-Type': 'application/json',
+      'Retry-After': '5',
+      'Access-Control-Allow-Origin': '*'
+    });
+    return res.end(JSON.stringify({
+      success: false,
+      error: 'Server busy: maximum concurrent parsing capacity reached. Please retry shortly.'
+    }));
+  }
+
+  activeRequests++;
+  try {
+    await handler();
+  } catch (err) {
+    if (res.writableEnded || res.destroyed) return;
+    const isClientError = err.message.includes('No matching pages found') ||
+                          err.message.includes('page range') ||
+                          err.message.includes('Invalid') ||
+                          err.message.includes('aborted') ||
+                          err.name === 'ValidationError';
+    const status = err.message.includes('Payload too large') ? 413 : (isClientError ? 400 : 500);
+    try {
+      res.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      res.end(JSON.stringify({ success: false, error: err.message }));
+    } catch {}
+  } finally {
+    activeRequests--;
+  }
+}
+
 const server = http.createServer(async (req, res) => {
   const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   let reqPath = urlObj.pathname;
@@ -112,233 +159,92 @@ const server = http.createServer(async (req, res) => {
 
   // API Endpoint: The Unified "All-in-One" Bundle
   if (reqPath === '/api/parse-full') {
-    if (req.method === 'OPTIONS') {
-      res.writeHead(204, CORS_HEADERS);
-      return res.end();
-    }
-
-    if (req.method === 'POST') {
-      if (activeRequests >= MAX_CONCURRENT_REQUESTS) {
-        res.writeHead(503, {
-          'Content-Type': 'application/json',
-          'Retry-After': '5',
-          'Access-Control-Allow-Origin': '*'
-        });
-        return res.end(JSON.stringify({
-          success: false,
-          error: 'Server busy: maximum concurrent parsing capacity reached. Please retry shortly.'
-        }));
-      }
-
-      activeRequests++;
-      try {
-        if (urlObj.searchParams.has('scale')) {
-          const rawScale = urlObj.searchParams.get('scale');
-          const parsedScale = parseFloat(rawScale);
-          if (isNaN(parsedScale) || parsedScale <= 0) {
-            res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-            return res.end(JSON.stringify({ success: false, error: `Invalid scale parameter: "${rawScale}". Scale must be a positive number.` }));
-          }
+    return handleApiPost(req, res, async () => {
+      if (urlObj.searchParams.has('scale')) {
+        const rawScale = urlObj.searchParams.get('scale');
+        const parsedScale = parseFloat(rawScale);
+        if (isNaN(parsedScale) || parsedScale <= 0) {
+          res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          return res.end(JSON.stringify({ success: false, error: `Invalid scale parameter: "${rawScale}". Scale must be a positive number.` }));
         }
-
-        const buffer = await readRequestBody(req);
-        const pageRange = urlObj.searchParams.get('pages') || 'all';
-        const scaleParam = parseFloat(urlObj.searchParams.get('scale'));
-        const scale = !isNaN(scaleParam) && scaleParam > 0 ? scaleParam : 1.5;
-        const includeImages = urlObj.searchParams.get('images') !== 'false';
-
-        // SHORTCUT: MuPDF WebAssembly parsing is executed synchronously on the Node.js main event loop.
-        // In local development / playground mode, single-user synchronous execution is optimal to
-        // avoid worker thread IPC and serialization overhead. For multi-tenant production traffic,
-        // offload parsePdfBundle calls to a Node.js worker_threads pool (e.g. Piscina or a 2-4 worker
-        // thread pool) so heavy multi-page PDF parsing does not block event loop I/O or static file serving.
-        const result = await parsePdfBundle(buffer, {
-          pages: pageRange,
-          scale,
-          includeImages
-        });
-
-        res.writeHead(200, {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*'
-        });
-        return res.end(JSON.stringify(result));
-      } catch (err) {
-        if (res.writableEnded || res.destroyed) return;
-        const isClientError = err.message.includes('No matching pages found') ||
-                              err.message.includes('page range') ||
-                              err.message.includes('Invalid') ||
-                              err.message.includes('aborted') ||
-                              err.name === 'ValidationError';
-        const status = err.message.includes('Payload too large') ? 413 : (isClientError ? 400 : 500);
-        try {
-          res.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-          res.end(JSON.stringify({ success: false, error: err.message }));
-        } catch {}
-      } finally {
-        activeRequests--;
       }
-      return;
-    }
 
-    res.writeHead(405, {
-      'Content-Type': 'application/json',
-      'Allow': 'POST, OPTIONS',
-      'Access-Control-Allow-Origin': '*'
+      const buffer = await readRequestBody(req);
+      const pageRange = urlObj.searchParams.get('pages') || 'all';
+      const scaleParam = parseFloat(urlObj.searchParams.get('scale'));
+      const scale = !isNaN(scaleParam) && scaleParam > 0 ? scaleParam : 1.5;
+      const includeImages = urlObj.searchParams.get('images') !== 'false';
+
+      const result = await parsePdfBundle(buffer, {
+        pages: pageRange,
+        scale,
+        includeImages
+      });
+
+      res.writeHead(200, {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      });
+      return res.end(JSON.stringify(result));
     });
-    return res.end(JSON.stringify({ success: false, error: 'Method Not Allowed' }));
   }
 
   // API Endpoint: Native Semantic Chunking for RAG
   if (reqPath === '/api/chunk-rag') {
-    if (req.method === 'OPTIONS') {
-      res.writeHead(204, CORS_HEADERS);
-      return res.end();
-    }
-
-    if (req.method === 'POST') {
-      if (activeRequests >= MAX_CONCURRENT_REQUESTS) {
-        res.writeHead(503, {
-          'Content-Type': 'application/json',
-          'Retry-After': '5',
-          'Access-Control-Allow-Origin': '*'
-        });
-        return res.end(JSON.stringify({
-          success: false,
-          error: 'Server busy: maximum concurrent parsing capacity reached. Please retry shortly.'
-        }));
-      }
-
-      activeRequests++;
-      try {
-        let maxChunkChars;
-        if (urlObj.searchParams.has('max_chunk_chars') || urlObj.searchParams.has('maxChunkChars')) {
-          const raw = urlObj.searchParams.get('max_chunk_chars') || urlObj.searchParams.get('maxChunkChars');
-          const parsed = parseInt(raw, 10);
-          if (isNaN(parsed) || parsed <= 50) {
-            res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-            return res.end(JSON.stringify({ success: false, error: `Invalid max_chunk_chars parameter: "${raw}". Must be a number greater than 50.` }));
-          }
-          maxChunkChars = parsed;
+    return handleApiPost(req, res, async () => {
+      let maxChunkChars;
+      if (urlObj.searchParams.has('max_chunk_chars') || urlObj.searchParams.has('maxChunkChars')) {
+        const raw = urlObj.searchParams.get('max_chunk_chars') || urlObj.searchParams.get('maxChunkChars');
+        const parsed = parseInt(raw, 10);
+        if (isNaN(parsed) || parsed <= 50) {
+          res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          return res.end(JSON.stringify({ success: false, error: `Invalid max_chunk_chars parameter: "${raw}". Must be a number greater than 50.` }));
         }
-
-        const buffer = await readRequestBody(req);
-        const pageRange = urlObj.searchParams.get('pages') || 'all';
-
-        // SHORTCUT: MuPDF WebAssembly parsing is executed synchronously on the Node.js main event loop.
-        // In local development / playground mode, single-user synchronous execution is optimal to
-        // avoid worker thread IPC and serialization overhead. For multi-tenant production traffic,
-        // offload chunkPdfForRag calls to a Node.js worker_threads pool (e.g. Piscina or a 2-4 worker
-        // thread pool) so heavy multi-page PDF parsing does not block event loop I/O or static file serving.
-        const chunks = await chunkPdfForRag(buffer, {
-          pages: pageRange,
-          max_chunk_chars: maxChunkChars
-        });
-
-        res.writeHead(200, {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*'
-        });
-        return res.end(JSON.stringify(chunks));
-      } catch (err) {
-        if (res.writableEnded || res.destroyed) return;
-        const isClientError = err.message.includes('No matching pages found') ||
-                              err.message.includes('page range') ||
-                              err.message.includes('Invalid') ||
-                              err.message.includes('aborted') ||
-                              err.name === 'ValidationError';
-        const status = err.message.includes('Payload too large') ? 413 : (isClientError ? 400 : 500);
-        try {
-          res.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-          res.end(JSON.stringify({ success: false, error: err.message }));
-        } catch {}
-      } finally {
-        activeRequests--;
+        maxChunkChars = parsed;
       }
-      return;
-    }
 
-    res.writeHead(405, {
-      'Content-Type': 'application/json',
-      'Allow': 'POST, OPTIONS',
-      'Access-Control-Allow-Origin': '*'
+      const buffer = await readRequestBody(req);
+      const pageRange = urlObj.searchParams.get('pages') || 'all';
+
+      const chunks = await chunkPdfForRag(buffer, {
+        pages: pageRange,
+        max_chunk_chars: maxChunkChars
+      });
+
+      res.writeHead(200, {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      });
+      return res.end(JSON.stringify(chunks));
     });
-    return res.end(JSON.stringify({ success: false, error: 'Method Not Allowed' }));
   }
 
   // API Endpoint: Direct PDF to Markdown conversion
   if (reqPath === '/api/convert-markdown') {
-    if (req.method === 'OPTIONS') {
-      res.writeHead(204, CORS_HEADERS);
-      return res.end();
-    }
+    return handleApiPost(req, res, async () => {
+      const buffer = await readRequestBody(req);
+      const pageRange = urlObj.searchParams.get('pages') || 'all';
 
-    if (req.method === 'POST') {
-      if (activeRequests >= MAX_CONCURRENT_REQUESTS) {
-        res.writeHead(503, {
-          'Content-Type': 'application/json',
-          'Retry-After': '5',
-          'Access-Control-Allow-Origin': '*'
-        });
-        return res.end(JSON.stringify({
-          success: false,
-          error: 'Server busy: maximum concurrent parsing capacity reached. Please retry shortly.'
-        }));
-      }
+      const result = await convertPdfToMarkdown(buffer, { pageRange });
+      const visionTokens = result.pagesProcessed * 1600;
+      const markdownTokens = Math.max(1, Math.round(result.markdown.length / 4));
+      const savingsPercent = Math.max(0, Math.min(99.9, ((visionTokens - markdownTokens) / visionTokens) * 100)).toFixed(1);
 
-      activeRequests++;
-      try {
-        const buffer = await readRequestBody(req);
-        const pageRange = urlObj.searchParams.get('pages') || 'all';
-
-        // SHORTCUT: MuPDF WebAssembly parsing is executed synchronously on the Node.js main event loop.
-        // In local development / playground mode, single-user synchronous execution is optimal to
-        // avoid worker thread IPC and serialization overhead. For multi-tenant production traffic,
-        // offload convertPdfToMarkdown calls to a Node.js worker_threads pool (e.g. Piscina or a 2-4 worker
-        // thread pool) so heavy multi-page PDF parsing does not block event loop I/O or static file serving.
-        const result = await convertPdfToMarkdown(buffer, { pageRange });
-        const visionTokens = result.pagesProcessed * 1600;
-        const markdownTokens = Math.max(1, Math.round(result.markdown.length / 4));
-        const savingsPercent = Math.max(0, Math.min(99.9, ((visionTokens - markdownTokens) / visionTokens) * 100)).toFixed(1);
-
-        res.writeHead(200, {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*'
-        });
-        return res.end(JSON.stringify({
-          success: true,
-          markdown: result.markdown,
-          totalPages: result.totalPages,
-          pagesProcessed: result.pagesProcessed,
-          durationMs: result.durationMs,
-          visionTokens,
-          markdownTokens,
-          savingsPercent
-        }));
-      } catch (err) {
-        if (res.writableEnded || res.destroyed) return;
-        const isClientError = err.message.includes('No matching pages found') ||
-                              err.message.includes('page range') ||
-                              err.message.includes('Invalid') ||
-                              err.message.includes('aborted') ||
-                              err.name === 'ValidationError';
-        const status = err.message.includes('Payload too large') ? 413 : (isClientError ? 400 : 500);
-        try {
-          res.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-          res.end(JSON.stringify({ success: false, error: err.message }));
-        } catch {}
-      } finally {
-        activeRequests--;
-      }
-      return;
-    }
-
-    res.writeHead(405, {
-      'Content-Type': 'application/json',
-      'Allow': 'POST, OPTIONS',
-      'Access-Control-Allow-Origin': '*'
+      res.writeHead(200, {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      });
+      return res.end(JSON.stringify({
+        success: true,
+        markdown: result.markdown,
+        totalPages: result.totalPages,
+        pagesProcessed: result.pagesProcessed,
+        durationMs: result.durationMs,
+        visionTokens,
+        markdownTokens,
+        savingsPercent
+      }));
     });
-    return res.end(JSON.stringify({ success: false, error: 'Method Not Allowed' }));
   }
 
   // API Route fallthrough prevention
