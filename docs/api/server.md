@@ -79,7 +79,45 @@ curl -X POST "http://localhost:3000/api/parse-full?pages=1-2" \
 
 ---
 
-### 2. Direct PDF to Markdown Conversion (`/api/convert-markdown`)
+### 2. Native Semantic Chunking for RAG (`/api/chunk-rag`)
+
+Slices an uploaded PDF into semantic, citation-grounded RAG chunks using `paper-drift`'s spatial AST and vector table detector. Guarantees that math formulas (`$$ ... $$`) and GFM pipe tables are never split down the middle.
+
+- **URL:** `/api/chunk-rag`
+- **Method:** `POST`
+- **Query Parameters:**
+  - `pages` (*optional*, default: `"all"`): Page range to process (e.g. `pages=1-5`).
+  - `max_chunk_chars` (*optional*, default: `1500`): Maximum character threshold per chunk (must be > 50).
+- **Headers:**
+  - `Content-Type`: `application/pdf` (or `application/octet-stream`)
+- **Body:** Raw PDF binary buffer (up to 50 MB)
+
+#### cURL Example
+
+```bash
+curl -X POST "http://localhost:3000/api/chunk-rag?max_chunk_chars=1200&pages=1-4" \
+  -H "Content-Type: application/pdf" \
+  --data-binary "@paper.pdf"
+```
+
+#### Response (`200 OK`)
+
+```json
+[
+  {
+    "chunk_id": "chunk-1",
+    "section": "3.2 Multi-Head Attention",
+    "page": 4,
+    "content": "Multi-head attention allows the model to jointly attend to information...\n\n$$\\text{MultiHead}(Q, K, V) = \\text{Concat}(\\text{head}_1, \\dots, \\text{head}_h)W^O$$",
+    "has_math": true,
+    "has_table": false
+  }
+]
+```
+
+---
+
+### 3. Direct PDF to Markdown Conversion (`/api/convert-markdown`)
 
 Converts an uploaded PDF binary stream directly into clean, publication-grade GitHub Flavored Markdown (GFM).
 

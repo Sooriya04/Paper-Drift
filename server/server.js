@@ -9,7 +9,7 @@ import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { convertPdfToMarkdown, convertPdfToHtml, parsePdfBundle } from '../src/index.js';
+import { convertPdfToMarkdown, convertPdfToHtml, parsePdfBundle, chunkPdfForRag } from '../src/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -117,6 +117,78 @@ const server = http.createServer(async (req, res) => {
           'Access-Control-Allow-Origin': '*'
         });
         return res.end(JSON.stringify(result));
+      } catch (err) {
+        const isClientError = err.message.includes('No matching pages found') ||
+                              err.message.includes('page range') ||
+                              err.message.includes('Invalid') ||
+                              err.name === 'ValidationError';
+        const status = err.message.includes('Payload too large') ? 413 : (isClientError ? 400 : 500);
+        res.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        return res.end(JSON.stringify({ success: false, error: err.message }));
+      } finally {
+        activeRequests--;
+      }
+    }
+
+    res.writeHead(405, {
+      'Content-Type': 'application/json',
+      'Allow': 'POST, OPTIONS',
+      'Access-Control-Allow-Origin': '*'
+    });
+    return res.end(JSON.stringify({ success: false, error: 'Method Not Allowed' }));
+  }
+
+  // API Endpoint: Native Semantic Chunking for RAG
+  if (reqPath === '/api/chunk-rag') {
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204, CORS_HEADERS);
+      return res.end();
+    }
+
+    if (req.method === 'POST') {
+      if (activeRequests >= MAX_CONCURRENT_REQUESTS) {
+        res.writeHead(503, {
+          'Content-Type': 'application/json',
+          'Retry-After': '5',
+          'Access-Control-Allow-Origin': '*'
+        });
+        return res.end(JSON.stringify({
+          success: false,
+          error: 'Server busy: maximum concurrent parsing capacity reached. Please retry shortly.'
+        }));
+      }
+
+      activeRequests++;
+      try {
+        let maxChunkChars;
+        if (urlObj.searchParams.has('max_chunk_chars') || urlObj.searchParams.has('maxChunkChars')) {
+          const raw = urlObj.searchParams.get('max_chunk_chars') || urlObj.searchParams.get('maxChunkChars');
+          const parsed = parseInt(raw, 10);
+          if (isNaN(parsed) || parsed <= 50) {
+            res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+            return res.end(JSON.stringify({ success: false, error: `Invalid max_chunk_chars parameter: "${raw}". Must be a number greater than 50.` }));
+          }
+          maxChunkChars = parsed;
+        }
+
+        const buffer = await readRequestBody(req);
+        const pageRange = urlObj.searchParams.get('pages') || 'all';
+
+        // SHORTCUT: MuPDF WebAssembly parsing is executed synchronously on the Node.js main event loop.
+        // In local development / playground mode, single-user synchronous execution is optimal to
+        // avoid worker thread IPC and serialization overhead. For multi-tenant production traffic,
+        // offload chunkPdfForRag calls to a Node.js worker_threads pool (e.g. Piscina or a 2-4 worker
+        // thread pool) so heavy multi-page PDF parsing does not block event loop I/O or static file serving.
+        const chunks = await chunkPdfForRag(buffer, {
+          pages: pageRange,
+          max_chunk_chars: maxChunkChars
+        });
+
+        res.writeHead(200, {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        });
+        return res.end(JSON.stringify(chunks));
       } catch (err) {
         const isClientError = err.message.includes('No matching pages found') ||
                               err.message.includes('page range') ||

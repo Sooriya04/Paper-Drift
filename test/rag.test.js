@@ -354,4 +354,68 @@ console.log('\nRunning RAG Semantic Chunking Subsystem Test Suite');
   console.log('  ✔ Existing CLI formats (markdown, etc.) remain unaffected');
 }
 
+// Test 14: Server integration test for POST /api/chunk-rag
+{
+  const { server } = await import('../server/server.js');
+  await new Promise(resolve => server.listen(0, resolve));
+  const port = server.address().port;
+
+  try {
+    const pdfBuf = fs.readFileSync('test/fixtures/sample.pdf');
+
+    // 1. POST /api/chunk-rag returns 200 and valid chunk array
+    const resPost = await fetch(`http://localhost:${port}/api/chunk-rag`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/pdf' },
+      body: pdfBuf
+    });
+    assert.strictEqual(resPost.status, 200);
+    const chunks = await resPost.json();
+    assert.ok(Array.isArray(chunks));
+    assert.ok(chunks.length >= 1);
+    for (const chunk of chunks) {
+      assert.strictEqual(isValidChunk(chunk), true);
+    }
+
+    // 2. POST /api/chunk-rag?max_chunk_chars=300 respects query parameter
+    const resCustom = await fetch(`http://localhost:${port}/api/chunk-rag?max_chunk_chars=300`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/pdf' },
+      body: pdfBuf
+    });
+    assert.strictEqual(resCustom.status, 200);
+    const customChunks = await resCustom.json();
+    assert.ok(Array.isArray(customChunks));
+    assert.ok(customChunks.length >= 1);
+
+    // 3. Invalid max_chunk_chars returns 400 Bad Request
+    const resBad = await fetch(`http://localhost:${port}/api/chunk-rag?max_chunk_chars=-10`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/pdf' },
+      body: pdfBuf
+    });
+    assert.strictEqual(resBad.status, 400);
+    const badJson = await resBad.json();
+    assert.strictEqual(badJson.success, false);
+    assert.ok(badJson.error.includes('max_chunk_chars'));
+
+    // 4. GET /api/chunk-rag returns 405 Method Not Allowed
+    const resGet = await fetch(`http://localhost:${port}/api/chunk-rag`, {
+      method: 'GET'
+    });
+    assert.strictEqual(resGet.status, 405);
+    assert.strictEqual(resGet.headers.get('allow'), 'POST, OPTIONS');
+
+    // 5. OPTIONS /api/chunk-rag returns 204 No Content
+    const resOptions = await fetch(`http://localhost:${port}/api/chunk-rag`, {
+      method: 'OPTIONS'
+    });
+    assert.strictEqual(resOptions.status, 204);
+
+    console.log('  ✔ POST /api/chunk-rag server endpoint handles 200, 400, 405, and OPTIONS cleanly');
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+  }
+}
+
 console.log('\n\x1b[32m✔ All RAG tests passed successfully!\x1b[0m\n');
