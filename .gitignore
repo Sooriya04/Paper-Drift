@@ -5,6 +5,7 @@ node_modules/
 *.html
 !server/index.html
 !docs/*.html
+!site/*.html
 .tmp-test/
 test/results/
 docs/goal.md

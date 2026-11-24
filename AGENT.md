@@ -29,11 +29,17 @@ paper-drift/
 │   ├── converter.js              # Core conversion engine using WebAssembly (MuPDF)
 │   └── utils/
 │       └── html-template.js      # Standalone HTML template generator & CSS styling
-├── playground/                   # Dedicated browser playground / demo
-│   ├── index.html                # Browser playground interface
-│   ├── playground.js             # Browser client-side interaction script (PDF.js)
-│   ├── style.css                 # Dark-themed styling for playground
-│   └── server.js                 # Dev server for playground (COOP/COEP WASM headers)
+├── server/                       # Local development Web Studio & REST API
+│   ├── index.html                # Document Studio workbench interface
+│   ├── app.js                    # Studio client controller & KaTeX renderer
+│   ├── style.css                 # Dark developer-grade studio stylesheet
+│   └── server.js                 # HTTP REST API & WASM runner (COOP/COEP headers)
+├── site/                         # Public marketing & landing documentation site
+│   ├── index.html                # Product landing page & feature showcases
+│   ├── app.js                    # Interactive terminal tabs & copy handler
+│   └── style.css                 # Site theme & tactile component styling
+├── docs/                         # Developer documentation & API references
+│   └── api/                      # Full reference markdown documents (SDK, CLI, Server)
 ├── test/                         # Dedicated test suite & test assets
 │   ├── fixtures/
 │   │   └── sample.pdf            # Sample test PDF

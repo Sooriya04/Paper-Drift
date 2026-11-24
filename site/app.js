@@ -1,5 +1,5 @@
 /**
- * @file docs/app.js
+ * @file site/app.js
  * @description Snappy interactions for the paper-drift website.
  * Manages 1-click command copying and active code tab switching.
  * Part of paper-drift - https://github.com/Sooriya04/Paper-Drift
