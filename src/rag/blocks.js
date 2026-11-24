@@ -9,15 +9,12 @@ import { BLOCK_TYPES } from './constants.js';
 import { calculateBodyFontSizeMode } from '../markdown/typography.js';
 import { recursiveXyCut } from '../spatial/reading-order.js';
 import { repairHyphenation } from '../normalization/text.js';
-
-const SECTION_REGEX = /^(?:([1-9]\d*|[IVXLCDM]+)\.?\s+(\p{Lu}.*)|appendix(?:\s+([a-z0-9]+))?[:.\s]+(.*))$/iu;
-const SUBSECTION_REGEX = /^([0-9]+\.[0-9]+)\.?\s+(\p{Lu}.*)$/u;
-const SUBSUBSECTION_REGEX = /^([0-9]+\.[0-9]+\.[0-9]+)\.?\s+(\p{Lu}.*)$/u;
-const SPECIAL_HEADINGS = new Set([
-  'abstract', 'introduction', 'background', 'related work', 'method',
-  'methods', 'methodology', 'experiments', 'results', 'discussion',
-  'conclusion', 'conclusions', 'references', 'appendix'
-]);
+import {
+  SECTION_REGEX,
+  SUBSECTION_REGEX,
+  SUBSUBSECTION_REGEX,
+  SPECIAL_HEADINGS_SET as SPECIAL_HEADINGS
+} from '../metadata/sections.js';
 
 /**
  * Classifies if a line qualifies as a section heading.

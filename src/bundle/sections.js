@@ -5,33 +5,12 @@
  */
 
 import { calculateBodyFontSizeMode } from '../markdown/typography.js';
-
-const SECTION_REGEX = /^(?:([1-9]\d*|[IVXLCDM]+)\.?\s+(\p{Lu}.*)|appendix(?:\s+([a-z0-9]+))?[:.\s]+(.*))$/iu;
-const SUBSECTION_REGEX = /^([0-9]+\.[0-9]+)\.?\s+(\p{Lu}.*)$/u;
-const SUBSUBSECTION_REGEX = /^([0-9]+\.[0-9]+\.[0-9]+)\.?\s+(\p{Lu}.*)$/u;
-
-const SPECIAL_HEADINGS = [
-  'abstract',
-  'introduction',
-  'background',
-  'related work',
-  'method',
-  'methods',
-  'methodology',
-  'model architecture',
-  'experiments',
-  'experimental setup',
-  'results',
-  'discussion',
-  'conclusion',
-  'conclusions',
-  'acknowledgements',
-  'acknowledgments',
-  'references',
-  'bibliography',
-  'appendix',
-  'appendices'
-];
+import {
+  SECTION_REGEX,
+  SUBSECTION_REGEX,
+  SUBSUBSECTION_REGEX,
+  SPECIAL_HEADINGS_SET
+} from '../metadata/sections.js';
 
 /**
  * Extracts flattened section objects containing title, level, page, and sliced content.
@@ -100,7 +79,7 @@ export function extractBundleSections(rawPagesData) {
               title = (secMatch[2] || secMatch[4] || text).trim();
             } else {
               const lower = text.toLowerCase().replace(/[:.]/g, '').trim();
-              if (SPECIAL_HEADINGS.includes(lower) && (isBold || ratio >= 1.05)) {
+              if (SPECIAL_HEADINGS_SET.has(lower) && (isBold || ratio >= 1.05)) {
                 isHeading = true;
                 level = 1;
                 title = text.replace(/[:.]/g, '').trim();

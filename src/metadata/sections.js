@@ -10,11 +10,11 @@ import { mergeBboxes } from './provenance.js';
 import { calculateBodyFontSizeMode } from '../markdown/typography.js';
 
 // Matches "1", "1.1", "1.1.1", "I", "II.A", "Appendix A", "Appendices"
-const SECTION_REGEX = /^(?:([1-9]\d*|[IVXLCDM]+)\.?\s+(\p{Lu}.*)|appendix(?:\s+([a-z0-9]+))?[:.\s]+(.*))$/iu;
-const SUBSECTION_REGEX = /^([0-9]+\.[0-9]+)\.?\s+(\p{Lu}.*)$/u;
-const SUBSUBSECTION_REGEX = /^([0-9]+\.[0-9]+\.[0-9]+)\.?\s+(\p{Lu}.*)$/u;
+export const SECTION_REGEX = /^(?:([1-9]\d*|[IVXLCDM]+)\.?\s+(\p{Lu}.*)|appendix(?:\s+([a-z0-9]+))?[:.\s]+(.*))$/iu;
+export const SUBSECTION_REGEX = /^([0-9]+\.[0-9]+)\.?\s+(\p{Lu}.*)$/u;
+export const SUBSUBSECTION_REGEX = /^([0-9]+\.[0-9]+\.[0-9]+)\.?\s+(\p{Lu}.*)$/u;
 
-const SPECIAL_HEADINGS = [
+export const SPECIAL_HEADINGS = Object.freeze([
   'abstract',
   'introduction',
   'background',
@@ -22,6 +22,7 @@ const SPECIAL_HEADINGS = [
   'method',
   'methods',
   'methodology',
+  'model architecture',
   'experiments',
   'experimental setup',
   'results',
@@ -34,7 +35,9 @@ const SPECIAL_HEADINGS = [
   'bibliography',
   'appendix',
   'appendices'
-];
+]);
+
+export const SPECIAL_HEADINGS_SET = Object.freeze(new Set(SPECIAL_HEADINGS));
 
 /**
  * Reconstructs section hierarchy tree from pages and typography classification.
