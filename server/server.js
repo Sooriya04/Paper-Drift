@@ -392,7 +392,7 @@ const server = http.createServer(async (req, res) => {
   });
 });
 
-const DEFAULT_PORT = parseInt(process.env.PORT, 10) || 3000;
+const DEFAULT_PORT = parseInt(process.env.PORT, 10) || 7490;
 const MAX_PORT_RETRIES = parseInt(process.env.MAX_PORT_RETRIES, 10) || 10;
 let basePort = DEFAULT_PORT;
 let currentPort = DEFAULT_PORT;

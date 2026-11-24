@@ -17,7 +17,7 @@ npm run serve -- --port 7490
 
 Run directly via CLI:
 ```bash
-# Launch daemon on default port (3000 or $PORT)
+# Launch daemon on default port (7490 or $PORT)
 paper-drift serve
 
 # Launch daemon on specific microservice port
@@ -29,7 +29,7 @@ Or run via Node:
 node server/server.js
 ```
 
-By default, the server binds to `http://localhost:3000` (or the port defined in the `PORT` environment variable or `--port` flag). If the default port is in use, it automatically increments to the next available port.
+By default, the server binds to `http://localhost:7490` (or the port defined in the `PORT` environment variable or `--port` flag). If the default port is in use, it automatically increments to the next available port.
 
 ```bash
 PORT=8080 node server/server.js

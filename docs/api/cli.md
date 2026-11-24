@@ -42,7 +42,7 @@ paper-drift serve [--port <num>]
 
 | Flag | Values | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `-p`, `--port <num>` | Positive integer (`1-65535`) | `3000` | Port number to bind the HTTP microservice daemon (used with `serve`). |
+| `-p`, `--port <num>` | Positive integer (`1-65535`) | `7490` | Port number to bind the HTTP microservice daemon (used with `serve`). |
 | `--format <fmt>` | `image` (or `png`), `markdown` (or `md`), `chunks` (or `rag`), `bundle`, `base64`, `html`, `text`, `json`, `extract-images` | `image` | Output conversion format. Auto-inferred if `output` extension matches (`.md`, `.html`, `.png`, `.json`, `.txt`). |
 | `--max-chunk-chars <num>` | Positive integer (`> 50`) | `1500` | Target character size threshold for RAG semantic chunks (used with `--format chunks`). |
 | `-i`, `--extract-images [dir]` | Directory path *(optional)* | `null` | Extracts embedded raster images and cropped vector figures into disk files. Can be used standalone or combined with Markdown conversion. |

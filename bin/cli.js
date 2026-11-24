@@ -40,7 +40,7 @@ High-performance, zero-Chromium WebAssembly PDF to Image, Markdown (GFM), HTML, 
   --max-chunk-chars <num> Maximum character limit for semantic RAG chunks (default: 1500)
   --pages <range>      Target pages to convert (e.g. "1-5", "2,4,6", 1, default: "all")
   --no-bg              Text-only mode for HTML format (disables background raster rendering)
-  -p, --port <num>     Port number for daemon server (used with serve, default: 3000)
+  -p, --port <num>     Port number for daemon server (used with serve, default: 7490)
   -v, --version        Show version number
   -h, --help           Display this help message
 
@@ -85,7 +85,7 @@ async function run() {
 
   // Handle CLI daemon subcommand: paper-drift serve [--port <num>]
   if (args[0] === 'serve') {
-    let port = parseInt(process.env.PORT, 10) || 3000;
+    let port = parseInt(process.env.PORT, 10) || 7490;
     for (let i = 1; i < args.length; i++) {
       const arg = args[i];
       if (arg === '--port' || arg === '-p') {
@@ -108,7 +108,7 @@ Start the paper-drift HTTP microservice daemon and WebAssembly document studio.
   $ paper-drift serve [options]
 
 \x1b[1mOPTIONS:\x1b[0m
-  -p, --port <num>   Port number to listen on (default: 3000 or $PORT)
+  -p, --port <num>   Port number to listen on (default: 7490 or $PORT)
   -h, --help         Display this help message
 
 \x1b[1mENDPOINTS:\x1b[0m

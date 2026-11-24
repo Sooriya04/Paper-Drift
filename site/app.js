@@ -19,7 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (copyLabel) copyLabel.textContent = 'Copied!';
         copyBtn.style.color = 'var(--emerald)';
-        copyBtn.style.borderColor = 'var(--emerald-hairline)';
+        copyBtn.style.borderColor = 'var(--emerald-border)';
 
         setTimeout(() => {
           if (copyLabel) copyLabel.textContent = 'Copy';
@@ -71,7 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (terminalCopyLabel) terminalCopyLabel.textContent = 'Copied!';
         terminalCopyBtn.style.color = 'var(--emerald)';
-        terminalCopyBtn.style.borderColor = 'var(--emerald-hairline)';
+        terminalCopyBtn.style.borderColor = 'var(--emerald-border)';
 
         setTimeout(() => {
           if (terminalCopyLabel) terminalCopyLabel.textContent = 'Copy';
