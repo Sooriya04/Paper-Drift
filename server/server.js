@@ -44,6 +44,11 @@ function readRequestBody(req, maxBytes = 50 * 1024 * 1024) {
     });
     req.on('end', () => resolve(Buffer.concat(chunks)));
     req.on('error', reject);
+    req.on('close', () => {
+      if (!req.readableEnded) {
+        reject(new Error('Client aborted request'));
+      }
+    });
   });
 }
 
@@ -118,16 +123,21 @@ const server = http.createServer(async (req, res) => {
         });
         return res.end(JSON.stringify(result));
       } catch (err) {
+        if (res.writableEnded || res.destroyed) return;
         const isClientError = err.message.includes('No matching pages found') ||
                               err.message.includes('page range') ||
                               err.message.includes('Invalid') ||
+                              err.message.includes('aborted') ||
                               err.name === 'ValidationError';
         const status = err.message.includes('Payload too large') ? 413 : (isClientError ? 400 : 500);
-        res.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-        return res.end(JSON.stringify({ success: false, error: err.message }));
+        try {
+          res.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          res.end(JSON.stringify({ success: false, error: err.message }));
+        } catch {}
       } finally {
         activeRequests--;
       }
+      return;
     }
 
     res.writeHead(405, {
@@ -190,16 +200,21 @@ const server = http.createServer(async (req, res) => {
         });
         return res.end(JSON.stringify(chunks));
       } catch (err) {
+        if (res.writableEnded || res.destroyed) return;
         const isClientError = err.message.includes('No matching pages found') ||
                               err.message.includes('page range') ||
                               err.message.includes('Invalid') ||
+                              err.message.includes('aborted') ||
                               err.name === 'ValidationError';
         const status = err.message.includes('Payload too large') ? 413 : (isClientError ? 400 : 500);
-        res.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-        return res.end(JSON.stringify({ success: false, error: err.message }));
+        try {
+          res.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          res.end(JSON.stringify({ success: false, error: err.message }));
+        } catch {}
       } finally {
         activeRequests--;
       }
+      return;
     }
 
     res.writeHead(405, {
@@ -260,16 +275,21 @@ const server = http.createServer(async (req, res) => {
           savingsPercent
         }));
       } catch (err) {
+        if (res.writableEnded || res.destroyed) return;
         const isClientError = err.message.includes('No matching pages found') ||
                               err.message.includes('page range') ||
                               err.message.includes('Invalid') ||
+                              err.message.includes('aborted') ||
                               err.name === 'ValidationError';
         const status = err.message.includes('Payload too large') ? 413 : (isClientError ? 400 : 500);
-        res.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-        return res.end(JSON.stringify({ success: false, error: err.message }));
+        try {
+          res.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          res.end(JSON.stringify({ success: false, error: err.message }));
+        } catch {}
       } finally {
         activeRequests--;
       }
+      return;
     }
 
     res.writeHead(405, {

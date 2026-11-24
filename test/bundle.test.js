@@ -249,6 +249,34 @@ await runAsyncTest('API endpoints reject concurrent requests exceeding capacity 
   }
 });
 
+await runAsyncTest('readRequestBody releases activeRequests semaphore on client connection abort', async () => {
+  const { server, getActiveRequests } = await import('../server/server.js');
+  await new Promise(resolve => server.listen(0, resolve));
+  const port = server.address().port;
+
+  try {
+    const httpModule = await import('http');
+    const req = httpModule.request({
+      port,
+      path: '/api/chunk-rag',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Length': '10000'
+      }
+    });
+    req.on('error', () => {});
+
+    req.write('partial data...');
+    req.destroy();
+
+    await new Promise(resolve => setTimeout(resolve, 50));
+    assert.strictEqual(getActiveRequests(), 0, 'Active requests must not leak when client aborts');
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+  }
+});
+
 await runAsyncTest('Static file server enforces strict path boundary check and blocks traversal attempts with 403', async () => {
   const { server } = await import('../server/server.js');
 
