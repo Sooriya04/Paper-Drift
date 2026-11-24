@@ -105,6 +105,7 @@ fileInput.addEventListener('change', (e) => {
 function handleFileSelected(file) {
   currentFile = file;
   fileInfo.textContent = `Selected: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
+  dropZone.classList.add('has-file');
   convertBtn.disabled = false;
   downloadBundleBtn.disabled = true;
   downloadChunksBtn.disabled = true;
@@ -119,6 +120,15 @@ function handleFileSelected(file) {
   };
   reader.readAsArrayBuffer(file);
 }
+
+// Automatically reveal chunk tuning options when RAG chunks mode is selected
+outputTarget.addEventListener('change', () => {
+  const disclosure = document.querySelector('.advanced-disclosure');
+  if (outputTarget.value === 'chunks' && disclosure) {
+    disclosure.open = true;
+    if (maxChunkChars) maxChunkChars.focus();
+  }
+});
 
 // Tab navigation
 tabBtns.forEach(btn => {
