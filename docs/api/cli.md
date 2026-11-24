@@ -38,7 +38,8 @@ paper-drift <input.pdf> [output] [options]
 
 | Flag | Values | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `--format <fmt>` | `image` (or `png`), `markdown` (or `md`), `base64`, `html`, `text`, `json`, `extract-images` | `image` | Output conversion format. Auto-inferred if `output` extension matches (`.md`, `.html`, `.png`, `.json`, `.txt`). |
+| `--format <fmt>` | `image` (or `png`), `markdown` (or `md`), `chunks` (or `rag`), `bundle`, `base64`, `html`, `text`, `json`, `extract-images` | `image` | Output conversion format. Auto-inferred if `output` extension matches (`.md`, `.html`, `.png`, `.json`, `.txt`). |
+| `--max-chunk-chars <num>` | Positive integer (`> 50`) | `1500` | Target character size threshold for RAG semantic chunks (used with `--format chunks`). |
 | `-i`, `--extract-images [dir]` | Directory path *(optional)* | `null` | Extracts embedded raster images and cropped vector figures into disk files. Can be used standalone or combined with Markdown conversion. |
 | `--scale <number>` | Float number (e.g. `1.5`, `2.0`, `3.0`) | `2.0` | DPI resolution scale factor (`1.0` = 72 DPI, `2.0` = 144 DPI Retina, `3.0` = 216 DPI). |
 | `--pages <range>` | Page range string or number | `all` | Specifies target pages to convert (e.g. `1`, `1-5`, `2,4,6`). |
@@ -127,6 +128,46 @@ paper-drift paper.pdf -i
 
 # Extracts into specific target directory
 paper-drift paper.pdf -i figures/
+```
+
+### 6. Semantic RAG Chunks (`--format chunks` or `--format rag`)
+Slices documents into citation-grounded semantic chunks optimized for vector databases and LLM retrieval. Preserves tables and math formulas intact as atomic units without slicing them across chunk boundaries.
+
+```bash
+# Default chunk size (1500 chars)
+paper-drift paper.pdf chunks.json --format chunks
+
+# Custom chunk sizing
+paper-drift paper.pdf -o rag-output.json --format chunks --max-chunk-chars 2000 --pages 1-5
+```
+
+**JSON Output Schema:**
+```json
+[
+  {
+    "chunk_id": "chunk-1",
+    "section": "1 Introduction",
+    "page": 1,
+    "has_table": false,
+    "has_math": false,
+    "content": "The dominant sequence transduction models are based on complex recurrent or convolutional neural networks..."
+  },
+  {
+    "chunk_id": "chunk-2",
+    "section": "3.2 Scaled Dot-Product Attention",
+    "page": 4,
+    "has_table": false,
+    "has_math": true,
+    "content": "We compute the matrix of outputs as:\n\n$$\\text{Attention}(Q, K, V) = \\text{softmax}\\left(\\frac{QK^T}{\\sqrt{d_k}}\\right)V$$"
+  }
+]
+```
+
+### 7. Unified Document Bundle (`--format bundle`)
+Extracts all document layers in a single WebAssembly pass: publication Markdown, scientific metadata (title, authors, abstract, arXiv ID, DOI), reader page assets (Base64 PNG `dataUrl`), and RAG-ready section slices.
+
+```bash
+paper-drift paper.pdf bundle.json --format bundle
 ```
 
 ---

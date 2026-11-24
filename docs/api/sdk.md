@@ -9,6 +9,8 @@ High-performance WebAssembly PDF engine: high-res image rasterization, streaming
 - [Installation](#installation)
 - [Importing](#importing)
 - [Functions](#functions)
+  - [`chunkPdfForRag(input, options)`](#chunkpdfforraginput-options)
+  - [`parsePdfBundle(input, options)`](#parsepdfbundleinput-options)
   - [`convertPdfToMarkdown(input, options)`](#convertpdftomarkdowninput-options)
   - [`streamPdfPages(input, options)`](#streampdfpagesinput-options)
   - [`convertPdfToImages(input, options)`](#convertpdftoimagesinput-options)
@@ -35,6 +37,8 @@ npm install paper-drift
 ESM:
 ```javascript
 import {
+  chunkPdfForRag,
+  parsePdfBundle,
   convertPdfToMarkdown,
   streamPdfPages,
   convertPdfToImages,
@@ -59,6 +63,101 @@ import {
 ---
 
 ## Functions
+
+### `chunkPdfForRag(input, options)`
+
+Slices an uploaded PDF into semantic, citation-grounded RAG chunks using `paper-drift`'s spatial AST and vector table detector. Guarantees that mathematical formulas (`$$ ... $$`) and reconstructed tables are never sliced down the middle.
+
+```typescript
+function chunkPdfForRag(
+  input: string | Buffer | Uint8Array,
+  options?: {
+    max_chunk_chars?: number; // Target max characters per chunk (default: 1500)
+    maxChunkChars?: number;   // Alias for max_chunk_chars
+    pages?: string | number | number[]; // Page scope (e.g. '1-5', default: 'all')
+  }
+): Promise<Array<RagChunk>>
+```
+
+#### Return Value (`RagChunk`)
+
+```typescript
+interface RagChunk {
+  chunk_id: string;   // Unique sequential chunk ID (e.g. "chunk-1")
+  section: string;    // Nearest enclosing section heading (e.g. "3 Attention")
+  page: number;       // 1-based page number for exact citation grounding
+  has_table: boolean; // True if chunk contains a reconstructed table
+  has_math: boolean;  // True if chunk contains LaTeX mathematical expressions
+  content: string;    // Sliced markdown text content
+}
+```
+
+#### Example
+
+```javascript
+import { chunkPdfForRag } from 'paper-drift';
+
+const chunks = await chunkPdfForRag('attention.pdf', {
+  max_chunk_chars: 1500,
+  pages: '1-6'
+});
+
+console.log(`Generated ${chunks.length} chunks`);
+for (const chunk of chunks) {
+  console.log(`[${chunk.chunk_id}] ${chunk.section} (Page ${chunk.page})`);
+  console.log(`Math: ${chunk.has_math} | Table: ${chunk.has_table}`);
+  console.log(chunk.content);
+}
+```
+
+---
+
+### `parsePdfBundle(input, options)`
+
+Extracts all document intelligence layers in a single WebAssembly pass: publication Markdown, extracted scientific metadata, reader page assets (Base64 PNG `dataUrl`), and RAG-ready section slices.
+
+```typescript
+function parsePdfBundle(
+  input: string | Buffer | Uint8Array,
+  options?: {
+    pages?: string | number | number[]; // Page scope (default: 'all')
+    scale?: number;                     // Image scale (default: 1.5)
+    includeImages?: boolean;            // Set false to omit dataUrl/base64 strings (default: true)
+    onProgress?: (progress: { current: number; total: number; phase: string }) => void;
+  }
+): Promise<UnifiedBundle>
+```
+
+#### Return Value (`UnifiedBundle`)
+
+```typescript
+interface UnifiedBundle {
+  success: boolean;
+  metadata: {
+    title: string | null;
+    authors: string[];
+    abstract: string | null;
+    doi: string | null;
+    arxiv_id: string | null;
+  };
+  markdown: string;
+  pages: Array<{
+    pageNumber: number;
+    width: number;
+    height: number;
+    dataUrl?: string;
+    text: string;
+  }>;
+  sections: Array<{
+    title: string;
+    level: number;
+    page: number;
+    content: string;
+  }>;
+}
+```
+
+---
 
 ### `convertPdfToMarkdown(input, options)`
 

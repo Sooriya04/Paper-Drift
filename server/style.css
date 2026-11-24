@@ -673,6 +673,21 @@ body {
   color: #38bdf8;
 }
 
+.section-tag.tag-table {
+  background: rgba(52, 211, 153, 0.15);
+  color: #34d399;
+}
+
+.section-tag.tag-math {
+  background: rgba(244, 114, 182, 0.15);
+  color: #f472b6;
+}
+
+.section-tag.tag-page {
+  background: rgba(148, 163, 184, 0.15);
+  color: #94a3b8;
+}
+
 .section-item-body {
   padding: 0.9rem 1rem;
   font-size: 0.85rem;

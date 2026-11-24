@@ -18,12 +18,15 @@ const browseBtn = document.getElementById('browseBtn');
 const fileInfo = document.getElementById('fileInfo');
 const convertBtn = document.getElementById('convertBtn');
 const downloadBundleBtn = document.getElementById('downloadBundleBtn');
+const downloadChunksBtn = document.getElementById('downloadChunksBtn');
 const downloadMdBtn = document.getElementById('downloadMdBtn');
 const downloadHtmlBtn = document.getElementById('downloadHtmlBtn');
 const copyBtn = document.getElementById('copyBtn');
 const outputTarget = document.getElementById('outputTarget');
 const renderScale = document.getElementById('renderScale');
 const pageRange = document.getElementById('pageRange');
+const maxChunkChars = document.getElementById('maxChunkChars');
+const chunkSizeCard = document.getElementById('chunkSizeCard');
 const progressContainer = document.getElementById('progressContainer');
 const progressStatus = document.getElementById('progressStatus');
 const progressPercent = document.getElementById('progressPercent');
@@ -33,6 +36,11 @@ const previewContainer = document.getElementById('previewContainer');
 const markdownRendered = document.getElementById('markdownRendered');
 const mdCodeViewer = document.getElementById('mdCodeViewer');
 const bundleJsonViewer = document.getElementById('bundleJsonViewer');
+const chunksList = document.getElementById('chunksList');
+const chunksJsonViewer = document.getElementById('chunksJsonViewer');
+const chunksCount = document.getElementById('chunksCount');
+const chunksAvgChars = document.getElementById('chunksAvgChars');
+const chunksAtomicStats = document.getElementById('chunksAtomicStats');
 const metaTitle = document.getElementById('metaTitle');
 const metaAuthors = document.getElementById('metaAuthors');
 const metaArxiv = document.getElementById('metaArxiv');
@@ -49,6 +57,7 @@ const tabBtns = document.querySelectorAll('.tab-btn');
 let currentFile = null;
 let currentPdfData = null;
 let generatedBundle = null;
+let generatedChunks = null;
 let generatedMarkdown = '';
 let generatedHtml = '';
 let activeTab = 'bundle';
@@ -98,6 +107,7 @@ function handleFileSelected(file) {
   fileInfo.textContent = `Selected: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
   convertBtn.disabled = false;
   downloadBundleBtn.disabled = true;
+  downloadChunksBtn.disabled = true;
   downloadMdBtn.disabled = true;
   downloadHtmlBtn.disabled = true;
   previewSection.style.display = 'none';
@@ -121,6 +131,8 @@ tabBtns.forEach(btn => {
 
     if (activeTab === 'bundle') {
       document.getElementById('tabBundle').style.display = 'block';
+    } else if (activeTab === 'chunks') {
+      document.getElementById('tabChunks').style.display = 'block';
     } else if (activeTab === 'markdown') {
       document.getElementById('tabMarkdown').style.display = 'block';
     } else if (activeTab === 'md-code') {
@@ -227,6 +239,34 @@ convertBtn.addEventListener('click', async () => {
 
       downloadBundleBtn.disabled = false;
       downloadMdBtn.disabled = false;
+    } else if (targetFormat === 'chunks') {
+      setProgress(25, 'Slicing document into semantic RAG chunks...');
+      const chunkChars = parseInt(maxChunkChars.value, 10) || 1500;
+      const response = await fetch(`/api/chunk-rag?max_chunk_chars=${chunkChars}&pages=${encodeURIComponent(requestedPages)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/pdf' },
+        body: currentPdfData
+      });
+
+      if (!response.ok) {
+        throw new Error(`Server returned HTTP ${response.status}`);
+      }
+
+      const chunks = await response.json();
+      if (!Array.isArray(chunks)) {
+        throw new Error(chunks.error || 'Failed to extract RAG chunks');
+      }
+
+      generatedChunks = chunks;
+      renderChunksView(chunks);
+
+      // Activate Chunks Tab
+      tabBtns.forEach(b => b.classList.toggle('active', b.getAttribute('data-tab') === 'chunks'));
+      document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+      document.getElementById('tabChunks').style.display = 'block';
+      activeTab = 'chunks';
+
+      downloadChunksBtn.disabled = false;
     } else {
       // Direct Markdown or HTML mode
       setProgress(30, 'Converting document to Markdown...');
@@ -284,11 +324,60 @@ function renderMarkdownWithKaTeX(markdownText) {
   }
 }
 
+function renderChunksView(chunks) {
+  chunksList.innerHTML = '';
+  if (!Array.isArray(chunks) || chunks.length === 0) {
+    chunksList.innerHTML = '<div style="color: #94a3b8; font-size: 0.85rem;">No chunks generated.</div>';
+    chunksCount.textContent = '0 Chunks';
+    chunksAvgChars.textContent = '0 avg chars';
+    chunksAtomicStats.textContent = '0 atomic blocks';
+    chunksJsonViewer.textContent = '[]';
+    return;
+  }
+
+  const totalChars = chunks.reduce((acc, c) => acc + (c.content ? c.content.length : 0), 0);
+  const avgChars = Math.round(totalChars / chunks.length);
+  const tableChunks = chunks.filter(c => c.has_table).length;
+  const mathChunks = chunks.filter(c => c.has_math).length;
+
+  chunksCount.textContent = `${chunks.length} Chunks`;
+  chunksAvgChars.textContent = `${avgChars} avg chars`;
+  chunksAtomicStats.textContent = `${tableChunks} table chunks • ${mathChunks} math chunks`;
+
+  for (const chunk of chunks) {
+    const item = document.createElement('div');
+    item.className = 'section-item';
+    const charLen = chunk.content ? chunk.content.length : 0;
+    const estTokens = Math.max(1, Math.round(charLen / 4));
+    item.innerHTML = `
+      <div class="section-item-header">
+        <span class="section-item-title">${escapeHtml(chunk.chunk_id)}: ${escapeHtml(chunk.section || 'General')}</span>
+        <div class="section-item-meta">
+          <span class="section-tag tag-page">Page ${chunk.page}</span>
+          <span class="section-tag">${charLen} chars (~${estTokens} tokens)</span>
+          ${chunk.has_table ? '<span class="section-tag tag-table">Table</span>' : ''}
+          ${chunk.has_math ? '<span class="section-tag tag-math">Math</span>' : ''}
+        </div>
+      </div>
+      <div class="section-item-body">${escapeHtml(chunk.content || '(empty)')}</div>
+    `;
+    chunksList.appendChild(item);
+  }
+
+  chunksJsonViewer.textContent = JSON.stringify(chunks, null, 2);
+}
+
 // Download handlers
 downloadBundleBtn.addEventListener('click', () => {
   if (!generatedBundle) return;
   const baseName = currentFile ? currentFile.name.replace(/\.[^/.]+$/, '') : 'document';
   downloadFile(`${baseName}-bundle.json`, JSON.stringify(generatedBundle, null, 2), 'application/json');
+});
+
+downloadChunksBtn.addEventListener('click', () => {
+  if (!generatedChunks) return;
+  const baseName = currentFile ? currentFile.name.replace(/\.[^/.]+$/, '') : 'document';
+  downloadFile(`${baseName}-chunks.json`, JSON.stringify(generatedChunks, null, 2), 'application/json');
 });
 
 downloadMdBtn.addEventListener('click', () => {
@@ -320,6 +409,8 @@ copyBtn.addEventListener('click', () => {
   let content = '';
   if (activeTab === 'bundle' && generatedBundle) {
     content = JSON.stringify(generatedBundle, null, 2);
+  } else if (activeTab === 'chunks' && generatedChunks) {
+    content = JSON.stringify(generatedChunks, null, 2);
   } else if (activeTab === 'markdown' || activeTab === 'md-code') {
     content = generatedMarkdown;
   } else if (activeTab === 'rendered') {

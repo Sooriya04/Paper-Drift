@@ -17,7 +17,7 @@
     <div class="header-inner">
       <div class="brand-group">
         <a href="#" class="brand-title">paper-drift</a>
-        <span class="meta-tag">v0.1.3</span>
+        <span class="meta-tag">v0.1.5</span>
       </div>
 
       <nav class="nav-links">
@@ -51,17 +51,17 @@
       </div>
 
       <h1 class="hero-header">
-        High-Resolution PDF to Image &amp; Base64 Engine
+        High-Performance WebAssembly Document Intelligence &amp; RAG Engine
       </h1>
 
       <p class="hero-summary">
-        A zero-dependency WebAssembly rasterizer that compiles academic and enterprise PDFs directly into high-resolution <strong>PNG images</strong> and <strong>Base64 data URIs</strong>. No Puppeteer, no Chromium, no Python, and no external servers.
+        A zero-dependency WebAssembly engine that compiles academic and enterprise PDFs directly into <strong>publication Markdown</strong>, <strong>semantic RAG chunks</strong>, <strong>LaTeX math formulas</strong>, and high-res <strong>images &amp; Base64</strong>. No Puppeteer, no Chromium, no Python, and no external servers.
       </p>
 
       <!-- Precision Command Bar -->
       <div class="terminal-bar">
         <span class="prompt-char">$</span>
-        <code class="terminal-text" id="cliCommand">npx paper-drift paper.pdf --format image</code>
+        <code class="terminal-text" id="cliCommand">npx paper-drift paper.pdf --format chunks -o chunks.json</code>
         <button class="btn-copy-bar" id="copyBtn" title="Copy command">
           <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="9" y="9" width="13" height="13" rx="1.5" ry="1.5"></rect>
@@ -72,9 +72,9 @@
       </div>
 
       <div class="hero-meta-row">
-        <span class="meta-item"><span class="bullet">&bull;</span> Renders pages in &lt; 250ms</span>
-        <span class="meta-item"><span class="bullet">&bull;</span> Direct Base64 data URI output</span>
-        <span class="meta-item"><span class="bullet">&bull;</span> 100% private local execution</span>
+        <span class="meta-item"><span class="bullet">&bull;</span> Atomic RAG chunking with math &amp; tables</span>
+        <span class="meta-item"><span class="bullet">&bull;</span> GFM Markdown with LaTeX math &amp; vector tables</span>
+        <span class="meta-item"><span class="bullet">&bull;</span> 100% private local WebAssembly execution</span>
       </div>
     </section>
 
@@ -194,8 +194,9 @@
         <div class="terminal-header">
           <div class="tab-list">
             <button class="code-tab active" data-tab="tab-cli" data-lang="bash">CLI Quickstart</button>
-            <button class="code-tab" data-tab="tab-node" data-lang="javascript">Node.js API</button>
-            <button class="code-tab" data-tab="tab-base64" data-lang="javascript">Base64 Usage</button>
+            <button class="code-tab" data-tab="tab-rag" data-lang="javascript">RAG Chunker</button>
+            <button class="code-tab" data-tab="tab-node" data-lang="javascript">Markdown SDK</button>
+            <button class="code-tab" data-tab="tab-base64" data-lang="javascript">Base64 &amp; Images</button>
           </div>
 
           <div class="terminal-actions">
@@ -212,20 +213,39 @@
 
         <!-- CLI Tab -->
         <div class="tab-pane active" id="tab-cli">
-          <pre><code><span class="syntax-muted"># 1. Convert all pages to high-res PNG images</span>
+          <pre><code><span class="syntax-muted"># 1. Semantic RAG chunks (preserves tables &amp; math formulas)</span>
+npx paper-drift paper.pdf --format chunks --max-chunk-chars 1500 -o chunks.json
+
+<span class="syntax-muted"># 2. Publication Markdown with vector tables &amp; LaTeX math</span>
+npx paper-drift paper.pdf paper.md
+
+<span class="syntax-muted"># 3. Convert all pages to high-res PNG images</span>
 npx paper-drift paper.pdf --format image
 
-<span class="syntax-muted"># 2. Extract page 1 as a PNG image</span>
+<span class="syntax-muted"># 4. Extract page 1 as a PNG image</span>
 npx paper-drift paper.pdf output.png --pages 1
 
-<span class="syntax-muted"># 3. Export all pages into an images/ folder</span>
-npx paper-drift paper.pdf images/ --pages 1-3
+<span class="syntax-muted"># 5. Export Base64 JSON containing data URLs</span>
+npx paper-drift paper.pdf output.json --format base64</code></pre>
+        </div>
 
-<span class="syntax-muted"># 4. Export Base64 JSON containing data URLs</span>
-npx paper-drift paper.pdf output.json --format base64
+        <!-- RAG Tab -->
+        <div class="tab-pane" id="tab-rag">
+          <pre><code><span class="syntax-keyword">import</span> { chunkPdfForRag } <span class="syntax-keyword">from</span> <span class="syntax-string">'paper-drift'</span>;
 
-<span class="syntax-muted"># 5. Render transparent PNG (no white background)</span>
-npx paper-drift diagram.pdf diagram.png --no-bg</code></pre>
+<span class="syntax-keyword">const</span> chunks = <span class="syntax-keyword">await</span> chunkPdfForRag(<span class="syntax-string">'research-paper.pdf'</span>, {
+  max_chunk_chars: 1500,  <span class="syntax-muted">// Target character limit per chunk</span>
+  pages: <span class="syntax-string">'1-10'</span>           <span class="syntax-muted">// Page scope</span>
+});
+
+console.log(`Generated ${chunks.length} atomic semantic chunks`);
+
+<span class="syntax-keyword">for</span> (<span class="syntax-keyword">const</span> chunk <span class="syntax-keyword">of</span> chunks) {
+  <span class="syntax-muted">// Grounded page citation &amp; atomic math/table integrity</span>
+  console.log(`[${chunk.chunk_id}] ${chunk.section} (Page ${chunk.page})`);
+  console.log(`Has Table: ${chunk.has_table} | Has Math: ${chunk.has_math}`);
+  console.log(chunk.content);
+}</code></pre>
         </div>
 
         <!-- Node Tab -->
@@ -277,7 +297,7 @@ console.log(pageOne.base64);
       <div class="panel-heading">
         <span class="mono-label">04 // API REFERENCE</span>
         <h2>Options &amp; Parameters</h2>
-        <p class="panel-sub">Programmatic options supported by <code>convertPdfToImages(input, options)</code>:</p>
+        <p class="panel-sub">Key parameters supported across core SDK conversion functions:</p>
       </div>
 
       <div class="data-table-frame">
@@ -285,36 +305,36 @@ console.log(pageOne.base64);
           <table class="rendered-table">
             <thead>
               <tr>
-                <th>Option</th>
-                <th>Type</th>
-                <th>Default</th>
+                <th>Function</th>
+                <th>Primary Options</th>
+                <th>Output</th>
                 <th>Description</th>
               </tr>
             </thead>
             <tbody>
               <tr>
-                <td><code>scale</code></td>
-                <td><code>number</code></td>
-                <td><code>2.0</code></td>
-                <td>Resolution scale factor (2.0 = 144 DPI, 3.0 = 216 DPI)</td>
+                <td><code>chunkPdfForRag(input, opts)</code></td>
+                <td><code>max_chunk_chars, pages</code></td>
+                <td><code>Promise&lt;RagChunk[]&gt;</code></td>
+                <td>Native semantic chunking with atomic math ($...$) and GFM tables preserved</td>
               </tr>
               <tr>
-                <td><code>pages</code></td>
-                <td><code>string | number | number[]</code></td>
-                <td><code>"all"</code></td>
-                <td>Page range specification (e.g. <code>"1-5"</code>, <code>"2,4"</code>, <code>1</code>)</td>
+                <td><code>convertPdfToMarkdown(input, opts)</code></td>
+                <td><code>pages, tables, extractImages</code></td>
+                <td><code>Promise&lt;MarkdownResult&gt;</code></td>
+                <td>Publication GFM Markdown with LaTeX math, Booktabs, and section anchors</td>
               </tr>
               <tr>
-                <td><code>transparent</code></td>
-                <td><code>boolean</code></td>
-                <td><code>false</code></td>
-                <td>Render with transparent background instead of opaque white</td>
+                <td><code>parsePdfBundle(input, opts)</code></td>
+                <td><code>pages, scale, includeImages</code></td>
+                <td><code>Promise&lt;UnifiedBundle&gt;</code></td>
+                <td>Consolidated JSON: metadata, markdown, reader images, and RAG sections</td>
               </tr>
               <tr>
-                <td><code>onProgress</code></td>
-                <td><code>function</code></td>
-                <td><code>undefined</code></td>
-                <td>Callback invoked as each page is rasterized</td>
+                <td><code>convertPdfToImages(input, opts)</code></td>
+                <td><code>scale, pages, transparent</code></td>
+                <td><code>Promise&lt;ImagesResult&gt;</code></td>
+                <td>High-resolution PNG buffers and Base64 data URIs</td>
               </tr>
             </tbody>
           </table>

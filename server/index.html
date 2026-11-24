@@ -55,11 +55,18 @@
           <label for="outputTarget" class="option-title">Processing Pipeline</label>
           <select id="outputTarget" class="input-select">
             <option value="bundle" selected>Unified Bundle (Metadata + Markdown + RAG Sections + Images)</option>
+            <option value="chunks">Semantic RAG Chunks (JSON)</option>
             <option value="markdown">Publication Markdown + LaTeX Tables</option>
             <option value="dual">Pixel-Perfect HTML (Dual Layer)</option>
             <option value="both">All Formats Preview</option>
           </select>
           <span class="option-hint">The Unified Bundle extracts all document layers in a single WASM pass.</span>
+        </div>
+
+        <div class="option-card" id="chunkSizeCard">
+          <label for="maxChunkChars" class="option-title">Max Chunk Size (chars)</label>
+          <input type="number" id="maxChunkChars" class="input-text" value="1500" min="100" max="10000" step="100">
+          <span class="option-hint">Target chunk character threshold. Tables and math remain atomic.</span>
         </div>
 
         <div class="option-card">
@@ -88,6 +95,10 @@
         <button id="downloadBundleBtn" class="btn-secondary btn-accent" disabled>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
           <span>Download Bundle (.json)</span>
+        </button>
+        <button id="downloadChunksBtn" class="btn-secondary btn-accent" disabled>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          <span>Download Chunks (.json)</span>
         </button>
         <button id="downloadMdBtn" class="btn-secondary" disabled>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
@@ -139,6 +150,7 @@
         <div class="preview-header">
           <div class="tabs">
             <button class="tab-btn active" data-tab="bundle">Unified Bundle (JSON &amp; RAG)</button>
+            <button class="tab-btn" data-tab="chunks">RAG Chunks</button>
             <button class="tab-btn" data-tab="markdown">Rendered Markdown &amp; Math</button>
             <button class="tab-btn" data-tab="md-code">Markdown Source</button>
             <button class="tab-btn" data-tab="rendered">Rendered HTML</button>
@@ -170,6 +182,25 @@
             <div class="json-code-container">
               <h4 class="sections-heading">Bundle JSON Payload</h4>
               <pre class="code-viewer"><code id="bundleJsonViewer"></code></pre>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab: Semantic RAG Chunks -->
+        <div class="tab-content" id="tabChunks" style="display: none;">
+          <div class="bundle-preview-container">
+            <div class="sections-accordion-container">
+              <div class="chunks-summary-bar" style="display: flex; gap: 1rem; margin-bottom: 1rem; color: #94a3b8; font-size: 0.85rem; flex-wrap: wrap;">
+                <span id="chunksCount">0 Chunks</span> &bull;
+                <span id="chunksAvgChars">0 avg chars</span> &bull;
+                <span id="chunksAtomicStats">0 atomic blocks</span>
+              </div>
+              <div class="sections-list" id="chunksList"></div>
+            </div>
+
+            <div class="json-code-container">
+              <h4 class="sections-heading">RAG Chunks JSON Payload</h4>
+              <pre class="code-viewer"><code id="chunksJsonViewer"></code></pre>
             </div>
           </div>
         </div>

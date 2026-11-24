@@ -17,6 +17,8 @@ Most PDF rendering pipelines in JavaScript rely on:
 2. **Python microservices (`pdf2image`, `poppler-utils`)**: Needs system-level C++ binaries, external package managers, and Docker containers.
 
 **paper-drift provides a native WebAssembly alternative:**
+* **Native Semantic RAG Chunking**: Slices documents into citation-grounded semantic chunks (`chunkPdfForRag`, CLI `--format chunks`, `POST /api/chunk-rag`). Guaranteed never to break mathematical formulas or vector tables across chunk boundaries.
+* **Unified Document Bundle**: Extracts publication Markdown, scientific metadata (title, authors, abstract, arXiv/DOI), reader page assets, and RAG section slices in a single WASM pass.
 * **Zero System Dependencies**: Powered by compiled MuPDF WebAssembly. Runs natively in any modern Node.js, Bun, or serverless runtime.
 * **Direct Base64 & Data URL Generation**: Renders lossless page images directly into `data:image/png;base64,...` data URIs and raw Base64 strings.
 * **Lossless High-DPI Scaling**: Configurable scale factor (`scale=2.0` for 144 DPI Retina, `scale=3.0` for 216 DPI ultra-crisp renders).
@@ -68,6 +70,12 @@ paper-drift document.pdf document.html --format html
 # Convert to publication-grade GFM Markdown with vector tables
 paper-drift research-paper.pdf paper.md --format markdown
 
+# Slice into semantic RAG chunks (intact math & tables)
+paper-drift research-paper.pdf chunks.json --format chunks --max-chunk-chars 1500
+
+# Export unified bundle (metadata, markdown, reader images, sections)
+paper-drift research-paper.pdf bundle.json --format bundle
+
 # Convert to Markdown with extracted images & vector figures embedded
 paper-drift research-paper.pdf paper.md -i
 
@@ -81,7 +89,8 @@ paper-drift research-paper.pdf -i assets/
 | :--- | :--- | :--- | :--- |
 | `<input.pdf>` | `string` | *(required)* | Path to the source PDF file |
 | `[output]` | `string` | `<name>.<ext>` | Destination file or directory path |
-| `--format <fmt>` | `string` | `image` | Output format: `image` (`png`) \| `markdown` (`md`) \| `base64` \| `html` \| `text` \| `json` \| `extract-images` |
+| `--format <fmt>` | `string` | `image` | Output format: `image` (`png`) \| `markdown` (`md`) \| `chunks` (`rag`) \| `bundle` \| `base64` \| `html` \| `text` \| `json` \| `extract-images` |
+| `--max-chunk-chars <num>` | `number` | `1500` | Target character size threshold for RAG semantic chunks |
 | `-i, --extract-images [dir]` | `string` | `none` | Extract embedded images & vector figures (optional directory) |
 | `--pages <range>` | `string` | `"all"` | Target page range (e.g. `1-5`, `2,4,6`, `1`) |
 | `--scale <num>` | `number` | `2.0` | DPI resolution scale factor (2.0 = 144 DPI, 3.0 = 216 DPI) |
@@ -189,6 +198,40 @@ console.log(`Extracted ${result.assets.length} assets (${result.totalImages} ras
 for (const asset of result.assets) {
   console.log(`[P.${asset.pageNumber}] [${asset.type}] ${asset.filename} (${asset.sizeKb} KB)`);
 }
+```
+
+### Native Semantic Chunking for RAG
+Slice academic papers and complex PDFs into citation-grounded semantic chunks optimized for vector databases. Guarantees that mathematical formulas (`$$...$$`) and reconstructed tables are never sliced across chunk boundaries:
+
+```javascript
+import { chunkPdfForRag } from 'paper-drift';
+
+const chunks = await chunkPdfForRag('attention-is-all-you-need.pdf', {
+  max_chunk_chars: 1500, // Target character limit per chunk
+  pages: '1-6'
+});
+
+console.log(`Generated ${chunks.length} chunks`);
+for (const chunk of chunks) {
+  console.log(`[${chunk.chunk_id}] ${chunk.section} (Page ${chunk.page})`);
+  console.log(`Math: ${chunk.has_math} | Table: ${chunk.has_table}`);
+  console.log(chunk.content);
+}
+```
+
+### Unified Document Bundle
+Extract publication Markdown, scientific metadata (title, authors, abstract, arXiv/DOI), reader page assets, and RAG-ready section slices in a single WebAssembly pass:
+
+```javascript
+import { parsePdfBundle } from 'paper-drift';
+
+const bundle = await parsePdfBundle('paper.pdf', {
+  pages: 'all',
+  includeImages: false // Omit image dataUrls for maximum speed
+});
+
+console.log(bundle.metadata.title);
+console.log(bundle.sections);
 ```
 
 ### Feeding Base64 to AI Vision Models
