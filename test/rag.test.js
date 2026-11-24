@@ -13,6 +13,7 @@ import {
   isValidChunk
 } from '../src/rag/constants.js';
 import { extractPageAtomicBlocks } from '../src/rag/blocks.js';
+import { packAtomicBlocksIntoChunks } from '../src/rag/packer.js';
 
 console.log('\nRunning RAG Semantic Chunking Subsystem Test Suite');
 
@@ -132,6 +133,91 @@ console.log('\nRunning RAG Semantic Chunking Subsystem Test Suite');
   assert.strictEqual(blocks[3].has_math, false);
 
   console.log('  ✔ extractPageAtomicBlocks accurately structures headings, prose, math, and tables');
+}
+
+// Test 5: packAtomicBlocksIntoChunks packs blocks without slicing math or tables
+{
+  const blocks = [
+    {
+      type: BLOCK_TYPES.HEADING,
+      section: '1 Introduction',
+      content: '1 Introduction',
+      level: 1,
+      page: 1,
+      isAtomic: true
+    },
+    {
+      type: BLOCK_TYPES.PARAGRAPH,
+      content: 'Recurrent neural networks have been firmly established as state of the art approaches in sequence modeling.',
+      page: 1,
+      isAtomic: false,
+      has_math: false,
+      has_table: false
+    },
+    {
+      type: BLOCK_TYPES.HEADING,
+      section: '3.2 Multi-Head Attention',
+      content: '3.2 Multi-Head Attention',
+      level: 2,
+      page: 4,
+      isAtomic: true
+    },
+    {
+      type: BLOCK_TYPES.PARAGRAPH,
+      content: 'Multi-head attention allows the model to jointly attend to information from different representation subspaces at different positions.',
+      page: 4,
+      isAtomic: false,
+      has_math: false,
+      has_table: false
+    },
+    {
+      type: BLOCK_TYPES.MATH,
+      content: '$$\\text{MultiHead}(Q, K, V) = \\text{Concat}(\\text{head}_1, \\dots, \\text{head}_h)W^O$$',
+      page: 4,
+      isAtomic: true,
+      has_math: true,
+      has_table: false
+    },
+    {
+      type: BLOCK_TYPES.TABLE,
+      content: '| Model | BLEU |\n|---|---|\n| Transformer (base) | 27.3 |\n| Transformer (big) | 28.4 |',
+      page: 5,
+      isAtomic: true,
+      has_math: false,
+      has_table: true
+    }
+  ];
+
+  // Chunk with default max threshold
+  const chunks = packAtomicBlocksIntoChunks(blocks, { max_chunk_chars: 500, min_chunk_chars: 50 });
+  assert.ok(chunks.length >= 2);
+
+  // Validate every chunk with our pure JS schema validator
+  for (const chunk of chunks) {
+    assert.strictEqual(isValidChunk(chunk), true, `Chunk ${chunk.chunk_id} should be valid schema`);
+  }
+
+  // Section 1 chunk
+  const chunk1 = chunks.find(c => c.section === '1 Introduction');
+  assert.ok(chunk1);
+  assert.strictEqual(chunk1.page, 1);
+  assert.strictEqual(chunk1.has_math, false);
+  assert.strictEqual(chunk1.has_table, false);
+
+  // Multi-head attention chunk with formula
+  const mathChunk = chunks.find(c => c.has_math === true);
+  assert.ok(mathChunk);
+  assert.strictEqual(mathChunk.section, '3.2 Multi-Head Attention');
+  assert.strictEqual(mathChunk.page, 4);
+  assert.ok(mathChunk.content.includes('\\text{MultiHead}'));
+
+  // Table chunk
+  const tableChunk = chunks.find(c => c.has_table === true);
+  assert.ok(tableChunk);
+  assert.strictEqual(tableChunk.page, 5);
+  assert.ok(tableChunk.content.includes('| Transformer (big) | 28.4 |'));
+
+  console.log('  ✔ packAtomicBlocksIntoChunks packs blocks into valid chunks preserving math & tables');
 }
 
 console.log('\n\x1b[32m✔ All Phase 1 RAG tests passed successfully!\x1b[0m\n');
