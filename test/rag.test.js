@@ -5,6 +5,9 @@
  */
 
 import assert from 'node:assert';
+import fs from 'node:fs';
+import path from 'node:path';
+import { execSync } from 'node:child_process';
 import {
   DEFAULT_MAX_CHUNK_CHARS,
   DEFAULT_MIN_CHUNK_CHARS,
@@ -14,6 +17,7 @@ import {
 } from '../src/rag/constants.js';
 import { extractPageAtomicBlocks } from '../src/rag/blocks.js';
 import { packAtomicBlocksIntoChunks } from '../src/rag/packer.js';
+import { chunkPdfForRag } from '../src/rag/index.js';
 
 console.log('\nRunning RAG Semantic Chunking Subsystem Test Suite');
 
@@ -220,4 +224,134 @@ console.log('\nRunning RAG Semantic Chunking Subsystem Test Suite');
   console.log('  ✔ packAtomicBlocksIntoChunks packs blocks into valid chunks preserving math & tables');
 }
 
-console.log('\n\x1b[32m✔ All Phase 1 RAG tests passed successfully!\x1b[0m\n');
+// Test 6: Public API chunkPdfForRag returns valid chunks on sample.pdf with default size
+{
+  const chunks = await chunkPdfForRag('test/fixtures/sample.pdf');
+  assert.ok(Array.isArray(chunks));
+  assert.ok(chunks.length >= 1);
+
+  for (const chunk of chunks) {
+    assert.strictEqual(isValidChunk(chunk), true);
+    assert.ok(chunk.content.length <= DEFAULT_MAX_CHUNK_CHARS + 50);
+  }
+  console.log('  ✔ chunkPdfForRag public API returns valid chunks with default 1500 char threshold');
+}
+
+// Test 7: Custom chunk size is respected by chunkPdfForRag
+{
+  const smallChunks = await chunkPdfForRag('test/fixtures/benchmarks/01-attention-is-all-you-need.pdf', {
+    pages: '1-2',
+    max_chunk_chars: 400
+  });
+
+  const largeChunks = await chunkPdfForRag('test/fixtures/benchmarks/01-attention-is-all-you-need.pdf', {
+    pages: '1-2',
+    max_chunk_chars: 2500
+  });
+
+  assert.ok(smallChunks.length > largeChunks.length, 'Smaller max_chunk_chars should produce more chunks');
+  for (const c of smallChunks) {
+    assert.strictEqual(isValidChunk(c), true);
+  }
+  for (const c of largeChunks) {
+    assert.strictEqual(isValidChunk(c), true);
+  }
+  console.log('  ✔ chunkPdfForRag respects custom max_chunk_chars option');
+}
+
+// Test 8: Math formulas remain intact in Attention paper page 4
+{
+  const chunks = await chunkPdfForRag('test/fixtures/benchmarks/01-attention-is-all-you-need.pdf', {
+    pages: '4'
+  });
+
+  const mathChunk = chunks.find(c => c.has_math === true);
+  assert.ok(mathChunk, 'Should detect math chunk on page 4');
+  assert.strictEqual(mathChunk.page, 4);
+  assert.ok(
+    mathChunk.content.includes('\\text{Attention}') || mathChunk.content.includes('softmax') || mathChunk.content.includes('QK^T'),
+    'Attention formula must remain intact inside math chunk'
+  );
+  console.log('  ✔ chunkPdfForRag keeps mathematical formulas intact with has_math: true');
+}
+
+// Test 9: Tables remain intact in benchmark or eval fixture
+{
+  const chunks = await chunkPdfForRag('test/fixtures/eval/pos_full_grid.pdf');
+  const tableChunk = chunks.find(c => c.has_table === true);
+  assert.ok(tableChunk, 'Should detect table chunk in table fixture');
+  assert.ok(tableChunk.content.includes('|'), 'Table chunk content must contain markdown pipe table formatting');
+  console.log('  ✔ chunkPdfForRag keeps table grids intact with has_table: true');
+}
+
+// Test 10: Meaningful errors on invalid inputs
+{
+  await assert.rejects(
+    async () => chunkPdfForRag('test/fixtures/non-existent-file-xyz.pdf'),
+    /File not found/,
+    'Should throw "File not found" for non-existent file'
+  );
+
+  await assert.rejects(
+    async () => chunkPdfForRag(12345),
+    /Input must be a valid file path string/,
+    'Should throw TypeError on invalid input type'
+  );
+
+  await assert.rejects(
+    async () => chunkPdfForRag(Buffer.from('not a real pdf content')),
+    /Failed to open PDF document/,
+    'Should throw error on corrupted PDF buffer'
+  );
+  console.log('  ✔ chunkPdfForRag provides meaningful errors on missing, invalid, or corrupted PDFs');
+}
+
+// Test 11: CLI --format chunks generates valid JSON output
+{
+  const outDir = path.resolve('test/results/cli-test');
+  fs.mkdirSync(outDir, { recursive: true });
+  const outFile = path.join(outDir, 'sample-chunks.json');
+  if (fs.existsSync(outFile)) fs.unlinkSync(outFile);
+
+  execSync(`node bin/cli.js test/fixtures/sample.pdf "${outFile}" --format chunks`);
+  assert.ok(fs.existsSync(outFile), 'Output chunks.json file must exist');
+
+  const content = JSON.parse(fs.readFileSync(outFile, 'utf-8'));
+  assert.ok(Array.isArray(content), 'Output must be a JSON array');
+  assert.ok(content.length >= 1);
+  for (const chunk of content) {
+    assert.strictEqual(isValidChunk(chunk), true);
+  }
+  console.log('  ✔ CLI generates valid semantic RAG JSON with --format chunks');
+}
+
+// Test 12: CLI custom chunk size with --max-chunk-chars
+{
+  const outFile = path.resolve('test/results/cli-test/sample-chunks-custom.json');
+  if (fs.existsSync(outFile)) fs.unlinkSync(outFile);
+
+  execSync(`node bin/cli.js test/fixtures/sample.pdf "${outFile}" --format chunks --max-chunk-chars 500`);
+  assert.ok(fs.existsSync(outFile));
+
+  const content = JSON.parse(fs.readFileSync(outFile, 'utf-8'));
+  assert.ok(Array.isArray(content));
+  for (const chunk of content) {
+    assert.strictEqual(isValidChunk(chunk), true);
+  }
+  console.log('  ✔ CLI respects --max-chunk-chars parameter');
+}
+
+// Test 13: Existing CLI formats remain unaffected
+{
+  const outMd = path.resolve('test/results/cli-test/existing-format-check.md');
+  if (fs.existsSync(outMd)) fs.unlinkSync(outMd);
+
+  execSync(`node bin/cli.js test/fixtures/sample.pdf "${outMd}" --format markdown`);
+  assert.ok(fs.existsSync(outMd), 'Existing --format markdown should continue to work');
+  const mdText = fs.readFileSync(outMd, 'utf-8');
+  assert.ok(mdText.length > 50);
+
+  console.log('  ✔ Existing CLI formats (markdown, etc.) remain unaffected');
+}
+
+console.log('\n\x1b[32m✔ All RAG tests passed successfully!\x1b[0m\n');

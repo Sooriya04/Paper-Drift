@@ -10,7 +10,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { convertPdfToImages, streamPdfPages, convertPdfToHtml, convertPdfToMarkdown, extractPdfImages, convertPdfToDocumentIR, exportToJson, parsePdfBundle } from '../src/index.js';
+import { convertPdfToImages, streamPdfPages, convertPdfToHtml, convertPdfToMarkdown, extractPdfImages, convertPdfToDocumentIR, exportToJson, parsePdfBundle, chunkPdfForRag } from '../src/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -33,9 +33,10 @@ High-performance, zero-Chromium WebAssembly PDF to Image, Markdown (GFM), HTML, 
   output           (Optional) Destination file or directory path
 
 \x1b[1mOPTIONS:\x1b[0m
-  --format <fmt>       Output format: image (png) | base64 | html | markdown (md) | text | json | ir | bundle (default: image)
+  --format <fmt>       Output format: image (png) | base64 | html | markdown (md) | text | json | ir | bundle | chunks (default: image)
   -i, --extract-images [dir] Extract embedded raster images & vector figures (optional directory)
   --scale <num>        DPI resolution scale factor (default: 2.0 = Retina 144 DPI, 3.0 = 216 DPI)
+  --max-chunk-chars <num> Maximum character limit for semantic RAG chunks (default: 1500)
   --pages <range>      Target pages to convert (e.g. "1-5", "2,4,6", 1, default: "all")
   --no-bg              Text-only mode for HTML format (disables background raster rendering)
   -v, --version        Show version number
@@ -48,6 +49,7 @@ High-performance, zero-Chromium WebAssembly PDF to Image, Markdown (GFM), HTML, 
   $ paper-drift paper.pdf --format base64                # Export pages as Base64 JSON
   $ paper-drift paper.pdf --format json                  # Export Structured Document IR JSON
   $ paper-drift paper.pdf bundle.json --format bundle    # Export Unified All-in-One Bundle JSON
+  $ paper-drift paper.pdf chunks.json --format chunks    # Export Semantic RAG Chunks JSON
   $ paper-drift paper.pdf output.html --format html      # Export standalone HTML viewer
   $ paper-drift paper.pdf output.md --format markdown    # Convert to publication-grade GFM Markdown
   $ paper-drift paper.pdf output.md -i                   # Markdown with embedded images & figures
@@ -96,6 +98,7 @@ async function run() {
   let withBg = true;
   let pageRange = 'all';
   let extractImages = null;
+  let maxChunkChars = null;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -118,6 +121,18 @@ async function run() {
         process.exit(1);
       }
       scale = parsedScale;
+    } else if (arg === '--max-chunk-chars') {
+      const val = args[++i];
+      if (!val || val.startsWith('-')) {
+        console.error('\x1b[31mError: Missing argument for --max-chunk-chars\x1b[0m');
+        process.exit(1);
+      }
+      const parsed = parseInt(val, 10);
+      if (isNaN(parsed) || parsed <= 50) {
+        console.error(`\x1b[31mError: Invalid --max-chunk-chars "${val}". Must be a number greater than 50.\x1b[0m`);
+        process.exit(1);
+      }
+      maxChunkChars = parsed;
     } else if (arg === '--no-bg') {
       withBg = false;
     } else if (arg === '--pages') {
@@ -178,9 +193,9 @@ async function run() {
     process.exit(1);
   }
 
-  const validFormats = ['image', 'png', 'img', 'base64', 'html', 'text', 'json', 'ir', 'markdown', 'md', 'extract-images', 'images', 'assets', 'bundle', 'full'];
+  const validFormats = ['image', 'png', 'img', 'base64', 'html', 'text', 'json', 'ir', 'markdown', 'md', 'extract-images', 'images', 'assets', 'bundle', 'full', 'chunks', 'rag'];
   if (!validFormats.includes(format)) {
-    console.error(`\x1b[31mError: Unsupported format "${format}". Supported: image (png) | base64 | html | markdown (md) | text | json | ir | bundle | extract-images\x1b[0m`);
+    console.error(`\x1b[31mError: Unsupported format "${format}". Supported: image (png) | base64 | html | markdown (md) | text | json | ir | bundle | chunks | extract-images\x1b[0m`);
     process.exit(1);
   }
 
@@ -189,6 +204,7 @@ async function run() {
   const isJsonMode = format === 'json' || format === 'ir';
   const isMarkdownMode = format === 'markdown' || format === 'md';
   const isBundleMode = format === 'bundle' || format === 'full';
+  const isChunksMode = format === 'chunks' || format === 'rag';
   const isExtractImagesMode = format === 'extract-images' || format === 'images' || format === 'assets';
 
   console.log(`\x1b[36mpaper-drift\x1b[0m v${packageJson.version}`);
@@ -350,6 +366,31 @@ async function run() {
       console.log(`  - Pages:    ${result.pages.length} page(s) with dataUrls`);
       console.log(`  - Sections: ${result.sections.length} RAG chunk(s)`);
       console.log(`  - Output:   ${path.relative(process.cwd(), destFile) || destFile} (${kb} KB)`);
+      console.log(`File path: file://${destFile}\n`);
+    } else if (isChunksMode) {
+      const startTime = Date.now();
+      const chunks = await chunkPdfForRag(resolvedInput, {
+        pages: pageRange,
+        max_chunk_chars: maxChunkChars || undefined
+      });
+
+      let destFile = outputFile ? path.resolve(process.cwd(), outputFile) : path.join(process.cwd(), `${parsedInput.name}-chunks.json`);
+      if (!destFile.endsWith('.json')) {
+        destFile += '.json';
+      }
+
+      const destDir = path.dirname(destFile);
+      if (!fs.existsSync(destDir)) {
+        fs.mkdirSync(destDir, { recursive: true });
+      }
+
+      fs.writeFileSync(destFile, JSON.stringify(chunks, null, 2), 'utf-8');
+      const stats = fs.statSync(destFile);
+      const kb = (stats.size / 1024).toFixed(1);
+      const durationMs = Date.now() - startTime;
+
+      console.log(`\n\x1b[32m[OK] Semantic RAG Chunks (${chunks.length} chunks) generated in ${durationMs}ms\x1b[0m`);
+      console.log(`Output: ${destFile} (${kb} KB)`);
       console.log(`File path: file://${destFile}\n`);
     } else if (isMarkdownMode) {
       let destFile = outputFile ? path.resolve(process.cwd(), outputFile) : path.join(process.cwd(), `${parsedInput.name}.md`);

@@ -42,8 +42,10 @@ import {
   reconstructPageMath
 } from './math/index.js';
 import { parsePdfBundle } from './bundle/index.js';
+import { chunkPdfForRag } from './rag/index.js';
 
 export {
+  chunkPdfForRag,
   parsePdfBundle,
   convertPdfToImages,
   streamPdfPages,
