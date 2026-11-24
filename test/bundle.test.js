@@ -277,6 +277,47 @@ await runAsyncTest('readRequestBody releases activeRequests semaphore on client 
   }
 });
 
+await runAsyncTest('/api/health returns 200 OK with status, uptime, version, and capacity metrics', async () => {
+  const { server } = await import('../server/server.js');
+
+  await new Promise(resolve => server.listen(0, resolve));
+  const port = server.address().port;
+
+  try {
+    // 1. GET /api/health returns 200 and JSON status
+    const resGet = await fetch(`http://localhost:${port}/api/health`);
+    assert.strictEqual(resGet.status, 200);
+    assert.strictEqual(resGet.headers.get('content-type'), 'application/json');
+    assert.strictEqual(resGet.headers.get('cache-control'), 'no-cache, no-store, must-revalidate');
+    const data = await resGet.json();
+    assert.strictEqual(data.status, 'ok');
+    assert.strictEqual(typeof data.uptime, 'number');
+    assert.strictEqual(typeof data.version, 'string');
+    assert.strictEqual(typeof data.activeRequests, 'number');
+    assert.strictEqual(typeof data.maxConcurrent, 'number');
+    assert.strictEqual(data.version, '0.1.5');
+
+    // 2. HEAD /api/health returns 200 without body
+    const resHead = await fetch(`http://localhost:${port}/api/health`, { method: 'HEAD' });
+    assert.strictEqual(resHead.status, 200);
+    assert.strictEqual(resHead.headers.get('content-type'), 'application/json');
+    const headText = await resHead.text();
+    assert.strictEqual(headText, '');
+
+    // 3. OPTIONS /api/health returns 204 with CORS headers
+    const resOptions = await fetch(`http://localhost:${port}/api/health`, { method: 'OPTIONS' });
+    assert.strictEqual(resOptions.status, 204);
+    assert.strictEqual(resOptions.headers.get('access-control-allow-origin'), '*');
+    assert.ok(resOptions.headers.get('access-control-allow-methods').includes('GET'));
+
+    // 4. POST /api/health returns 405 Method Not Allowed
+    const resPost = await fetch(`http://localhost:${port}/api/health`, { method: 'POST' });
+    assert.strictEqual(resPost.status, 405);
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+  }
+});
+
 await runAsyncTest('Static file server enforces strict path boundary check and blocks traversal attempts with 403', async () => {
   const { server } = await import('../server/server.js');
 

@@ -27,6 +27,7 @@ High-performance, zero-Chromium WebAssembly PDF to Image, Markdown (GFM), HTML, 
 
 \x1b[1mUSAGE:\x1b[0m
   $ paper-drift <input.pdf> [output] [options]
+  $ paper-drift serve [--port <num>]
 
 \x1b[1mARGUMENTS:\x1b[0m
   input.pdf        Path to the PDF file to convert
@@ -39,10 +40,12 @@ High-performance, zero-Chromium WebAssembly PDF to Image, Markdown (GFM), HTML, 
   --max-chunk-chars <num> Maximum character limit for semantic RAG chunks (default: 1500)
   --pages <range>      Target pages to convert (e.g. "1-5", "2,4,6", 1, default: "all")
   --no-bg              Text-only mode for HTML format (disables background raster rendering)
+  -p, --port <num>     Port number for daemon server (used with serve, default: 3000)
   -v, --version        Show version number
   -h, --help           Display this help message
 
 \x1b[1mEXAMPLES:\x1b[0m
+  $ paper-drift serve --port 7490                        # Launch persistent microservice daemon on port 7490
   $ paper-drift paper.pdf --format image                 # Convert all pages to high-res PNG images
   $ paper-drift paper.pdf output.png --pages 1           # Convert page 1 to output.png
   $ paper-drift paper.pdf images/ --format image         # Export pages into an images/ directory
@@ -79,6 +82,52 @@ function validatePageRangeSyntax(rangeStr) {
 
 async function run() {
   const args = process.argv.slice(2);
+
+  // Handle CLI daemon subcommand: paper-drift serve [--port <num>]
+  if (args[0] === 'serve') {
+    let port = parseInt(process.env.PORT, 10) || 3000;
+    for (let i = 1; i < args.length; i++) {
+      const arg = args[i];
+      if (arg === '--port' || arg === '-p') {
+        const portStr = args[++i];
+        if (!portStr || isNaN(parseInt(portStr, 10))) {
+          console.error(`\x1b[31m[ERROR]\x1b[0m Invalid or missing port number after ${arg}`);
+          process.exit(1);
+        }
+        port = parseInt(portStr, 10);
+        if (port < 1 || port > 65535) {
+          console.error(`\x1b[31m[ERROR]\x1b[0m Port must be an integer between 1 and 65535, received: ${port}`);
+          process.exit(1);
+        }
+      } else if (arg === '-h' || arg === '--help') {
+        console.log(`
+\x1b[1m\x1b[36mpaper-drift serve\x1b[0m
+Start the paper-drift HTTP microservice daemon and WebAssembly document studio.
+
+\x1b[1mUSAGE:\x1b[0m
+  $ paper-drift serve [options]
+
+\x1b[1mOPTIONS:\x1b[0m
+  -p, --port <num>   Port number to listen on (default: 3000 or $PORT)
+  -h, --help         Display this help message
+
+\x1b[1mENDPOINTS:\x1b[0m
+  GET  /api/health       Health check & status endpoint (JSON)
+  POST /api/parse-full   Unified All-in-One document bundle parser
+  POST /api/chunk-rag    Semantic RAG chunking with table/math isolation
+  POST /api/convert      GFM Markdown and HTML converter
+`);
+        process.exit(0);
+      } else {
+        console.error(`\x1b[31m[ERROR]\x1b[0m Unknown option for serve: ${arg}`);
+        process.exit(1);
+      }
+    }
+
+    const { startServer } = await import('../server/server.js');
+    await startServer(port);
+    return;
+  }
 
   if (args.length === 0 || args.includes('-h') || args.includes('--help')) {
     printHelp();

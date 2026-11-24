@@ -6,17 +6,30 @@
 
 ## Starting the Server
 
-Start via npm:
+Start via npm daemon script:
 ```bash
-npm start
+# Run CLI daemon command
+npm run serve
+
+# Or run with custom port
+npm run serve -- --port 7490
 ```
 
-Or run directly:
+Run directly via CLI:
+```bash
+# Launch daemon on default port (3000 or $PORT)
+paper-drift serve
+
+# Launch daemon on specific microservice port
+paper-drift serve --port 7490
+```
+
+Or run via Node:
 ```bash
 node server/server.js
 ```
 
-By default, the server binds to `http://localhost:3000` (or the port defined in the `PORT` environment variable). If the port is in use, it automatically increments to the next available port.
+By default, the server binds to `http://localhost:3000` (or the port defined in the `PORT` environment variable or `--port` flag). If the default port is in use, it automatically increments to the next available port.
 
 ```bash
 PORT=8080 node server/server.js
@@ -26,7 +39,36 @@ PORT=8080 node server/server.js
 
 ## Endpoints
 
-### 1. Unified "All-in-One" Bundle (`/api/parse-full`)
+### 1. Health & Status Check (`/api/health`)
+
+Lightweight monitoring and health check endpoint for microservice supervisors, Kubernetes liveness probes, and backend orchestrators.
+
+- **URL:** `/api/health`
+- **Method:** `GET` | `HEAD`
+- **Headers:** `Accept: application/json`
+- **Response:** `200 OK`
+
+#### cURL Example
+
+```bash
+curl http://localhost:7490/api/health
+```
+
+#### Response (`200 OK`)
+
+```json
+{
+  "status": "ok",
+  "uptime": 128,
+  "version": "0.1.5",
+  "activeRequests": 0,
+  "maxConcurrent": 4
+}
+```
+
+---
+
+### 2. Unified "All-in-One" Bundle (`/api/parse-full`)
 
 Loads the PDF document in a single WebAssembly pass and returns a consolidated bundle: scientific metadata, GFM Markdown, reader page assets (Base64 PNG `dataUrl` and text), and RAG-ready section chunks.
 

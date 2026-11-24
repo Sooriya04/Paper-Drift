@@ -14,6 +14,11 @@ import { convertPdfToMarkdown, convertPdfToHtml, parsePdfBundle, chunkPdfForRag 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Read package metadata for health checks and version reporting
+const packageJson = JSON.parse(
+  fs.readFileSync(path.join(__dirname, '../package.json'), 'utf-8')
+);
+
 const MIME_TYPES = {
   '.html': 'text/html',
   '.js': 'application/javascript',
@@ -54,7 +59,7 @@ function readRequestBody(req, maxBytes = 50 * 1024 * 1024) {
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type'
 };
 
@@ -68,6 +73,42 @@ function getActiveRequests() {
 const server = http.createServer(async (req, res) => {
   const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   let reqPath = urlObj.pathname;
+
+  // API Endpoint: Microservice Health & Capacity Check
+  if (reqPath === '/api/health') {
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204, {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type'
+      });
+      return res.end();
+    }
+
+    if (req.method === 'GET' || req.method === 'HEAD') {
+      const payload = JSON.stringify({
+        status: 'ok',
+        uptime: Math.round(process.uptime()),
+        version: packageJson.version,
+        activeRequests: getActiveRequests(),
+        maxConcurrent: MAX_CONCURRENT_REQUESTS
+      });
+
+      res.writeHead(200, {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'no-cache, no-store, must-revalidate'
+      });
+
+      if (req.method === 'HEAD') {
+        return res.end();
+      }
+      return res.end(payload);
+    }
+
+    res.writeHead(405, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    return res.end(JSON.stringify({ success: false, error: 'Method Not Allowed' }));
+  }
 
   // API Endpoint: The Unified "All-in-One" Bundle
   if (reqPath === '/api/parse-full') {
@@ -361,11 +402,14 @@ function startServer(p = DEFAULT_PORT, isRetry = false) {
     basePort = p;
     currentPort = p;
   }
-  server.listen(currentPort, () => {
-    console.log(`\n======================================================`);
-    console.log(`[INFO] paper-drift Server running at:`);
-    console.log(`       http://localhost:${currentPort}`);
-    console.log(`======================================================\n`);
+  return new Promise((resolve) => {
+    server.listen(currentPort, () => {
+      console.log(`\n======================================================`);
+      console.log(`[INFO] paper-drift Server running at:`);
+      console.log(`       http://localhost:${currentPort}`);
+      console.log(`======================================================\n`);
+      resolve(server);
+    });
   });
 }
 

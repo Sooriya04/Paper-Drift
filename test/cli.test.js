@@ -264,6 +264,36 @@ try {
     }
   });
 
+  // 14. CLI serve command tests
+  runTest('CLI serve --help displays microservice daemon usage and endpoints', () => {
+    const output = execSync('node bin/cli.js serve --help', { encoding: 'utf-8' });
+    assert.ok(output.includes('paper-drift serve'));
+    assert.ok(output.includes('--port'));
+    assert.ok(output.includes('/api/health'));
+  });
+
+  runTest('CLI serve rejects invalid port range (> 65535 or <= 0)', () => {
+    let threw = false;
+    try {
+      execSync('node bin/cli.js serve --port 99999', { stdio: 'pipe' });
+    } catch (err) {
+      threw = true;
+      assert.strictEqual(err.status, 1);
+    }
+    assert.strictEqual(threw, true, 'Expected invalid port to exit with non-zero status');
+  });
+
+  runTest('CLI serve rejects unknown arguments', () => {
+    let threw = false;
+    try {
+      execSync('node bin/cli.js serve --unknown-flag', { stdio: 'pipe' });
+    } catch (err) {
+      threw = true;
+      assert.strictEqual(err.status, 1);
+    }
+    assert.strictEqual(threw, true, 'Expected unknown flag to exit with non-zero status');
+  });
+
   console.log('\n\x1b[32m✔ All tests completed successfully! Outputs preserved in test/results/cli-test/\x1b[0m\n');
 } finally {
   // Retain output results on disk per user request
