@@ -83,6 +83,8 @@ export {
 };
 
 export default {
+  chunkPdfForRag,
+  parsePdfBundle,
   convertPdfToImages,
   streamPdfPages,
   convertPdfToHtml,

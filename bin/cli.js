@@ -112,10 +112,10 @@ Start the paper-drift HTTP microservice daemon and WebAssembly document studio.
   -h, --help         Display this help message
 
 \x1b[1mENDPOINTS:\x1b[0m
-  GET  /api/health       Health check & status endpoint (JSON)
-  POST /api/parse-full   Unified All-in-One document bundle parser
-  POST /api/chunk-rag    Semantic RAG chunking with table/math isolation
-  POST /api/convert      GFM Markdown and HTML converter
+  GET  /api/health            Health check & status endpoint (JSON)
+  POST /api/parse-full        Unified All-in-One document bundle parser
+  POST /api/chunk-rag         Semantic RAG chunking with table/math isolation
+  POST /api/convert-markdown  GFM Markdown converter
 `);
         process.exit(0);
       } else {

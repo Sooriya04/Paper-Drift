@@ -14,6 +14,7 @@
   "files": [
     "src",
     "bin",
+    "server",
     "README.md",
     "LICENSE"
   ],

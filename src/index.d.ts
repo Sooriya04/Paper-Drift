@@ -423,7 +423,31 @@ export function parsePdfBundle(
   options?: ParsePdfBundleOptions
 ): Promise<ParsePdfBundleResult>;
 
+export interface ChunkPdfForRagOptions {
+  pages?: string;
+  pageRange?: string;
+  max_chunk_chars?: number | string;
+  maxChunkChars?: number | string;
+  min_chunk_chars?: number | string;
+  minChunkChars?: number | string;
+}
+
+export interface RagChunk {
+  chunk_id: string;
+  section: string;
+  page: number;
+  content: string;
+  has_math: boolean;
+  has_table: boolean;
+}
+
+export function chunkPdfForRag(
+  input: string | Buffer | Uint8Array,
+  options?: ChunkPdfForRagOptions
+): Promise<RagChunk[]>;
+
 declare const _default: {
+  chunkPdfForRag: typeof chunkPdfForRag;
   parsePdfBundle: typeof parsePdfBundle;
   convertPdfToImages: typeof convertPdfToImages;
   streamPdfPages: typeof streamPdfPages;

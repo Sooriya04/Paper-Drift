@@ -16,31 +16,34 @@
   <header class="site-header">
     <div class="header-inner">
       <div class="brand-group">
-        <a href="#" class="brand-title">paper-drift</a>
+        <a href="#" class="brand-title">
+          <span class="brand-paper">paper</span><span class="brand-sep">-</span><span class="brand-drift">drift</span>
+        </a>
         <span class="meta-tag">v0.1.5</span>
       </div>
 
-      <nav class="nav-links">
+      <nav class="nav-links" aria-label="Primary navigation">
         <a href="#features" class="nav-item">Features</a>
         <a href="#performance" class="nav-item">Performance</a>
         <a href="#architecture" class="nav-item">Architecture</a>
         <a href="#quickstart" class="nav-item">Quickstart</a>
         <a href="#api" class="nav-item">API</a>
-        <div class="nav-actions">
-          <a href="https://www.npmjs.com/package/paper-drift" target="_blank" rel="noopener" class="btn-npm" title="View on npm">
-            <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
-              <path d="M1.763 0C.786 0 0 .786 0 1.763v20.474C0 23.214.786 24 1.763 24h20.474c.977 0 1.763-.786 1.763-1.763V1.763C24 .786 23.214 0 22.237 0zM5.13 5.323l13.837.019-.009 13.836h-3.464l.01-10.382h-3.456L12.04 19.17H5.113z"/>
-            </svg>
-            <span>npm</span>
-          </a>
-          <a href="https://github.com/Sooriya04/Paper-Drift" target="_blank" rel="noopener" class="btn-git">
-            <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
-              <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
-            </svg>
-            <span>GitHub</span>
-          </a>
-        </div>
       </nav>
+
+      <div class="nav-actions">
+        <a href="https://www.npmjs.com/package/paper-drift" target="_blank" rel="noopener" class="btn-nav" title="View on npm">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" class="icon-npm" aria-hidden="true">
+            <path d="M1.763 0C.786 0 0 .786 0 1.763v20.474C0 23.214.786 24 1.763 24h20.474c.977 0 1.763-.786 1.763-1.763V1.763C24 .786 23.214 0 22.237 0zM5.13 5.323l13.837.019-.009 13.836h-3.464l.01-10.382h-3.456L12.04 19.17H5.113z"/>
+          </svg>
+          <span>npm</span>
+        </a>
+        <a href="https://github.com/Sooriya04/Paper-Drift" target="_blank" rel="noopener" class="btn-nav btn-nav-primary">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true">
+            <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+          </svg>
+          <span>GitHub</span>
+        </a>
+      </div>
     </div>
   </header>
 
@@ -48,180 +51,241 @@
 
     <!-- Hero Section -->
     <section class="hero-block">
-      <div class="spec-kicker">
-        <span class="status-indicator"></span>
-        <span>WEBASSEMBLY / ZERO SERVER DEPENDENCIES</span>
-      </div>
-
       <h1 class="hero-header">
-        High-Performance WebAssembly Document Intelligence &amp; RAG Engine
+        Document Intelligence &amp; RAG<br class="desktop-break"> Compiled to WebAssembly.
       </h1>
 
       <p class="hero-summary">
-        A zero-dependency WebAssembly engine that compiles academic and enterprise PDFs directly into <strong>publication Markdown</strong>, <strong>semantic RAG chunks</strong>, <strong>LaTeX math formulas</strong>, and high-res <strong>images &amp; Base64</strong>. No Puppeteer, no Chromium, no Python, and no external servers.
+        Turn academic and enterprise PDFs into <strong>publication GFM Markdown</strong>, <strong>atomic RAG chunks</strong>, <strong>LaTeX equations</strong>, and high-DPI <strong>PNG / Base64</strong> buffers directly inside Node.js. No Puppeteer, no Chromium, and no Python runtime.
       </p>
 
-      <!-- Terminal Command Bar -->
-      <div class="terminal-bar">
-        <span class="prompt-char">$</span>
-        <code class="terminal-text" id="cliCommand">npx paper-drift paper.pdf --format chunks -o chunks.json</code>
-        <button class="btn-copy-bar" id="copyBtn" title="Copy command">
-          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="9" y="9" width="13" height="13" rx="1.5" ry="1.5"></rect>
-            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-          </svg>
-          <span id="copyLabel">Copy</span>
-        </button>
+      <div class="hero-cta-row">
+        <div class="terminal-bar">
+          <span class="prompt-char">$</span>
+          <code class="terminal-text" id="cliCommand">npx paper-drift paper.pdf --format chunks -o chunks.json</code>
+          <button class="btn-copy-bar" id="copyBtn" type="button" title="Copy command">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <rect x="9" y="9" width="13" height="13" rx="1.5" ry="1.5"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+            <span id="copyLabel">Copy</span>
+          </button>
+        </div>
+
+        <a href="#quickstart" class="btn-secondary">Quickstart &rarr;</a>
       </div>
 
-      <div class="hero-meta-row">
-        <span class="meta-item"><span class="bullet">&bull;</span> Atomic RAG chunking with math &amp; tables</span>
-        <span class="meta-item"><span class="bullet">&bull;</span> GFM Markdown with LaTeX math &amp; vector tables</span>
-        <span class="meta-item"><span class="bullet">&bull;</span> 100% private local WebAssembly execution</span>
-        <span class="meta-item"><span class="bullet">&bull;</span> Microservice daemon (<code>paper-drift serve --port 7490</code>)</span>
+      <div class="hero-specs">
+        <div class="hero-spec-item">
+          <span class="spec-key">RUNTIME</span>
+          <span class="spec-value">MuPDF WebAssembly</span>
+        </div>
+        <div class="hero-spec-item">
+          <span class="spec-key">DAEMON</span>
+          <span class="spec-value"><code>paper-drift serve --port 7490</code></span>
+        </div>
+        <div class="hero-spec-item">
+          <span class="spec-key">MEMORY</span>
+          <span class="spec-value">&lt; 60 MB peak</span>
+        </div>
+        <div class="hero-spec-item">
+          <span class="spec-key">LICENSE</span>
+          <span class="spec-value">Apache-2.0</span>
+        </div>
       </div>
     </section>
 
-    <!-- Performance Section -->
+    <div class="section-divider"></div>
+
+    <!-- Features / Capabilities Section -->
+    <section class="panel-section" id="features">
+      <div class="panel-heading">
+        <span class="mono-label">01 // CAPABILITIES</span>
+        <h2>Built for Production RAG &amp; Parsing Pipelines</h2>
+        <p class="panel-sub">Deterministic layout reconstruction engineered for multi-column scientific papers, technical manuals, and LLM ingestion workflows.</p>
+      </div>
+
+      <div class="grid-quad">
+        <article class="spec-card">
+          <div class="spec-card-header">
+            <span class="spec-index">01</span>
+            <span class="spec-chip">RAG OPTIMIZED</span>
+          </div>
+          <h3>Atomic Semantic Chunking</h3>
+          <p>Preserves display math (<code>$$ ... $$</code>) and GFM pipe tables intact across chunk boundaries. Emits grounded page citations and section breadcrumbs.</p>
+        </article>
+
+        <article class="spec-card">
+          <div class="spec-card-header">
+            <span class="spec-index">02</span>
+            <span class="spec-chip">GFM &amp; BOOKTABS</span>
+          </div>
+          <h3>Publication-Grade Markdown</h3>
+          <p>Reconstructs clean GitHub Flavored Markdown with academic Booktabs tables, hierarchical headings, anchor slugs, and resolved citation links.</p>
+        </article>
+
+        <article class="spec-card">
+          <div class="spec-card-header">
+            <span class="spec-index">03</span>
+            <span class="spec-chip">WASM VECTOR ENGINE</span>
+          </div>
+          <h3>LaTeX Formula Reconstruction</h3>
+          <p>Inspects horizontal fraction rules, Greek symbols, and sub/superscript baselines to emit structured LaTeX without external vision OCR models.</p>
+        </article>
+
+        <article class="spec-card">
+          <div class="spec-card-header">
+            <span class="spec-index">04</span>
+            <span class="spec-chip">MICROSERVICE READY</span>
+          </div>
+          <h3>Persistent HTTP Daemon</h3>
+          <p>Run <code>paper-drift serve</code> on port <code>7490</code> with a built-in <code>/api/health</code> probe, CORS headers, and concurrency-guarded REST endpoints.</p>
+        </article>
+      </div>
+    </section>
+
+    <div class="section-divider"></div>
+
+    <!-- Performance Comparison Section -->
     <section class="panel-section" id="performance">
       <div class="panel-heading">
-        <span class="mono-label">01 // PERFORMANCE BENCHMARK</span>
-        <h2>Zero-Chromium WebAssembly Execution</h2>
-        <p class="panel-sub">Traditional PDF extraction pipelines require heavy headless browsers or Python microservices. paper-drift compiles C directly to WebAssembly to run entirely in-process.</p>
+        <span class="mono-label">02 // PERFORMANCE</span>
+        <h2>Zero-Chromium Execution Profile</h2>
+        <p class="panel-sub">Traditional PDF pipelines spawn headless browsers or Python subprocesses. paper-drift runs compiled C directly inside V8 WebAssembly.</p>
       </div>
 
       <div class="split-comparison">
-        <!-- Status Quo -->
+        <!-- Traditional -->
         <div class="card card-status-quo">
           <div class="card-top">
             <span class="label-status red">Traditional Pipelines</span>
             <span class="mono-meta">Puppeteer / pdf2image / Poppler</span>
           </div>
 
-          <div class="metric-num text-red">450+ MB</div>
-          <span class="metric-unit">Binary Footprint &amp; Dependencies</span>
+          <div class="metric-block">
+            <div class="metric-num text-red">3,500&ndash;8,000 ms</div>
+            <span class="metric-unit">Cold Start &amp; Browser Spawn Overhead</span>
+          </div>
 
           <div class="hairline-divider"></div>
 
           <ul class="spec-list">
             <li class="spec-row">
-              <span class="spec-label">Engine Latency</span>
-              <span class="spec-val">3,500ms &ndash; 8,000ms</span>
-            </li>
-            <li class="spec-row">
-              <span class="spec-label">Cold Start Latency</span>
-              <span class="spec-val">3,500ms+ (Browser Boot)</span>
+              <span class="spec-label">Binary Footprint</span>
+              <span class="spec-val">450+ MB</span>
             </li>
             <li class="spec-row">
               <span class="spec-label">Peak Memory (RAM)</span>
-              <span class="spec-val">800MB &ndash; 1.5GB</span>
+              <span class="spec-val">800 MB &ndash; 1.5 GB</span>
             </li>
             <li class="spec-row">
-              <span class="spec-label">Serverless Support</span>
-              <span class="spec-val">Requires custom Docker layers</span>
+              <span class="spec-label">Serverless Deploy</span>
+              <span class="spec-val">Custom Docker layers required</span>
             </li>
             <li class="spec-row">
-              <span class="spec-label">Dependencies</span>
-              <span class="spec-val">Poppler, Chromium, Python</span>
+              <span class="spec-label">External Dependencies</span>
+              <span class="spec-val">Chromium, Poppler, Python</span>
             </li>
           </ul>
         </div>
 
-        <!-- paper-drift Engine -->
+        <!-- paper-drift WASM -->
         <div class="card card-drift">
           <div class="card-top">
             <span class="label-status emerald">paper-drift WASM</span>
             <span class="mono-meta">MuPDF WebAssembly</span>
           </div>
 
-          <div class="metric-num text-emerald">&lt; 250 ms</div>
-          <span class="metric-unit">Average Latency per Document Page</span>
+          <div class="metric-block">
+            <div class="metric-num text-emerald">&lt; 50 ms</div>
+            <span class="metric-unit">Instant In-Process WASM Boot (&lt; 250 ms/page)</span>
+          </div>
 
           <div class="hairline-divider"></div>
 
           <ul class="spec-list">
             <li class="spec-row">
-              <span class="spec-label">Engine Latency</span>
-              <span class="spec-val">&lt; 250ms per page</span>
-            </li>
-            <li class="spec-row">
-              <span class="spec-label">Cold Start Latency</span>
-              <span class="spec-val">&lt; 50ms instant boot</span>
+              <span class="spec-label">Binary Footprint</span>
+              <span class="spec-val">Self-contained WASM</span>
             </li>
             <li class="spec-row">
               <span class="spec-label">Peak Memory (RAM)</span>
-              <span class="spec-val">&lt; 60MB peak</span>
+              <span class="spec-val">&lt; 60 MB peak</span>
             </li>
             <li class="spec-row">
-              <span class="spec-label">Serverless Support</span>
+              <span class="spec-label">Serverless Deploy</span>
               <span class="spec-val">Native Node.js / Bun / Edge</span>
             </li>
             <li class="spec-row">
-              <span class="spec-label">Dependencies</span>
-              <span class="spec-val">Zero (Self-contained WASM)</span>
+              <span class="spec-label">External Dependencies</span>
+              <span class="spec-val">Zero</span>
             </li>
           </ul>
         </div>
       </div>
     </section>
 
+    <div class="section-divider"></div>
+
     <!-- Architecture Section -->
     <section class="panel-section" id="architecture">
       <div class="panel-heading">
-        <span class="mono-label">02 // ARCHITECTURE</span>
-        <h2>High-Precision Processing Pipeline</h2>
-        <p class="panel-sub">Each document flows through a deterministic, four-stage pipeline without external network calls or disk thrashing.</p>
+        <span class="mono-label">03 // ARCHITECTURE</span>
+        <h2>Deterministic Four-Stage Pipeline</h2>
+        <p class="panel-sub">Documents move straight from binary buffers through layout analysis to structured outputs without temporary disk writes.</p>
       </div>
 
       <div class="grid-steps">
         <div class="step-card">
-          <div class="step-num">STEP 01</div>
-          <h3>Binary Ingestion</h3>
-          <p>Accepts raw file paths, Node.js Buffers, or Uint8Array streams directly into the WebAssembly memory boundary. Zero temporary disk writes.</p>
+          <div class="step-num">01 / INGESTION</div>
+          <h3>Zero-Copy Buffer Loading</h3>
+          <p>Reads file paths, Node.js <code>Buffer</code>s, or <code>Uint8Array</code> streams directly into the WebAssembly linear memory space.</p>
         </div>
 
         <div class="step-card">
-          <div class="step-num">STEP 02</div>
-          <h3>Spatial &amp; Vector Engine</h3>
-          <p>Recursive XY-Cut sorts complex multi-column reading flows. Vector heuristics extract academic Booktabs grids and LaTeX display equations.</p>
+          <div class="step-num">02 / SPATIAL ENGINE</div>
+          <h3>XY-Cut &amp; Vector Analysis</h3>
+          <p>Recursive XY-Cut resolves multi-column reading order while vector rule heuristics extract Booktabs grids and LaTeX math.</p>
         </div>
 
         <div class="step-card">
-          <div class="step-num">STEP 03</div>
-          <h3>Semantic Compilation</h3>
-          <p>Builds publication-grade GFM Markdown, citation-grounded RAG chunks, structured IR JSON, and high-DPI rasterized PNG page buffers.</p>
+          <div class="step-num">03 / COMPILATION</div>
+          <h3>Multi-Format Emission</h3>
+          <p>Generates GFM Markdown, citation-grounded RAG chunks, structured Document IR JSON, and high-DPI PNG / Base64 buffers.</p>
         </div>
 
         <div class="step-card">
-          <div class="step-num">STEP 04</div>
-          <h3>Microservice Daemon</h3>
-          <p>Runs as a persistent local or containerized microservice via <code>paper-drift serve --port 7490</code> with <code>/api/health</code> monitoring.</p>
+          <div class="step-num">04 / DAEMON</div>
+          <h3>Persistent Microservice</h3>
+          <p>Exposes <code>paper-drift serve --port 7490</code> with <code>/api/health</code> monitoring and bounded concurrent request guards.</p>
         </div>
       </div>
     </section>
 
+    <div class="section-divider"></div>
+
     <!-- Developer Quickstart -->
     <section class="panel-section" id="quickstart">
       <div class="panel-heading">
-        <span class="mono-label">03 // QUICKSTART</span>
-        <h2>Developer Integration</h2>
-        <p class="panel-sub">Execute from the command line with <code>npx</code> or integrate into your JavaScript / TypeScript application.</p>
+        <span class="mono-label">04 // QUICKSTART</span>
+        <h2>CLI &amp; SDK Integration</h2>
+        <p class="panel-sub">Run immediately with <code>npx</code> or import the zero-dependency TypeScript/ESM SDK into your application.</p>
       </div>
 
       <div class="code-terminal">
         <div class="terminal-header">
-          <div class="code-tab-list">
-            <button class="code-tab active" data-tab="tab-cli" data-lang="bash">CLI Quickstart</button>
-            <button class="code-tab" data-tab="tab-rag" data-lang="javascript">RAG Chunker</button>
-            <button class="code-tab" data-tab="tab-node" data-lang="javascript">Markdown SDK</button>
-            <button class="code-tab" data-tab="tab-base64" data-lang="javascript">Base64 &amp; Images</button>
-            <button class="code-tab" data-tab="tab-daemon" data-lang="bash">Daemon Microservice</button>
+          <div class="code-tab-list" role="tablist">
+            <button class="code-tab active" type="button" role="tab" data-tab="tab-cli" data-lang="bash">CLI Quickstart</button>
+            <button class="code-tab" type="button" role="tab" data-tab="tab-rag" data-lang="javascript">RAG Chunker</button>
+            <button class="code-tab" type="button" role="tab" data-tab="tab-node" data-lang="javascript">Markdown SDK</button>
+            <button class="code-tab" type="button" role="tab" data-tab="tab-base64" data-lang="javascript">Base64 &amp; Images</button>
+            <button class="code-tab" type="button" role="tab" data-tab="tab-daemon" data-lang="bash">Daemon Microservice</button>
           </div>
 
           <div class="terminal-actions">
             <span class="terminal-lang" id="terminalLang">bash</span>
-            <button class="terminal-copy-btn" id="terminalCopyBtn" title="Copy code snippet">
-              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+            <button class="terminal-copy-btn" id="terminalCopyBtn" type="button" title="Copy code snippet">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
                 <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"></path>
               </svg>
@@ -322,59 +386,14 @@ curl -X POST "http://localhost:7490/api/parse-full?pages=1-2" \
       </div>
     </section>
 
-    <!-- Features / Capabilities Section -->
-    <section class="panel-section" id="features">
-      <div class="panel-heading">
-        <span class="mono-label">04 // CAPABILITIES</span>
-        <h2>Engineering Specifications</h2>
-        <p class="panel-sub">Engineered specifically for developer tools, RAG search pipelines, and autonomous agent workflows.</p>
-      </div>
-
-      <div class="grid-quad">
-        <div class="spec-card">
-          <div class="spec-card-header">
-            <span class="spec-index">01</span>
-            <span class="spec-chip">RAG OPTIMIZED</span>
-          </div>
-          <h3>Atomic Semantic Chunking</h3>
-          <p>Preserves LaTeX display math (<code>$$ ... $$</code>) and GFM pipe tables intact across chunk boundaries. Emits grounded page numbers and section breadcrumbs.</p>
-        </div>
-
-        <div class="spec-card">
-          <div class="spec-card-header">
-            <span class="spec-index">02</span>
-            <span class="spec-chip">GFM &amp; BOOKTABS</span>
-          </div>
-          <h3>Publication-Grade Markdown</h3>
-          <p>Constructs valid GitHub Flavored Markdown with academic Booktabs tables, typographic headers, anchor slugs, and citation links.</p>
-        </div>
-
-        <div class="spec-card">
-          <div class="spec-card-header">
-            <span class="spec-index">03</span>
-            <span class="spec-chip">WASM VECTOR ENGINE</span>
-          </div>
-          <h3>LaTeX Formula Reconstruction</h3>
-          <p>Scans horizontal fraction rules, Greek symbols, and sub/superscripts to reconstruct math blocks into clean LaTeX without external OCR models.</p>
-        </div>
-
-        <div class="spec-card">
-          <div class="spec-card-header">
-            <span class="spec-index">04</span>
-            <span class="spec-chip">MICROSERVICE READY</span>
-          </div>
-          <h3>HTTP Daemon &amp; Health Probe</h3>
-          <p>Built-in <code>paper-drift serve --port 7490</code> daemon with <code>/api/health</code> endpoint, CORS headers, and active request capacity management.</p>
-        </div>
-      </div>
-    </section>
+    <div class="section-divider"></div>
 
     <!-- API Reference Section -->
     <section class="panel-section" id="api">
       <div class="panel-heading">
         <span class="mono-label">05 // API REFERENCE</span>
-        <h2>Programmatic API Reference</h2>
-        <p class="panel-sub">Zero-Chromium JavaScript and TypeScript functions exported by <code>paper-drift</code>:</p>
+        <h2>Core SDK &amp; Server Exports</h2>
+        <p class="panel-sub">Typed ESM functions exported by <code>paper-drift</code>:</p>
       </div>
 
       <div class="data-table-frame">
@@ -438,7 +457,7 @@ curl -X POST "http://localhost:7490/api/parse-full?pages=1-2" \
       <div class="footer-right">
         <a href="https://github.com/Sooriya04/Paper-Drift" target="_blank" rel="noopener">GitHub</a>
         <a href="https://www.npmjs.com/package/paper-drift" target="_blank" rel="noopener" class="footer-npm-link">
-          <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true">
             <path d="M1.763 0C.786 0 0 .786 0 1.763v20.474C0 23.214.786 24 1.763 24h20.474c.977 0 1.763-.786 1.763-1.763V1.763C24 .786 23.214 0 22.237 0zM5.13 5.323l13.837.019-.009 13.836h-3.464l.01-10.382h-3.456L12.04 19.17H5.113z"/>
           </svg>
           npm Registry
