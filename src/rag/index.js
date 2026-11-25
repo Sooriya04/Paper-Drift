@@ -13,6 +13,7 @@ import { extractPageVectorsAndText } from '../vectors/walker.js';
 import { rulesFromVector } from '../vectors/rules.js';
 import { reconstructTables } from '../tables/grid.js';
 import { reconstructPageMath } from '../math/detector.js';
+import { detectPageFigures, maskFigureContent } from '../images/figures.js';
 import { extractPageAtomicBlocks } from './blocks.js';
 import { packAtomicBlocksIntoChunks } from './packer.js';
 import { normalizeChunkOptions, DEFAULT_MAX_CHUNK_CHARS } from './constants.js';
@@ -77,19 +78,22 @@ export async function chunkPdfForRag(input, options = {}) {
 
         const { lines, vectors } = extractPageVectorsAndText(page);
 
+        const figures = detectPageFigures({ bounds, lines, vectors });
+        const { lines: cleanLines, vectors: cleanVectors } = maskFigureContent(lines, vectors, figures);
+
         const rules = [];
-        for (const v of vectors) {
+        for (const v of cleanVectors) {
           rules.push(...rulesFromVector(v));
         }
 
-        const tables = reconstructTables(rules, lines, width, height);
-        const { mathItems, claimedLineIndices } = reconstructPageMath(lines, vectors, width, height);
+        const tables = reconstructTables(rules, cleanLines, width, height);
+        const { mathItems, claimedLineIndices } = reconstructPageMath(cleanLines, cleanVectors, width, height);
 
         const pageData = {
           pageNumber,
           width,
           height,
-          lines,
+          lines: cleanLines,
           tables,
           mathItems,
           claimedLineIndices

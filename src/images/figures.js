@@ -317,11 +317,99 @@ export function detectPageFigures(pageData) {
       ],
       caption: caption || null,
       density: cluster.density,
-      insideLines: [...insideLines, ...captionLines]
+      insideLines: [...insideLines, ...captionLines],
+      plotBox: [
+        Math.max(bounds[0], cluster.box.left - PADDING),
+        Math.max(bounds[1], cluster.box.top - PADDING),
+        Math.min(bounds[2], cluster.box.right + PADDING),
+        Math.min(bounds[3], cluster.box.bottom + PADDING)
+      ],
+      plotLines: insideLines,
+      captionLines: captionLines
     });
   }
 
   return figures;
+}
+
+/**
+ * Masks out vector lines and text lines sitting inside detected figure plot bounding boxes.
+ * Preserves captions (which sit outside/below the plot box) while preventing chart axes, ticks,
+ * and plot paths from corrupting tables, math formulas, or body prose.
+ *
+ * @param {Array<Object>} lines - Page text lines
+ * @param {Array<Object>} vectors - Page vector elements
+ * @param {Array<Object>} figures - Detected figures from detectPageFigures
+ * @returns {{ lines: Array<Object>, vectors: Array<Object>, maskedLines: Array<Object>, maskedVectors: Array<Object> }}
+ */
+export function maskFigureContent(lines, vectors, figures = []) {
+  if (!figures || figures.length === 0) {
+    return { lines, vectors, maskedLines: [], maskedVectors: [] };
+  }
+
+  const plotLinesSet = new Set();
+  const captionLinesSet = new Set();
+  const plotBoxes = [];
+
+  for (const fig of figures) {
+    if (Array.isArray(fig.plotLines)) {
+      for (const l of fig.plotLines) {
+        plotLinesSet.add(l);
+      }
+    }
+    if (Array.isArray(fig.captionLines)) {
+      for (const l of fig.captionLines) {
+        captionLinesSet.add(l);
+      }
+    }
+    const pb = fig.plotBox || (fig.bbox && (!fig.captionLines || fig.captionLines.length === 0) ? fig.bbox : null);
+    if (pb) {
+      plotBoxes.push(boxOf(pb));
+    }
+  }
+
+  const maskedLines = [];
+  const cleanLines = lines.filter(line => {
+    if (captionLinesSet.has(line)) {
+      return true;
+    }
+    if (plotLinesSet.has(line)) {
+      maskedLines.push(line);
+      return false;
+    }
+    const insideAnyPlot = plotBoxes.some(b => centreInside(line, b, TEXT_GAP));
+    if (insideAnyPlot) {
+      maskedLines.push(line);
+      return false;
+    }
+    return true;
+  });
+
+  const maskedVectors = [];
+  const cleanVectors = vectors.filter(v => {
+    const vb = v.bbox;
+    if (!vb || vb.length < 4) return true;
+    const midX = (vb[0] + vb[2]) / 2;
+    const midY = (vb[1] + vb[3]) / 2;
+
+    const insideAnyPlot = plotBoxes.some(b =>
+      midX >= b.left - PADDING && midX <= b.right + PADDING &&
+      midY >= b.top - PADDING && midY <= b.bottom + PADDING
+    );
+
+    if (insideAnyPlot) {
+      maskedVectors.push(v);
+      return false;
+    }
+    return true;
+  });
+
+  return {
+    lines: cleanLines,
+    vectors: cleanVectors,
+    maskedLines,
+    maskedVectors
+  };
 }
 
 /**

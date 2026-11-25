@@ -83,11 +83,12 @@ export function recursiveXyCut(blockList, clipMinX, clipMinY, clipMaxX, clipMaxY
     let hasSpanning = false;
     for (let i = 0; i < bLen; i++) {
       const bb = blocks[i].bbox;
-      if (bb.w >= fullWidth * 0.45 && bb.x < bMidX - 8 && (bb.x + bb.w) > bMidX + 8) {
-        const isWide = bb.w > width * 0.50;
+      const crossesMid = bb.x < bMidX - 8 && (bb.x + bb.w) > bMidX + 8;
+      if (crossesMid) {
+        const isWide = bb.w >= fullWidth * 0.45 || bb.w > width * 0.50;
         const blockMidX = bb.x + bb.w / 2;
         const isCentered = Math.abs(blockMidX - bMidX) < width * 0.15;
-        if (isWide || isCentered) {
+        if (isWide || (bb.w >= fullWidth * 0.35 && isCentered)) {
           hasSpanning = true;
           break;
         }
@@ -115,10 +116,11 @@ export function recursiveXyCut(blockList, clipMinX, clipMinY, clipMaxX, clipMaxY
       for (let i = 0; i < sorted.length; i++) {
         const b = sorted[i];
         const bb = b.bbox;
-        const isSpan = bb.w >= fullWidth * 0.45 &&
-                       bb.x < bMidX - 8 &&
-                       (bb.x + bb.w) > bMidX + 8 &&
-                       (bb.w > width * 0.50 || Math.abs((bb.x + bb.w / 2) - bMidX) < width * 0.15);
+        const crossesMid = bb.x < bMidX - 8 && (bb.x + bb.w) > bMidX + 8;
+        const isWide = bb.w >= fullWidth * 0.45 || bb.w > width * 0.50;
+        const blockMidX = bb.x + bb.w / 2;
+        const isCentered = Math.abs(blockMidX - bMidX) < width * 0.15;
+        const isSpan = crossesMid && (isWide || (bb.w >= fullWidth * 0.35 && isCentered));
         if (isSpan) {
           if (curBand.length > 0) {
             res.push(...decompose(curBand));

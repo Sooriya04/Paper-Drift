@@ -13,6 +13,7 @@ import { extractPageVectorsAndText } from '../vectors/walker.js';
 import { rulesFromVector } from '../vectors/rules.js';
 import { extractPageLinks } from '../links/extractor.js';
 import { reconstructPageMath } from '../math/detector.js';
+import { detectPageFigures, maskFigureContent } from '../images/figures.js';
 import { extractScientificHeader } from '../metadata/header.js';
 import { convertPdfToMarkdown } from '../markdown/converter.js';
 import { extractBundleSections } from './sections.js';
@@ -87,13 +88,16 @@ export async function parsePdfBundle(input, options = {}) {
         const { lines, vectors } = extractPageVectorsAndText(page);
         const links = extractPageLinks(page, doc);
 
+        const figures = detectPageFigures({ bounds, lines, vectors });
+        const { lines: cleanLines, vectors: cleanVectors } = maskFigureContent(lines, vectors, figures);
+
         const rules = [];
-        for (const v of vectors) {
+        for (const v of cleanVectors) {
           rules.push(...rulesFromVector(v));
         }
 
-        const { mathItems, claimedLineIndices } = reconstructPageMath(lines, vectors, width, height);
-        const pageText = lines.map(l => l.text).join('\n');
+        const { mathItems, claimedLineIndices } = reconstructPageMath(cleanLines, cleanVectors, width, height);
+        const pageText = cleanLines.map(l => l.text).join('\n');
 
         bundlePages.push({
           pageNumber,
@@ -110,8 +114,11 @@ export async function parsePdfBundle(input, options = {}) {
           bounds,
           width,
           height,
-          lines,
-          vectors,
+          lines: cleanLines,
+          rawLines: lines,
+          vectors: cleanVectors,
+          rawVectors: vectors,
+          figures,
           rules,
           links,
           rasterImages: [],
