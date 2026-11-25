@@ -68,7 +68,11 @@ export function renderPipeTable(matrix, alignments = [], options = {}) {
           parts.push(val);
         }
       }
-      headerHierarchy.push(parts.join(' / '));
+      // Spanning categories across multiple columns join with ' / ', while wrapped column titles join with ' '
+      const isSpanning = options.cells && options.cells.some(cell =>
+        cell.row < headerRows - 1 && cell.col <= c && (cell.col + (cell.colspan || 1) - 1) >= c && (cell.colspan || 1) > 1
+      );
+      headerHierarchy.push(parts.join(isSpanning ? ' / ' : ' '));
     }
     header = headerHierarchy.map(escapeTableCell);
     bodyRows = rawGrid.slice(headerRows).map(row => row.map(escapeTableCell));

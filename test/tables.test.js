@@ -522,4 +522,35 @@ runTest('linkMultiPageTables links continuing tables across consecutive pages', 
   assertEqual(page2Table.continuation.repeatedHeader, true, 'Repeated header must be flagged');
 });
 
+runTest('reconstructTables separates multi-line column headers across midrule and joins wrapped headers with spaces', () => {
+  // Academic table with toprule (y=100), midrule (y=130), bottomrule (y=180)
+  const rules = [
+    { left: 50, top: 100, right: 450, bottom: 100 },
+    { left: 50, top: 130, right: 450, bottom: 130 },
+    { left: 50, top: 180, right: 450, bottom: 180 }
+  ];
+
+  // Header row 0 and 1 above midrule (y < 130)
+  const lines = [
+    { left: 60, top: 106, right: 120, bottom: 116, text: 'Layer Type', words: [{ text: 'Layer Type', left: 60, right: 120, top: 106, bottom: 116 }] },
+    { left: 160, top: 106, right: 260, bottom: 116, text: 'Complexity per Layer', words: [{ text: 'Complexity per Layer', left: 160, right: 260, top: 106, bottom: 116 }] },
+    { left: 280, top: 106, right: 340, bottom: 116, text: 'Sequential', words: [{ text: 'Sequential', left: 280, right: 340, top: 106, bottom: 116 }] },
+    { left: 360, top: 106, right: 440, bottom: 116, text: 'Maximum Path Length', words: [{ text: 'Maximum Path Length', left: 360, right: 440, top: 106, bottom: 116 }] },
+    // Row 1 header wrap
+    { left: 280, top: 118, right: 340, bottom: 127, text: 'Operations', words: [{ text: 'Operations', left: 280, right: 340, top: 118, bottom: 127 }] },
+    // Data row below midrule (y > 130)
+    { left: 60, top: 140, right: 130, bottom: 150, text: 'Self-Attention', words: [{ text: 'Self-Attention', left: 60, right: 130, top: 140, bottom: 150 }] },
+    { left: 160, top: 140, right: 210, bottom: 150, text: 'O(n2 · d)', words: [{ text: 'O(n2 · d)', left: 160, right: 210, top: 140, bottom: 150 }] },
+    { left: 280, top: 140, right: 310, bottom: 150, text: 'O(1)', words: [{ text: 'O(1)', left: 280, right: 310, top: 140, bottom: 150 }] },
+    { left: 360, top: 140, right: 390, bottom: 150, text: 'O(1)', words: [{ text: 'O(1)', left: 360, right: 390, top: 140, bottom: 150 }] }
+  ];
+
+  const tables = reconstructTables(rules, lines, 500, 700);
+  assertEqual(tables.length, 1, 'Must extract 1 table');
+  const t = tables[0];
+  assert(t.markdown.includes('| Sequential Operations |'), 'Header wrap must be joined with space: "Sequential Operations"');
+  assert(t.markdown.includes('| Layer Type | Complexity per Layer | Sequential Operations | Maximum Path Length |'), 'Full header format');
+  assertEqual(t.matrix[2][0], 'Self-Attention', 'Data row 1 must not be sucked into header');
+});
+
 console.log('\n\x1b[1m\x1b[32m✔ All Table Geometry & Rendering tests passed successfully!\x1b[0m\n');

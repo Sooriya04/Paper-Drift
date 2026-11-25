@@ -377,4 +377,21 @@ await runAsyncTest('Markdown paragraph joining preserves legitimate compound wor
   }
 });
 
+runTest('classifyTypography classifies margin page numbers and arXiv side banners as margin_artifact', () => {
+  const bodyMode = 10;
+  const pageHeight = 792;
+
+  // Standalone page number in footer
+  const pageNumFooter = { text: '4', left: 303, top: 745, width: 5, height: 9 };
+  assert.strictEqual(classifyTypography(pageNumFooter, bodyMode, pageHeight), 'margin_artifact');
+
+  // Standalone page number in header
+  const pageNumHeader = { text: '12', left: 550, top: 35, width: 10, height: 9 };
+  assert.strictEqual(classifyTypography(pageNumHeader, bodyMode, pageHeight), 'margin_artifact');
+
+  // Vertical margin arXiv watermark
+  const arxivWatermark = { text: 'arXiv:1706.03762v7  [cs.CL]  2 Aug 2023', left: 15, top: 250, width: 25, height: 300 };
+  assert.strictEqual(classifyTypography(arxivWatermark, bodyMode, pageHeight), 'margin_artifact');
+});
+
 console.log('\n\x1b[32m✔ All Markdown, Typography & CLI tests passed successfully!\x1b[0m\n');

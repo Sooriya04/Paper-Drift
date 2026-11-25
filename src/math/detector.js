@@ -420,9 +420,13 @@ export function reconstructPageMath(lines, vectors, pageWidth, pageHeight) {
     const englishWords = words.filter(w => /^[a-zA-Z]{3,}$/.test(w) && !/^(?:sin|cos|tan|log|ln|exp|max|min|det|softmax|Concat|head|where)$/i.test(w));
     if (englishWords.length >= 3) continue;
 
+    // Do NOT treat inline continuation lines (starting with ∈, in, punctuation, or conjunctions) as standalone display equations
+    if (/^(?:∈|\\in|,|\.|\band\b|\bwhere\b|\bwith\b|\bfor\b|\bor\b|\bin\b)/i.test(text)) continue;
+
     const isDisplayMath = /^[A-Za-z]+(?:\([^\)]*\))?\s*=\s*/.test(text) ||
                           /^[a-zA-Z]\s*=\s*[0-9\.\-]/.test(text) ||
-                          /[∫∑∏∂∇≤≥≠≈∈⊂∪]/.test(text);
+                          /^[∫∑∏]\b/.test(text) ||
+                          (/[=≤≥≈≠]/.test(text) && /[A-Za-z0-9]/.test(text) && !/[a-zA-Z]{4,}\s+[a-zA-Z]{4,}/.test(text));
 
     if (isDisplayMath) {
       claimedLineIndices.add(i);

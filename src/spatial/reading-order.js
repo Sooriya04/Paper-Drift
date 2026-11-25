@@ -55,7 +55,8 @@ export function recursiveXyCut(blockList, clipMinX, clipMinY, clipMaxX, clipMaxY
       const isBottom = bb.y >= maxY - 15;
       const isNarrow = bb.w <= 60;
       const isCentered = Math.abs((bb.x + bb.w / 2) - midX) < 60;
-      const isPageNum = b.lines && b.lines.length === 1 && /^\d+$/.test(b.lines[0].text?.trim());
+      const lineText = (b.lines && b.lines.length === 1 ? b.lines[0].text : (b.data?.text || '')).trim();
+      const isPageNum = /^\d{1,4}$/.test(lineText);
       if (isBottom && bb.h <= 18 && (isPageNum || (isNarrow && isCentered))) {
         footers.push(b);
       } else {
@@ -170,7 +171,7 @@ export function recursiveXyCut(blockList, clipMinX, clipMinY, clipMaxX, clipMaxY
         if (bb.x + bb.w <= g.mid + 4) left++;
         else if (bb.x >= g.mid - 4) right++;
       }
-      if (left >= 1 && right >= 1) {
+      if (left >= 2 && right >= 2) {
         validGutters.push(g);
       }
     }

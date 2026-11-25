@@ -64,8 +64,13 @@ export function classifyTypography(line, bodyMode, pageHeight = 792, pageIndex =
   if (!text) return 'body';
   const wordCount = text.split(/\s+/).filter(Boolean).length;
 
-  // Margin running artifact check: vertical line or header/footer in outer margin
-  if (line.left < 45 && line.height > line.width * 2) {
+  // Margin running artifact check: vertical line, rotated margin watermark, or header/footer in outer margin
+  if (line.left < 50 && (line.height > line.width * 1.5 || /arxiv:\s*\d{4}\.\d{4,5}/i.test(text))) {
+    return 'margin_artifact';
+  }
+
+  // Standalone page numbers in top or bottom margin
+  if (/^\d{1,4}$/.test(text) && (typeof line.top === 'number' && (line.top <= 55 || line.top >= pageHeight - 55))) {
     return 'margin_artifact';
   }
 
@@ -74,9 +79,12 @@ export function classifyTypography(line, bodyMode, pageHeight = 792, pageIndex =
     return 'caption';
   }
 
-  // Footnote: ratio <= 0.85x bodyMode and in bottom 45% of page
+  // Footnote: ratio <= 0.85x bodyMode and in bottom of page or starting with footnote marker
   if (ratio <= 0.85 && typeof line.top === 'number' && line.top >= pageHeight * 0.55) {
-    return 'footnote';
+    const isFootnoteMarker = /^(?:[∗*†‡§#]|\d{1,2}[A-Za-z]|\d{1,2}\s+[A-Za-z])/u.test(text);
+    if (isFootnoteMarker || line.top >= pageHeight * 0.80) {
+      return 'footnote';
+    }
   }
 
   // Major Title:
