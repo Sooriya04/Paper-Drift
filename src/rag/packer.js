@@ -9,18 +9,22 @@ import { BLOCK_TYPES, normalizeChunkOptions, isValidChunk } from './constants.js
 
 /**
  * Splits an oversized prose string into natural sentence-level segments.
+ * Correctly preserves internal decimal numbers (e.g. 28.4 BLEU, 3.5 days)
+ * by only breaking on punctuation followed by whitespace or end-of-string.
  */
 function splitOversizedParagraph(text, maxChars) {
-  const sentences = text.match(/[^.!?]+[.!?]+(?:\s+|$)|[^.!?]+$/g) || [text];
+  const sentences = text.match(/(?:[^.!?]|\.(?!\s)|!(?!\s)|\?(?!\s))+[.!?]+(?:\s+|$)|.+$/g) || [text];
   const slices = [];
   let buffer = '';
 
   for (const s of sentences) {
-    if (buffer.length > 0 && (buffer.length + s.length) > maxChars) {
+    const trimmed = s.trim();
+    if (!trimmed) continue;
+    if (buffer.length > 0 && (buffer.length + trimmed.length + 1) > maxChars) {
       slices.push(buffer.trim());
-      buffer = s;
+      buffer = trimmed;
     } else {
-      buffer += (buffer.length > 0 ? ' ' : '') + s;
+      buffer += (buffer.length > 0 ? ' ' : '') + trimmed;
     }
   }
 
