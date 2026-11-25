@@ -428,4 +428,44 @@ console.log('\nRunning RAG Semantic Chunking Subsystem Test Suite');
   }
 }
 
+// Test 15: Decimal numbers and metrics are preserved intact without corruption
+{
+  const benchPdf = 'test/fixtures/benchmarks/01-attention-is-all-you-need.pdf';
+  if (fs.existsSync(benchPdf)) {
+    const chunks = await chunkPdfForRag(benchPdf, { pages: '1' });
+    const abstractChunk = chunks.find(c => c.section === 'Abstract');
+    assert.ok(abstractChunk, 'Abstract chunk must exist');
+    assert.ok(
+      abstractChunk.content.includes('28.4 BLEU'),
+      'Chunk must preserve "28.4 BLEU" intact without stripping decimal prefix to "4 BLEU"'
+    );
+    assert.ok(
+      abstractChunk.content.includes('3.5 days'),
+      'Chunk must preserve "3.5 days" intact without stripping decimal prefix to "5 days"'
+    );
+    assert.ok(
+      abstractChunk.content.includes('41.8'),
+      'Chunk must preserve decimal BLEU score "41.8"'
+    );
+  }
+
+  // Also verify synthetic oversized paragraph packing with diverse decimal formats
+  const oversizedText = 'Our model achieves 28.4 BLEU on the benchmark. In addition, training required 3.5 days on eight GPUs. The error rate was reduced to 0.05% with a p-value of 0.001. '.repeat(10);
+  const packed = packAtomicBlocksIntoChunks([
+    {
+      type: BLOCK_TYPES.PARAGRAPH,
+      content: oversizedText,
+      page: 1,
+      isAtomic: false
+    }
+  ], { max_chunk_chars: 400, min_chunk_chars: 50 });
+
+  assert.ok(packed.length > 1, 'Should split oversized paragraph into multiple chunks');
+  for (const c of packed) {
+    assert.ok(!c.content.includes(' 4 BLEU'), 'Should never corrupt 28.4 BLEU to 4 BLEU');
+    assert.ok(!c.content.includes(' 5 days'), 'Should never corrupt 3.5 days to 5 days');
+  }
+  console.log('  ✔ RAG chunking preserves decimal numbers (28.4 BLEU, 3.5 days, 0.001) without truncation');
+}
+
 console.log('\n\x1b[32m✔ All RAG tests passed successfully!\x1b[0m\n');
