@@ -468,4 +468,20 @@ console.log('\nRunning RAG Semantic Chunking Subsystem Test Suite');
   console.log('  ✔ RAG chunking preserves decimal numbers (28.4 BLEU, 3.5 days, 0.001) without truncation');
 }
 
+// Test 16: ResNet page 1 figure plot axes are masked out to prevent fake math and tables in Abstract
+{
+  const resnetPdf = 'test/fixtures/benchmarks/02-resnet-deep-residual-learning.pdf';
+  if (fs.existsSync(resnetPdf)) {
+    const chunks = await chunkPdfForRag(resnetPdf, { pages: '1' });
+    const abstractChunk = chunks.find(c => c.section === 'Abstract');
+    assert.ok(abstractChunk, 'Abstract chunk must exist');
+    assert.strictEqual(abstractChunk.has_math, false, 'Abstract must not contain fake math formulas from plot axes');
+    assert.strictEqual(abstractChunk.has_table, false, 'Abstract must not contain fake tables from plot axes');
+    assert.ok(!abstractChunk.content.includes('0 1 2 3 4 5 6'), 'Plot tick marks must not bleed into Abstract chunk');
+    assert.ok(!abstractChunk.content.includes('56-layer'), 'Plot legend labels must not bleed into Abstract chunk');
+    assert.ok(abstractChunk.content.includes('Deeper neural networks are more difficult to train'), 'Abstract content must be preserved');
+  }
+  console.log('  ✔ ResNet page 1 figure plot axes and ticks are masked out of RAG chunks');
+}
+
 console.log('\n\x1b[32m✔ All RAG tests passed successfully!\x1b[0m\n');

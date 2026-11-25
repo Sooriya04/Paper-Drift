@@ -17,6 +17,7 @@ import { parsePageRange } from '../converter.js';
 import { recursiveXyCut } from '../spatial/reading-order.js';
 import { extractPdfImages } from '../images/extractor.js';
 import { readPageRasterImages } from '../images/raster.js';
+import { detectPageFigures, maskFigureContent } from '../images/figures.js';
 import {
   extractPageLinks,
   buildDocumentDestinations,
@@ -108,12 +109,21 @@ export async function convertPdfToMarkdown(input, options = {}) {
                 img.bounds = bounds;
               }
 
+              const figures = detectPageFigures({
+                bounds,
+                lines,
+                vectors,
+                contentImages: pageImages
+              });
+
+              const { lines: cleanLines, vectors: cleanVectors } = maskFigureContent(lines, vectors, figures);
+
               const rules = [];
-              for (const v of vectors) {
+              for (const v of cleanVectors) {
                 rules.push(...rulesFromVector(v));
               }
 
-              const { mathItems, claimedLineIndices } = reconstructPageMath(lines, vectors, width, height);
+              const { mathItems, claimedLineIndices } = reconstructPageMath(cleanLines, cleanVectors, width, height);
 
               rawPagesData.push({
                 index: pageIndex,
@@ -122,8 +132,11 @@ export async function convertPdfToMarkdown(input, options = {}) {
                 bounds,
                 width,
                 height,
-                lines,
-                vectors,
+                lines: cleanLines,
+                rawLines: lines,
+                vectors: cleanVectors,
+                rawVectors: vectors,
+                figures,
                 rules,
                 links,
                 rasterImages: pageImages,

@@ -15,6 +15,7 @@ import { reconstructTables, linkMultiPageTables } from '../tables/grid.js';
 import { parsePageRange } from '../converter.js';
 import { recursiveXyCut } from '../spatial/reading-order.js';
 import { extractPdfImages } from '../images/extractor.js';
+import { detectPageFigures, maskFigureContent } from '../images/figures.js';
 import {
   extractPageLinks,
   applyLinksToLine
@@ -216,8 +217,11 @@ export async function convertPdfToDocumentIR(input, options = {}) {
         const { lines, vectors } = extractPageVectorsAndText(page);
         const links = enableLinks ? extractPageLinks(page, doc) : [];
 
+        const figures = detectPageFigures({ bounds, lines, vectors });
+        const { lines: cleanLines, vectors: cleanVectors } = maskFigureContent(lines, vectors, figures);
+
         const rules = [];
-        for (const v of vectors) {
+        for (const v of cleanVectors) {
           rules.push(...rulesFromVector(v));
         }
 
@@ -228,8 +232,11 @@ export async function convertPdfToDocumentIR(input, options = {}) {
           bounds,
           width,
           height,
-          lines,
-          vectors,
+          lines: cleanLines,
+          rawLines: lines,
+          vectors: cleanVectors,
+          rawVectors: vectors,
+          figures,
           rules,
           links
         });

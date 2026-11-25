@@ -352,6 +352,12 @@ await runAsyncTest('Academic PDFs preserve accurate Title, H1, H2, and H3 hierar
     const resnetRes = await convertPdfToMarkdown(resnetPdf, { pages: '1' });
     assert.ok(resnetRes.markdown.includes('# Deep Residual Learning for Image Recognition'), 'Expected ResNet main title');
     assert.ok(!resnetRes.markdown.includes('## Kaiming He'), 'Authors must not be classified as headings');
+    // Ensure plot axes and tick marks do not corrupt Abstract or generate fake math/tables
+    assert.ok(resnetRes.markdown.includes('We explicitly reformulate the layers as learn-'), 'Abstract learn- text must be present');
+    assert.ok(resnetRes.markdown.includes('ing residual functions with reference to the layer inputs'), 'Abstract continuation must follow cleanly');
+    assert.ok(!resnetRes.markdown.includes('\\frac{20 - layer}{0 1 2 3 4 5 6}'), 'Must not generate fake math fractions from plot axes');
+    assert.ok(!resnetRes.markdown.includes('| 0 0 1 2 3 4 5 6 |'), 'Must not generate fake tables from plot axis tick numbers');
+    assert.ok(!resnetRes.markdown.includes('iter. (1e4)'), 'Axis tick labels must be masked out of body text');
   }
 
   if (fs.existsSync(loraPdf)) {

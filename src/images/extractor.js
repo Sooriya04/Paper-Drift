@@ -199,10 +199,10 @@ export async function extractPdfImages(input, options = {}) {
         // Detect vector figures on this page
         let detectedFigures = [];
         if (extractFigures) {
-          detectedFigures = detectPageFigures({
+          detectedFigures = pData.figures || detectPageFigures({
             bounds: pData.bounds,
-            lines: pData.lines,
-            vectors: pData.vectors,
+            lines: pData.rawLines || pData.lines,
+            vectors: pData.rawVectors || pData.vectors,
             contentImages: validRaster
           });
         }
@@ -253,7 +253,10 @@ export async function extractPdfImages(input, options = {}) {
               height: rendered.height,
               bytes: rendered.bytes,
               sizeKb: parseFloat((rendered.bytes.length / 1024).toFixed(1)),
-              insideLines: fig.insideLines || []
+              insideLines: fig.insideLines || [],
+              plotBox: fig.plotBox || fig.bbox,
+              plotLines: fig.plotLines || [],
+              captionLines: fig.captionLines || []
             };
 
             assets.push(assetInfo);
