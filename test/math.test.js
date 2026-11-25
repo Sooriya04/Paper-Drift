@@ -193,4 +193,18 @@ await runAsyncTest('convertPdfToDocumentIR stores structured math with structure
   assert.ok(Array.isArray(eq1.bbox) && eq1.bbox.length === 4);
 });
 
+await runAsyncTest('reconstructPageMath and converter do not claim inline set membership lines (starting with ∈) as display equations', async () => {
+  const inlineLines = [
+    { text: 'Where the projections are parameter matrices W Q', left: 107, top: 203, right: 303, bottom: 215, width: 196, height: 12 },
+    { text: '∈Rdmodel×dk, W K', left: 306, top: 204, right: 377, bottom: 215, width: 71, height: 11 }
+  ];
+  const { mathItems, claimedLineIndices } = reconstructPageMath(inlineLines, [], 612, 792);
+  assert.strictEqual(mathItems.length, 0, 'Inline set membership line starting with ∈ must not be claimed as display equation');
+  assert.strictEqual(claimedLineIndices.size, 0);
+
+  const res = await convertPdfToMarkdown(attentionPdf, { pages: '5' });
+  assert.ok(!res.markdown.includes('$$\n\\in Rdmodel'), 'Must not create bogus display equation for parameter matrix projections');
+  assert.ok(res.markdown.includes('W^Q_i ∈Rdmodel×dk'), 'Parameter matrix projection subscript must be joined in prose');
+});
+
 console.log('\n\x1b[32m✔ All Mathematical Equation Reconstruction tests passed successfully!\x1b[0m\n');

@@ -66,12 +66,14 @@ export function extractPageAtomicBlocks(pageData) {
 
   const bodyMode = calculateBodyFontSizeMode(lines);
 
-  // Filter margin artifacts (solitary page numbers, running headers/footers)
+  // Filter margin artifacts (solitary page numbers, running headers/footers, arXiv watermarks)
   const validLines = lines.filter(l => {
     if (claimedLines.has(l)) return false;
     const t = (l.text || '').trim();
-    if (!t || /^\d+$/.test(t)) return false;
-    if (l.top < 40 || l.top > height - 40) return false;
+    if (!t) return false;
+    if (l.left < 50 && (l.height > l.width * 1.5 || /arxiv:\s*\d{4}\.\d{4,5}/i.test(t))) return false;
+    if (/^\d{1,4}$/.test(t) && (l.top <= 55 || l.top >= height - 55)) return false;
+    if (l.top < 35 || l.top > height - 35) return false;
     return true;
   });
 

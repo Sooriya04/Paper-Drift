@@ -240,10 +240,13 @@ export async function convertPdfToMarkdown(input, options = {}) {
           ...Array.from(claimedLineIndices).map(idx => pData.lines[idx])
         ]);
 
-        // Remaining prose lines (filtering out vertical running margin lines like arXiv side banners)
+        // Remaining prose lines (filtering out margin artifacts like standalone page numbers and vertical running lines)
         const proseLines = pData.lines.filter(l => {
           if (claimedLines.has(l)) return false;
-          if (stripRepeatedLines && l.left < 45 && l.height > l.width * 2) return false;
+          if (stripRepeatedLines) {
+            const role = classifyTypography(l, bodyMode, pData.height, pData.pageIndex);
+            if (role === 'margin_artifact') return false;
+          }
           return true;
         });
 
@@ -299,7 +302,11 @@ export async function convertPdfToMarkdown(input, options = {}) {
           if (!lines || lines.length === 0) return '';
           const rawJoined = lines.join('\n');
           const repaired = repairHyphenation(rawJoined);
-          return repaired.split('\n').join(' ');
+          let text = repaired.split('\n').join(' ');
+          // Heal broken inline math fragments (fractions, matrix subscripts)
+          text = text.replace(/√\s*1\s*([a-zA-Z]+)\b/g, '1 / √$1')
+                     .replace(/\bW\s+([QKV])\s+i\b/g, 'W^$1_i');
+          return text;
         }
 
         function flushParagraph() {
@@ -463,9 +470,10 @@ export async function convertPdfToMarkdown(input, options = {}) {
                 // Check if vertical gap, preceding colon, or column switch indicates a paragraph break
                 const lineBottom = lastLine ? (lastLine.bottom || (lastLine.top + lastLine.height)) : null;
                 const lineGap = (lastLine && lineBottom !== null) ? (line.top - lineBottom) : 0;
-                const isSignificantGap = lastLine && lineGap > Math.max(6, bodyMode * 0.5);
+                const isSameLine = lastLine && (Math.abs(line.top - lastLine.top) <= 5.0 || (Math.min(line.bottom, lineBottom) - Math.max(line.top, lastLine.top) > 2));
+                const isSignificantGap = !isSameLine && lastLine && lineGap > Math.max(6, bodyMode * 0.5);
                 const prevEndedWithColon = lastLine && (lastLine.text || '').trim().endsWith(':');
-                const isColumnSwitch = lastLine && (line.top < lastLine.top - 10 || Math.abs(line.left - lastLine.left) > pData.width * 0.25);
+                const isColumnSwitch = !isSameLine && lastLine && (line.top < lastLine.top - 25);
 
                 if (isSignificantGap || prevEndedWithColon || isColumnSwitch) {
                   flushParagraph();

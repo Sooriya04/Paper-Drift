@@ -277,7 +277,7 @@ export function projectColumnGutters(words, tableLeft, tableRight, snap) {
  * @param {number} snap - Snapping tolerance
  * @returns {Array<{ top: number, bottom: number, midY: number, lines: Array<Object> }>}
  */
-export function groupLinesIntoRows(lines, snap) {
+export function groupLinesIntoRows(lines, snap, horizRules = []) {
   const sorted = [...lines].sort((a, b) => {
     const topA = a.top ?? (a.bbox ? a.bbox[1] : 0);
     const topB = b.top ?? (b.bbox ? b.bbox[1] : 0);
@@ -293,8 +293,19 @@ export function groupLinesIntoRows(lines, snap) {
     const lHeight = Math.max(6, lBottom - lTop);
 
     let matched = rowClusters.find(r => {
+      // Never group lines across an intervening horizontal rule
+      if (horizRules && horizRules.length > 0) {
+        for (const rule of horizRules) {
+          const ruleY = (rule.top + rule.bottom) / 2;
+          if ((r.midY < ruleY && lMidY > ruleY) || (lMidY < ruleY && r.midY > ruleY)) {
+            return false;
+          }
+        }
+      }
+
       const yOverlap = Math.min(r.bottom, lBottom) - Math.max(r.top, lTop);
-      return yOverlap > 0 || Math.abs(r.midY - lMidY) <= Math.max(snap * 2, lHeight * 0.45);
+      const minOverlap = Math.min(2.5, lHeight * 0.35);
+      return yOverlap >= minOverlap || Math.abs(r.midY - lMidY) <= Math.max(snap * 1.5, lHeight * 0.35);
     });
 
     if (matched) {
@@ -337,13 +348,16 @@ export function buildTableCellsWithSpans(rowClusters, colBoundaries, snap = 2.0)
     const row = rowClusters[r];
     const wordsInRow = [];
     for (const line of row.lines) {
-      if (/\s{2,}|\t/.test(line.text || '')) {
+      const lLeft = line.left ?? (line.bbox ? line.bbox[0] : 0);
+      const lRight = line.right ?? (line.bbox ? line.bbox[2] : 0);
+      const crossesCols = colBoundaries && colBoundaries.some(b => b > lLeft + 4 && b < lRight - 4);
+      if (crossesCols || /\s{2,}|\t/.test(line.text || '')) {
         wordsInRow.push(...getWordsFromLine(line));
       } else {
         wordsInRow.push({
           text: (line.text || '').trim(),
-          left: line.left ?? (line.bbox ? line.bbox[0] : 0),
-          right: line.right ?? (line.bbox ? line.bbox[2] : 0),
+          left: lLeft,
+          right: lRight,
           top: line.top ?? (line.bbox ? line.bbox[1] : 0),
           bottom: line.bottom ?? (line.bbox ? line.bbox[3] : 0)
         });
@@ -804,11 +818,12 @@ export function reconstructTables(rules = [], lines, pageWidth = 612, pageHeight
     }
 
     // Booktabs, borderless, or unstructured table reconstruction
+    const tableHorizRules = cRules.filter(isHorizontal);
     if (colBoundaries && candidate.isFullGrid) {
       colBoundaries = cluster1D([left, ...colBoundaries, right], snap * 2);
     }
     if (!colBoundaries || colBoundaries.length < 2) {
-      const rowClusters = groupLinesIntoRows(linesInside, snap);
+      const rowClusters = groupLinesIntoRows(linesInside, snap, tableHorizRules);
       let gutterLines = linesInside;
       if (rowClusters.length >= 2) {
         const counts = rowClusters.map(r => r.lines.length);
@@ -829,8 +844,8 @@ export function reconstructTables(rules = [], lines, pageWidth = 612, pageHeight
     const numCols = colBoundaries.length - 1;
     if (numCols < 1) continue;
 
-    // Group lines into rows by vertical gaps
-    const rowClusters = groupLinesIntoRows(linesInside, snap);
+    // Group lines into rows by vertical gaps and rule boundaries
+    const rowClusters = groupLinesIntoRows(linesInside, snap, tableHorizRules);
     if (rowClusters.length < 2) continue;
 
     // Map words/cells into 2D cell matrix with merged cell detection
@@ -845,9 +860,25 @@ export function reconstructTables(rules = [], lines, pageWidth = 612, pageHeight
       continue; // Skip single-column tall boxes (often abstracts or text blocks enclosed by horizontal rules)
     }
 
+    // Determine header row depth: prioritize midrules for academic Booktabs tables
+    let headerRows = cellModel.headerRows;
+    if (tableHorizRules.length >= 3) {
+      const sortedH = [...tableHorizRules].sort((a, b) => a.top - b.top);
+      const topRule = sortedH[0];
+      const bottomRule = sortedH[sortedH.length - 1];
+      const midRules = sortedH.filter(r => r.top > topRule.bottom + 2 && r.bottom < bottomRule.top - 2);
+      if (midRules.length > 0) {
+        const firstMid = midRules[0];
+        const rowsAboveMid = rowClusters.filter(r => r.bottom <= firstMid.top + 2.0);
+        if (rowsAboveMid.length > 0 && rowsAboveMid.length < rowClusters.length) {
+          headerRows = rowsAboveMid.length;
+        }
+      }
+    }
+
     const alignments = buildAlignments(matrix, numCols);
-    const markdown = renderPipeTable(matrix, alignments, { headerRows: cellModel.headerRows });
-    const headers = buildHeaderHierarchy(cellModel.cells, cellModel.headerRows, numCols);
+    const markdown = renderPipeTable(matrix, alignments, { headerRows, cells: cellModel.cells });
+    const headers = buildHeaderHierarchy(cellModel.cells, headerRows, numCols);
 
     tables.push({
       bbox: [left, top, right, bottom],
@@ -862,7 +893,7 @@ export function reconstructTables(rules = [], lines, pageWidth = 612, pageHeight
         isBorderless: Boolean(candidate.isBorderless),
         rows: matrix.length,
         cols: numCols,
-        headerRows: cellModel.headerRows,
+        headerRows,
         colBoundaries
       }
     });
@@ -901,9 +932,10 @@ export function reconstructTables(rules = [], lines, pageWidth = 612, pageHeight
     const matrix = cellModel.matrix;
     if (matrix.length < 2) continue;
 
+    const headerRows = cellModel.headerRows;
     const alignments = buildAlignments(matrix, numCols);
-    const markdown = renderPipeTable(matrix, alignments, { headerRows: cellModel.headerRows });
-    const headers = buildHeaderHierarchy(cellModel.cells, cellModel.headerRows, numCols);
+    const markdown = renderPipeTable(matrix, alignments, { headerRows, cells: cellModel.cells });
+    const headers = buildHeaderHierarchy(cellModel.cells, headerRows, numCols);
 
     tables.push({
       bbox: [left, top, right, bottom],
@@ -918,7 +950,7 @@ export function reconstructTables(rules = [], lines, pageWidth = 612, pageHeight
         isBorderless: true,
         rows: matrix.length,
         cols: numCols,
-        headerRows: cellModel.headerRows,
+        headerRows,
         colBoundaries
       }
     });

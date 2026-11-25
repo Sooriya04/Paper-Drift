@@ -296,7 +296,14 @@ export async function convertPdfToDocumentIR(input, options = {}) {
         ...Array.from(claimedLineIndices).map(idx => pData.lines[idx])
       ]);
 
-      const proseLines = pData.lines.filter(l => !claimedLines.has(l));
+      const proseLines = pData.lines.filter(l => {
+        if (claimedLines.has(l)) return false;
+        const t = (l.text || '').trim();
+        if (!t) return false;
+        if (l.left < 50 && (l.height > l.width * 1.5 || /arxiv:\s*\d{4}\.\d{4,5}/i.test(t))) return false;
+        if (/^\d{1,4}$/.test(t) && (l.top <= 55 || l.top >= pData.height - 55)) return false;
+        return true;
+      });
 
       // Construct temporary spatial blocks for reading-order sorting
       const blocksToOrder = [

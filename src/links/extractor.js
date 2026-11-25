@@ -405,6 +405,11 @@ export function findDestinationAnchors(line, pageDestinations = [], claimedIds =
   for (const dest of pageDestinations) {
     if (claimedIds.has(dest.id)) continue;
 
+    // Heading destinations should only attach to lines that start with section numbers
+    if (/^(?:sub)*section-/.test(dest.id) && !/^(\d+(?:\.\d+)*\.?|[A-Z](?:\.\d+)+\.?|[IVXLCDM]+\.?)\s+\p{Lu}/u.test(line.text?.trim() || '')) {
+      continue;
+    }
+
     // Check if the destination coordinate falls near the top of this line (within 14pt) or inside its bounds
     if ((dest.y >= lineTop - 14 && dest.y <= lineBottom + 6) || Math.abs(dest.y - lineTop) <= 14) {
       claimedIds.add(dest.id);
