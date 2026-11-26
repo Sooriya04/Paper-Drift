@@ -47,7 +47,13 @@ function readRequestBody(req, maxBytes = 50 * 1024 * 1024) {
       }
       chunks.push(chunk);
     });
-    req.on('end', () => resolve(Buffer.concat(chunks)));
+    req.on('end', () => {
+      const buffer = Buffer.concat(chunks);
+      if (buffer.length === 0) {
+        return reject(new Error('Empty PDF payload: request body contains 0 bytes.'));
+      }
+      resolve(buffer);
+    });
     req.on('error', reject);
     req.on('close', () => {
       if (!req.readableEnded) {
@@ -102,12 +108,22 @@ async function handleApiPost(req, res, handler) {
     await handler();
   } catch (err) {
     if (res.writableEnded || res.destroyed) return;
-    const isClientError = err.message.includes('No matching pages found') ||
-                          err.message.includes('page range') ||
-                          err.message.includes('Invalid') ||
-                          err.message.includes('aborted') ||
-                          err.name === 'ValidationError';
-    const status = err.message.includes('Payload too large') ? 413 : (isClientError ? 400 : 500);
+    const msg = err.message || '';
+    const msgLower = msg.toLowerCase();
+    const isClientError = msgLower.includes('empty pdf') ||
+                          msgLower.includes('empty') ||
+                          msgLower.includes('failed to open pdf') ||
+                          msgLower.includes('cannot recognize') ||
+                          msgLower.includes('no objects') ||
+                          msgLower.includes('cannot find') ||
+                          msgLower.includes('invalid') ||
+                          msgLower.includes('corrupt') ||
+                          msgLower.includes('no matching pages found') ||
+                          msgLower.includes('page range') ||
+                          msgLower.includes('aborted') ||
+                          err.name === 'ValidationError' ||
+                          err.name === 'TypeError';
+    const status = msg.includes('Payload too large') ? 413 : (isClientError ? 400 : 500);
     try {
       res.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
       res.end(JSON.stringify({ success: false, error: err.message }));

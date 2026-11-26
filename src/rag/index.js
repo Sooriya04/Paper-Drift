@@ -48,6 +48,10 @@ export async function chunkPdfForRag(input, options = {}) {
     throw new TypeError('Input must be a valid file path string, Buffer, or Uint8Array.');
   }
 
+  if (pdfBuffer.length === 0) {
+    throw new Error('Empty PDF payload: input buffer contains 0 bytes.');
+  }
+
   let doc;
   try {
     doc = mupdf.Document.openDocument(pdfBuffer, 'application/pdf');

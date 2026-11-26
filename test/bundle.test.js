@@ -380,4 +380,49 @@ await runAsyncTest('startServer caps port retries at base port + MAX_PORT_RETRIE
   assert.ok(stderr.includes('max retries: 10'), `Expected max retries error log in stderr, got: ${stderr}`);
 });
 
+await runAsyncTest('API endpoints return 400 Bad Request on empty or corrupt/non-PDF payloads', async () => {
+  const { server } = await import('../server/server.js');
+
+  await new Promise(resolve => server.listen(0, resolve));
+  const port = server.address().port;
+
+  const endpoints = ['/api/parse-full', '/api/chunk-rag', '/api/convert-markdown'];
+
+  try {
+    for (const ep of endpoints) {
+      // 1. Empty body (0 bytes)
+      const emptyRes = await fetch(`http://localhost:${port}${ep}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/pdf' },
+        body: Buffer.alloc(0)
+      });
+      assert.strictEqual(emptyRes.status, 400, `Expected 400 for empty body on ${ep}`);
+      const emptyJson = await emptyRes.json();
+      assert.strictEqual(emptyJson.success, false);
+      assert.ok(
+        emptyJson.error.toLowerCase().includes('empty'),
+        `Expected error message mentioning empty on ${ep}, got: ${emptyJson.error}`
+      );
+
+      // 2. Corrupt / non-PDF payload
+      const corruptRes = await fetch(`http://localhost:${port}${ep}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/pdf' },
+        body: Buffer.from('not-a-pdf')
+      });
+      assert.strictEqual(corruptRes.status, 400, `Expected 400 for corrupt body on ${ep}`);
+      const corruptJson = await corruptRes.json();
+      assert.strictEqual(corruptJson.success, false);
+      assert.ok(
+        corruptJson.error.includes('Failed to open PDF document') ||
+        corruptJson.error.toLowerCase().includes('cannot') ||
+        corruptJson.error.toLowerCase().includes('no objects'),
+        `Expected error message on ${ep}, got: ${corruptJson.error}`
+      );
+    }
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+  }
+});
+
 console.log('\n\x1b[32m✔ All Unified PDF Bundle Parser tests passed successfully!\x1b[0m\n');
