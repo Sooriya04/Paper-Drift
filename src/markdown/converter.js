@@ -231,7 +231,8 @@ export async function convertPdfToMarkdown(input, options = {}) {
         // Extract tables
         let pageTables = [];
         if (enableTables) {
-          pageTables = reconstructTables(validRules, pData.lines, pData.width, pData.height);
+          pageTables = pData.tables || reconstructTables(validRules, pData.lines, pData.width, pData.height);
+          pData.tables = pageTables;
           totalTablesCount += pageTables.length;
         }
 

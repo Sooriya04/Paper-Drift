@@ -288,6 +288,12 @@ const server = http.createServer(async (req, res) => {
     return res.end('Access denied');
   }
 
+  const filename = path.basename(filePath);
+  if (filename === 'server.js') {
+    res.writeHead(403, { 'Content-Type': 'text/plain' });
+    return res.end('Access denied');
+  }
+
   fs.stat(filePath, (err, stats) => {
     if (err || !stats.isFile()) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
