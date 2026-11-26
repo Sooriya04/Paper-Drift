@@ -163,10 +163,48 @@ try {
     assert.throws(() => {
       execSync(`node bin/cli.js "${samplePdfPath}" --pages 0`, { stdio: 'pipe' });
     });
+    // Missing output argument
+    assert.throws(() => {
+      execSync(`node bin/cli.js "${samplePdfPath}" -o`, { stdio: 'pipe' });
+    });
+    assert.throws(() => {
+      execSync(`node bin/cli.js "${samplePdfPath}" --output`, { stdio: 'pipe' });
+    });
+    assert.throws(() => {
+      execSync(`node bin/cli.js "${samplePdfPath}" -o --format chunks`, { stdio: 'pipe' });
+    });
     // Non-existent PDF input
     assert.throws(() => {
       execSync('node bin/cli.js non_existent_file.pdf', { stdio: 'pipe' });
     });
+  });
+
+  // 7c. CLI -o and --output flag support
+  const cliOutputFlagAfter = path.join(resultsOutputDir, 'sample-flag-after.json');
+  runTest('CLI supports -o flag after input file', () => {
+    if (fs.existsSync(cliOutputFlagAfter)) fs.unlinkSync(cliOutputFlagAfter);
+    execSync(`node bin/cli.js "${samplePdfPath}" --format chunks -o "${cliOutputFlagAfter}"`, { stdio: 'pipe' });
+    if (!fs.existsSync(cliOutputFlagAfter)) throw new Error('Output file was not created');
+    const parsed = JSON.parse(fs.readFileSync(cliOutputFlagAfter, 'utf-8'));
+    assert.ok(Array.isArray(parsed));
+  });
+
+  const cliOutputFlagBefore = path.join(resultsOutputDir, 'sample-flag-before.json');
+  runTest('CLI supports -o flag before input file', () => {
+    if (fs.existsSync(cliOutputFlagBefore)) fs.unlinkSync(cliOutputFlagBefore);
+    execSync(`node bin/cli.js -o "${cliOutputFlagBefore}" "${samplePdfPath}" --format chunks`, { stdio: 'pipe' });
+    if (!fs.existsSync(cliOutputFlagBefore)) throw new Error('Output file was not created');
+    const parsed = JSON.parse(fs.readFileSync(cliOutputFlagBefore, 'utf-8'));
+    assert.ok(Array.isArray(parsed));
+  });
+
+  const cliOutputLongFlag = path.join(resultsOutputDir, 'sample-long-flag.json');
+  runTest('CLI supports --output flag', () => {
+    if (fs.existsSync(cliOutputLongFlag)) fs.unlinkSync(cliOutputLongFlag);
+    execSync(`node bin/cli.js "${samplePdfPath}" --output "${cliOutputLongFlag}" --format json`, { stdio: 'pipe' });
+    if (!fs.existsSync(cliOutputLongFlag)) throw new Error('Output file was not created');
+    const parsed = JSON.parse(fs.readFileSync(cliOutputLongFlag, 'utf-8'));
+    assert.strictEqual(typeof parsed.metadata.title, 'string');
   });
 
   // 7b. CLI JSON format export

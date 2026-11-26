@@ -34,6 +34,7 @@ High-performance, zero-Chromium WebAssembly PDF to Image, Markdown (GFM), HTML, 
   output           (Optional) Destination file or directory path
 
 \x1b[1mOPTIONS:\x1b[0m
+  -o, --output <path>  Destination file or directory path (alternative to positional [output])
   --format <fmt>       Output format: image (png) | base64 | html | markdown (md) | text | json | ir | bundle | chunks (default: image)
   -i, --extract-images [dir] Extract embedded raster images & vector figures (optional directory)
   --scale <num>        DPI resolution scale factor (default: 2.0 = Retina 144 DPI, 3.0 = 216 DPI)
@@ -53,6 +54,7 @@ High-performance, zero-Chromium WebAssembly PDF to Image, Markdown (GFM), HTML, 
   $ paper-drift paper.pdf --format json                  # Export Structured Document IR JSON
   $ paper-drift paper.pdf bundle.json --format bundle    # Export Unified All-in-One Bundle JSON
   $ paper-drift paper.pdf chunks.json --format chunks    # Export Semantic RAG Chunks JSON
+  $ paper-drift paper.pdf --format chunks -o chunks.json # Export Semantic RAG Chunks JSON via -o flag
   $ paper-drift paper.pdf output.html --format html      # Export standalone HTML viewer
   $ paper-drift paper.pdf output.md --format markdown    # Convert to publication-grade GFM Markdown
   $ paper-drift paper.pdf output.md -i                   # Markdown with embedded images & figures
@@ -158,6 +160,13 @@ Start the paper-drift HTTP microservice daemon and WebAssembly document studio.
         process.exit(1);
       }
       format = val.toLowerCase();
+    } else if (arg === '-o' || arg === '--output') {
+      const val = args[++i];
+      if (!val || val.startsWith('-')) {
+        console.error(`\x1b[31mError: Missing argument for ${arg}\x1b[0m`);
+        process.exit(1);
+      }
+      outputFile = val;
     } else if (arg === '--scale') {
       const val = args[++i];
       if (!val || val.startsWith('-')) {

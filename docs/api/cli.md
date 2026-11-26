@@ -42,6 +42,7 @@ paper-drift serve [--port <num>]
 
 | Flag | Values | Default | Description |
 | :--- | :--- | :--- | :--- |
+| `-o`, `--output <path>` | File or directory path | `null` | Destination file or directory path (alternative to positional `[output]`). |
 | `-p`, `--port <num>` | Positive integer (`1-65535`) | `7490` | Port number to bind the HTTP microservice daemon (used with `serve`). |
 | `--format <fmt>` | `image` (or `png`), `markdown` (or `md`), `chunks` (or `rag`), `bundle`, `base64`, `html`, `text`, `json`, `extract-images` | `image` | Output conversion format. Auto-inferred if `output` extension matches (`.md`, `.html`, `.png`, `.json`, `.txt`). |
 | `--max-chunk-chars <num>` | Positive integer (`> 50`) | `1500` | Target character size threshold for RAG semantic chunks (used with `--format chunks`). |
