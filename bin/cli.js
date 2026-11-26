@@ -10,7 +10,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { convertPdfToImages, streamPdfPages, convertPdfToHtml, convertPdfToMarkdown, extractPdfImages, convertPdfToDocumentIR, exportToJson, parsePdfBundle, chunkPdfForRag } from '../src/index.js';
+import { convertPdfToImages, streamPdfPages, convertPdfToHtml, convertPdfToMarkdown, extractPdfImages, convertPdfToDocumentIR, exportToJson, parsePdfBundle, chunkPdfForRag, validatePageRangeSyntax } from '../src/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -60,26 +60,6 @@ High-performance, zero-Chromium WebAssembly PDF to Image, Markdown (GFM), HTML, 
   $ paper-drift paper.pdf output.md -i                   # Markdown with embedded images & figures
   $ paper-drift paper.pdf -i assets/                     # Extract all images & vector figures directly
 `);
-}
-
-function validatePageRangeSyntax(rangeStr) {
-  if (typeof rangeStr !== 'string' || !rangeStr.trim()) return false;
-  const s = rangeStr.trim().toLowerCase();
-  if (s === 'all') return true;
-  const parts = s.split(',');
-  for (const part of parts) {
-    const p = part.trim();
-    if (!p) return false;
-    if (/^\d+$/.test(p)) {
-      if (parseInt(p, 10) < 1) return false;
-    } else if (/^\d+\s*-\s*\d+$/.test(p)) {
-      const [start, end] = p.split('-').map(x => parseInt(x.trim(), 10));
-      if (start < 1 || end < 1 || start > end) return false;
-    } else {
-      return false;
-    }
-  }
-  return true;
 }
 
 async function run() {

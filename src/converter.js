@@ -12,13 +12,38 @@ import { buildHtmlDocument, escapeHtml } from './utils/html-template.js';
 import { resolveReadingOrder } from './spatial/reading-order.js';
 
 /**
+ * Validates page range syntax.
+ * @param {string} rangeStr - Page range string (e.g. "all", "1-3", "1, 3, 5").
+ * @returns {boolean} True if syntax is valid.
+ */
+export function validatePageRangeSyntax(rangeStr) {
+  if (typeof rangeStr !== 'string' || !rangeStr.trim()) return false;
+  const s = rangeStr.trim().toLowerCase();
+  if (s === 'all') return true;
+  const parts = s.split(',');
+  for (const part of parts) {
+    const p = part.trim();
+    if (!p) return false;
+    if (/^\d+$/.test(p)) {
+      if (parseInt(p, 10) < 1) return false;
+    } else if (/^\d+\s*-\s*\d+$/.test(p)) {
+      const [start, end] = p.split('-').map(x => parseInt(x.trim(), 10));
+      if (start < 1 || end < 1 || start > end) return false;
+    } else {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
  * Parses page range string (e.g. "all", "1-3", "1,3,5") into sorted 0-indexed page indices.
  * @param {string|number[]} range - Target page specification.
  * @param {number} totalPages - Total page count in document.
  * @returns {number[]} 0-indexed page numbers.
  */
 export function parsePageRange(range, totalPages) {
-  if (range === undefined || range === null || range === '' || range === 'all') {
+  if (range === undefined || range === null || range === '' || (typeof range === 'string' && range.trim().toLowerCase() === 'all')) {
     return Array.from({ length: totalPages }, (_, i) => i);
   }
 
@@ -35,6 +60,12 @@ export function parsePageRange(range, totalPages) {
         .map(p => Number(p) - 1)
         .filter(p => !isNaN(p) && p >= 0 && p < totalPages)
     )).sort((a, b) => a - b);
+  }
+
+  if (typeof range === 'string') {
+    if (!validatePageRangeSyntax(range)) {
+      throw new Error('Invalid page range syntax: "' + range + '". Must be comma-separated page numbers or ranges (e.g. "1-3, 5").');
+    }
   }
 
   const indices = new Set();

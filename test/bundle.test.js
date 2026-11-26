@@ -123,7 +123,7 @@ await runAsyncTest('API endpoints return 400 Bad Request on invalid query parame
     assert.strictEqual(res1.status, 400, 'Expected 400 for invalid pages on parse-full');
     const json1 = await res1.json();
     assert.strictEqual(json1.success, false);
-    assert.ok(json1.error.includes('No matching pages found'));
+    assert.ok(json1.error.includes('No matching pages found') || json1.error.includes('Invalid page range syntax'));
 
     // 2. Invalid scale on /api/parse-full
     const res2 = await fetch(`http://localhost:${port}/api/parse-full?scale=-5`, {
@@ -145,7 +145,7 @@ await runAsyncTest('API endpoints return 400 Bad Request on invalid query parame
     assert.strictEqual(res3.status, 400, 'Expected 400 for invalid pages on convert-markdown');
     const json3 = await res3.json();
     assert.strictEqual(json3.success, false);
-    assert.ok(json3.error.includes('No matching pages found'));
+    assert.ok(json3.error.includes('No matching pages found') || json3.error.includes('Invalid page range syntax'));
   } finally {
     await new Promise(resolve => server.close(resolve));
   }
@@ -465,6 +465,41 @@ await runAsyncTest('API endpoints return 400 Bad Request on empty or corrupt/non
         `Expected error message on ${ep}, got: ${corruptJson.error}`
       );
     }
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+  }
+});
+
+await runAsyncTest('API endpoints return 400 Bad Request on mixed invalid page ranges (e.g. pages=1,foo)', async () => {
+  const { server } = await import('../server/server.js');
+
+  await new Promise(resolve => server.listen(0, resolve));
+  const port = server.address().port;
+
+  try {
+    const pdfBuf = fs.readFileSync(attentionPdf);
+
+    // 1. /api/parse-full?pages=1,foo
+    const res1 = await fetch(`http://localhost:${port}/api/parse-full?pages=1,foo`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/pdf' },
+      body: pdfBuf
+    });
+    assert.strictEqual(res1.status, 400, 'Expected 400 for pages=1,foo on parse-full');
+    const json1 = await res1.json();
+    assert.strictEqual(json1.success, false);
+    assert.ok(json1.error.includes('Invalid page range syntax'));
+
+    // 2. /api/chunk-rag?pages=1,foo
+    const res2 = await fetch(`http://localhost:${port}/api/chunk-rag?pages=1,foo`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/pdf' },
+      body: pdfBuf
+    });
+    assert.strictEqual(res2.status, 400, 'Expected 400 for pages=1,foo on chunk-rag');
+    const json2 = await res2.json();
+    assert.strictEqual(json2.success, false);
+    assert.ok(json2.error.includes('Invalid page range syntax'));
   } finally {
     await new Promise(resolve => server.close(resolve));
   }
