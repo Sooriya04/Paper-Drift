@@ -75,6 +75,17 @@ try {
     if (JSON.stringify(range6) !== JSON.stringify([0, 1, 3])) throw new Error(`Array range should be deduplicated and sorted: ${JSON.stringify(range6)}`);
   });
 
+  runTest('parsePageRange() throws on invalid syntax (1,foo, foo, 1,,2, 0, 5-2)', () => {
+    const invalidRanges = ['1,foo', 'foo', '1,,2', '0', '5-2'];
+    for (const invalid of invalidRanges) {
+      assert.throws(
+        () => parsePageRange(invalid, 10),
+        /Invalid page range syntax/,
+        `Expected parsePageRange to throw for "${invalid}"`
+      );
+    }
+  });
+
   // 2. CLI --help flag
   runTest('CLI responds to --help flag', () => {
     const output = execSync('node bin/cli.js --help', { encoding: 'utf-8' });

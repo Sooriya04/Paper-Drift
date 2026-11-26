@@ -12,6 +12,7 @@ import {
   streamPdfPages,
   convertPdfToHtml,
   parsePageRange,
+  validatePageRangeSyntax,
   renderRegion,
   DisplayListCache
 } from './converter.js';
@@ -51,6 +52,7 @@ export {
   streamPdfPages,
   convertPdfToHtml,
   parsePageRange,
+  validatePageRangeSyntax,
   renderRegion,
   DisplayListCache,
   convertPdfToMarkdown,
