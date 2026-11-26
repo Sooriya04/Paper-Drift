@@ -42,7 +42,16 @@ export async function parsePdfBundle(input, options = {}) {
     throw new TypeError('Input must be a valid file path string, Buffer, or Uint8Array.');
   }
 
-  const doc = mupdf.Document.openDocument(pdfBuffer, 'application/pdf');
+  if (pdfBuffer.length === 0) {
+    throw new Error('Empty PDF payload: input buffer contains 0 bytes.');
+  }
+
+  let doc;
+  try {
+    doc = mupdf.Document.openDocument(pdfBuffer, 'application/pdf');
+  } catch (err) {
+    throw new Error('Failed to open PDF document: ' + err.message);
+  }
   try {
     const totalPages = doc.countPages();
     const pageRangeStr = options.pages || options.pageRange || 'all';
