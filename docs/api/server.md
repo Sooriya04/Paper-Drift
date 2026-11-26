@@ -60,7 +60,7 @@ curl http://localhost:7490/api/health
 {
   "status": "ok",
   "uptime": 128,
-  "version": "0.1.5",
+  "version": "0.1.6",
   "activeRequests": 0,
   "maxConcurrent": 4
 }

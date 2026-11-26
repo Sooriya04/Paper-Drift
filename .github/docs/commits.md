@@ -182,6 +182,20 @@
 - Handled HTTP `OPTIONS` preflight requests for `/api/convert-markdown` in `playground/server.js`, returning `204 No Content` with appropriate CORS headers (`Access-Control-Allow-Origin`, `Access-Control-Allow-Methods`, `Access-Control-Allow-Headers`) to support cross-origin frontend integrations.
 - Fixed directory-targeted multi-page image exports in `bin/cli.js`: uses `parsedInput.name` as prefix fallback instead of static `'page'`, preventing batch exports from overwriting pages across different documents.
 
+### release: v0.1.6 - daemon CLI, RAG decimals, audit fixes, table reuse, and TypeScript types
+- Bumped package version to `0.1.6`.
+- Added `paper-drift serve --port <port>` microservice daemon CLI and `/api/health` monitoring endpoint.
+- Made default server port globally `7490` across daemon, server, CLI, and documentation.
+- Modernized developer landing page (`site/`) with minimal SourceBook-inspired aesthetic and live document preview.
+- Preserved decimal precision (e.g. `28.4 BLEU`, `3.5 days`) in RAG semantic chunking and masked plot axes artifacts.
+- Enforced strict integer validation on CLI `--port` rejecting decimals and trailing non-numeric characters.
+- Added `-o` and `--output` CLI flag support before and after input arguments.
+- Guarded 0-byte and corrupt PDF uploads returning HTTP 400 Bad Request instead of 500 across all endpoints.
+- Validated page range syntax rejecting malformed tokens like `1,foo` with HTTP 400.
+- Reused precomputed tables in bundle extraction eliminating redundant table reconstruction passes.
+- Blocked static file server access to `server/server.js` returning HTTP 403 Access denied.
+- Added missing TypeScript definitions for `validatePageRangeSyntax` in `src/index.d.ts`.
+
 ### release: v0.1.5 - complete audit fixes, memory safety, and dual registry release
 - Bumped package version to `0.1.5`.
 - Prevented raw buffer use-after-free in `src/converter.js` by defensively copying pixel buffers before pixmap destruction.

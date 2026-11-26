@@ -263,6 +263,13 @@ export function exportToJson(docIR: DocumentIR): string;
 export function parsePageRange(range: string | number | number[] | undefined | null, totalPages: number): number[];
 
 /**
+ * Validates page range syntax.
+ * @param rangeStr - Page range string (e.g. "all", "1-3", "1, 3, 5").
+ * @returns True if syntax is valid.
+ */
+export function validatePageRangeSyntax(rangeStr: string): boolean;
+
+/**
  * Organizes any PDF page into natural reading order without dropping any content.
  */
 export function resolveReadingOrder(
@@ -460,6 +467,7 @@ declare const _default: {
   findDestinationAnchors: typeof findDestinationAnchors;
   formatDestinationSlug: typeof formatDestinationSlug;
   parsePageRange: typeof parsePageRange;
+  validatePageRangeSyntax: typeof validatePageRangeSyntax;
   renderRegion: typeof renderRegion;
   DisplayListCache: typeof DisplayListCache;
   resolveReadingOrder: typeof resolveReadingOrder;

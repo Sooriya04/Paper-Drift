@@ -295,7 +295,7 @@ await runAsyncTest('/api/health returns 200 OK with status, uptime, version, and
     assert.strictEqual(typeof data.version, 'string');
     assert.strictEqual(typeof data.activeRequests, 'number');
     assert.strictEqual(typeof data.maxConcurrent, 'number');
-    assert.strictEqual(data.version, '0.1.5');
+    assert.strictEqual(data.version, '0.1.6');
 
     // 2. HEAD /api/health returns 200 without body
     const resHead = await fetch(`http://localhost:${port}/api/health`, { method: 'HEAD' });
