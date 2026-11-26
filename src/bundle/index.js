@@ -123,7 +123,8 @@ export async function parsePdfBundle(input, options = {}) {
           links,
           rasterImages: [],
           mathItems,
-          claimedLineIndices
+          claimedLineIndices,
+          tables: null
         });
       } finally {
         try {

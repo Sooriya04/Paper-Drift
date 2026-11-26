@@ -351,9 +351,54 @@ await runAsyncTest('Static file server enforces strict path boundary check and b
     // 4. Non-existent file within directory boundary returns 404
     const res404 = await fetch(`http://localhost:${port}/nonexistent.xyz`);
     assert.strictEqual(res404.status, 404);
+
+    // 5. Direct access to server.js returns 403 Access denied
+    const resServerJs = await fetch(`http://localhost:${port}/server.js`);
+    assert.strictEqual(resServerJs.status, 403, 'Expected 403 for /server.js');
+    const textServerJs = await resServerJs.text();
+    assert.strictEqual(textServerJs, 'Access denied');
   } finally {
     await new Promise(resolve => server.close(resolve));
   }
+});
+
+await runAsyncTest('parsePdfBundle populates rawPagesData[i].tables and extractBundleSections reuses precomputed tables', async () => {
+  const { extractBundleSections } = await import('../src/bundle/sections.js');
+  const { convertPdfToMarkdown } = await import('../src/markdown/converter.js');
+
+  const rawPagesData = [{
+    index: 0,
+    pageIndex: 0,
+    pageNumber: 1,
+    width: 612,
+    height: 792,
+    lines: [],
+    rules: [],
+    links: [],
+    mathItems: [],
+    claimedLineIndices: new Set(),
+    tables: null
+  }];
+
+  await convertPdfToMarkdown(attentionPdf, { pagesData: rawPagesData, pages: '1' });
+  assert.ok(Array.isArray(rawPagesData[0].tables), 'convertPdfToMarkdown should populate rawPagesData[0].tables');
+
+  // Verify extractBundleSections reuses page.tables directly without recomputation
+  const precomputedTables = [{ bbox: [0, 0, 100, 100], linesInside: [], markdown: '| Col1 |\n|---|' }];
+  const testPage = {
+    pageNumber: 1,
+    width: 612,
+    height: 792,
+    lines: [],
+    tables: precomputedTables
+  };
+  const sections = extractBundleSections([testPage]);
+  assert.ok(Array.isArray(sections));
+
+  // Run full parsePdfBundle to ensure end-to-end bundle creation preserves tables and sections
+  const bundle = await parsePdfBundle(attentionPdf, { pages: '1' });
+  assert.strictEqual(bundle.success, true);
+  assert.ok(Array.isArray(bundle.sections));
 });
 
 await runAsyncTest('startServer caps port retries at base port + MAX_PORT_RETRIES on repeated EADDRINUSE', async () => {
