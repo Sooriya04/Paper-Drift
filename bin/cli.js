@@ -87,12 +87,12 @@ async function run() {
 
   // Handle CLI daemon subcommand: paper-drift serve [--port <num>]
   if (args[0] === 'serve') {
-    let port = parseInt(process.env.PORT, 10) || 7490;
+    let port = (process.env.PORT && /^\d+$/.test(process.env.PORT)) ? parseInt(process.env.PORT, 10) : 7490;
     for (let i = 1; i < args.length; i++) {
       const arg = args[i];
       if (arg === '--port' || arg === '-p') {
         const portStr = args[++i];
-        if (!portStr || isNaN(parseInt(portStr, 10))) {
+        if (!portStr || !/^\d+$/.test(portStr)) {
           console.error(`\x1b[31m[ERROR]\x1b[0m Invalid or missing port number after ${arg}`);
           process.exit(1);
         }
