@@ -281,6 +281,17 @@ try {
       assert.strictEqual(err.status, 1);
     }
     assert.strictEqual(threw, true, 'Expected invalid port to exit with non-zero status');
+
+    // Strict integer validation: trailing garbage, decimals, non-numeric
+    assert.throws(() => {
+      execSync('node bin/cli.js serve --port 7490abc', { stdio: 'pipe' });
+    });
+    assert.throws(() => {
+      execSync('node bin/cli.js serve --port 7490.5', { stdio: 'pipe' });
+    });
+    assert.throws(() => {
+      execSync('node bin/cli.js serve -p abc', { stdio: 'pipe' });
+    });
   });
 
   runTest('CLI serve rejects unknown arguments', () => {
